@@ -37,7 +37,7 @@
     type PersonResponseDto,
     type StackResponseDto,
   } from '@immich/sdk';
-  import { CommandPaletteDefaultProvider } from '@immich/ui';
+  import { CommandPaletteDefaultProvider, toastManager } from '@immich/ui';
   import { onDestroy, onMount, untrack } from 'svelte';
   import type { SwipeCustomEvent } from 'svelte-gestures';
   import { t } from 'svelte-i18n';
@@ -54,6 +54,8 @@
   import SlideshowBar from './SlideshowBar.svelte';
   import SlideshowMetadataOverlay from './SlideshowMetadataOverlay.svelte';
   import VideoViewer from './VideoWrapperViewer.svelte';
+  import X5InspViewer from './x5/X5InspViewer.svelte';
+  import { isX5InspAsset, type X5InspFallback } from './x5/x5-insp';
 
   export type AssetCursor = {
     current: AssetResponseDto;
@@ -115,6 +117,7 @@
 
   let isPlayingOriginalVideo = $state($alwaysLoadOriginalVideo);
   let slideshowStartAssetId = $state<string>();
+  let x5FallbackAssetId = $state<string>();
 
   const setPlayOriginalVideo = (value: boolean) => {
     isPlayingOriginalVideo = value;
@@ -438,10 +441,10 @@
     if (assetViewerManager.isPlayingMotionPhoto && asset.livePhotoVideoId) {
       return 'LiveVideoViewer';
     }
-    if (
-      asset.exifInfo?.projectionType === ProjectionType.EQUIRECTANGULAR ||
-      (asset.originalPath && asset.originalPath.toLowerCase().endsWith('.insp'))
-    ) {
+    if (isX5InspAsset(asset)) {
+      return x5FallbackAssetId === asset.id ? 'PhotoViewer' : 'X5InspViewer';
+    }
+    if (asset.exifInfo?.projectionType === ProjectionType.EQUIRECTANGULAR) {
       return 'ImagePanaramaViewer';
     }
     if (assetViewerManager.isShowEditor && editManager.selectedTool?.type === EditToolType.Transform) {
@@ -449,6 +452,21 @@
     }
     return 'PhotoViewer';
   });
+
+  /**
+   * 接收 X5 增强 Viewer 的失败结果，并把当前资源交还给 Immich 原生 PhotoViewer。
+   *
+   * @param fallback 失败资源 ID 与稳定原因码；底层异常已经由子组件写入开发者控制台。
+   * @returns 无返回值；仅在失败资源仍是当前资源时切换 Viewer 并显示一次中性提示。
+   */
+  const handleX5Fallback = (fallback: X5InspFallback): void => {
+    if (fallback.assetId !== asset.id) {
+      return;
+    }
+
+    x5FallbackAssetId = fallback.assetId;
+    toastManager.info('360° 预览不可用，已使用普通预览', { timeout: 3000 });
+  };
 
   const showActivityStatus = $derived(
     $slideshowState === SlideshowState.None &&
@@ -571,6 +589,8 @@
         onVideoEnded={() => (assetViewerManager.isPlayingMotionPhoto = false)}
         playOriginalVideo={isPlayingOriginalVideo}
       />
+    {:else if viewerKind === 'X5InspViewer'}
+      <X5InspViewer {asset} onFallback={handleX5Fallback} />
     {:else if viewerKind === 'ImagePanaramaViewer'}
       <ImagePanoramaViewer {asset} />
     {:else if viewerKind === 'CropArea'}
