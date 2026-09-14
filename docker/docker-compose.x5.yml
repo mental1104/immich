@@ -1,0 +1,4 @@
+# X5 私有增强只替换包含 Web build 的 immich-server；其余服务继续使用官方 Compose 中的镜像。
+services:
+  immich-server:
+    image: ghcr.io/mental1104/immich-server:${X5_IMMICH_VERSION:?Set X5_IMMICH_VERSION to an immutable x5-v* tag}
