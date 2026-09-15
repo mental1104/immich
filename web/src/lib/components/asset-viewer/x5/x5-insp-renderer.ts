@@ -1,8 +1,6 @@
-import { X5InspError, type PanoramaDimensions, selectPanoramaDimensions } from './x5-insp';
+import { X5InspError, type PanoramaDimensions, readX5InspCalibration, selectPanoramaDimensions } from './x5-insp';
 
 /** 使用 WebGL2 在访问客户端内存中把左右双鱼眼 INSP 转为临时等距柱状预览。 */
-
-const JPEG_START_MARKER = new Uint8Array([0xff, 0xd8]);
 
 const VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -26,25 +24,31 @@ const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 const float PI = 3.14159265358979323846;
+const float LENS_HALF_FOV = 100.0 * PI / 180.0;
+const float BLEND_AXIS = sin(2.0 * PI / 180.0);
 
 uniform sampler2D sourceImage;
+uniform vec2 frontLensCenter;
+uniform vec2 frontLensRadius;
+uniform vec2 backLensCenter;
+uniform vec2 backLensRadius;
 
 in vec2 panoramaUv;
 out vec4 outputColor;
 
-vec2 directionToLensUv(vec3 direction, bool frontLens) {
+// 把全景空间方向映射到一个鱼眼镜头；圆心和半径来自当前文件的 p2 标定。
+vec2 directionToLensUv(vec3 direction, bool frontLens, vec2 lensCenter, vec2 lensRadius) {
   // 后置镜头朝向 -Z，其局部 X 轴与前置镜头相反，翻转后才能保持接缝两侧方向连续。
   vec3 localDirection = frontLens
     ? direction
     : vec3(-direction.x, direction.y, -direction.z);
   float theta = acos(clamp(localDirection.z, -1.0, 1.0));
-  float radius = theta / PI;
   float phi = atan(localDirection.y, localDirection.x);
-  vec2 lensUv = vec2(0.5) + radius * vec2(cos(phi), sin(phi));
-  float lensOffset = frontLens ? 0.0 : 1.0;
-  return vec2((lensUv.x + lensOffset) * 0.5, lensUv.y);
+  float normalizedRadius = theta / LENS_HALF_FOV;
+  return lensCenter + normalizedRadius * lensRadius * vec2(cos(phi), sin(phi));
 }
 
+// 为当前等距柱状像素同时采样两个镜头，并在重叠区完成线性颜色混合。
 void main() {
   float longitude = (panoramaUv.x - 0.5) * 2.0 * PI;
   float latitude = (panoramaUv.y - 0.5) * PI;
@@ -54,13 +58,26 @@ void main() {
     sin(latitude),
     latitudeRadius * cos(longitude)
   );
-  bool frontLens = direction.z >= 0.0;
-  outputColor = texture(sourceImage, directionToLensUv(direction, frontLens));
+  vec4 frontColor = texture(
+    sourceImage,
+    directionToLensUv(direction, true, frontLensCenter, frontLensRadius)
+  );
+  vec4 backColor = texture(
+    sourceImage,
+    directionToLensUv(direction, false, backLensCenter, backLensRadius)
+  );
+
+  // 只在完整重叠区中央做窄幅渐变，兼顾硬切色差与宽幅混合造成的近景重影。
+  float frontWeight = smoothstep(-BLEND_AXIS, BLEND_AXIS, direction.z);
+  outputColor = mix(backColor, frontColor, frontWeight);
 }
 `;
 
+/** 控制浏览器端 INSP 临时预览的尺寸与编码质量。 */
 export type X5InspRenderOptions = {
+  /** 期望输出宽度，单位为像素；最终值仍受源图和 GPU 限制。 */
   preferredWidth: number;
+  /** JPEG 编码质量，范围为 0 到 1；未提供时使用 0.92。 */
   jpegQuality?: number;
 };
 
@@ -119,24 +136,6 @@ const linkProgram = (
   }
 
   return program;
-};
-
-/**
- * 验证原文件至少是浏览器能够尝试解码的 JPEG 容器。
- *
- * @param source Immich 原文件接口返回的 Blob。
- * @returns 校验成功时无返回值。
- * @throws {X5InspError} 文件过短或缺少 JPEG SOI 标记时抛出 invalid-image。
- */
-const assertJpegContainer = async (source: Blob): Promise<void> => {
-  if (source.size < JPEG_START_MARKER.length) {
-    throw new X5InspError('invalid-image', 'INSP file is empty');
-  }
-
-  const header = new Uint8Array(await source.slice(0, JPEG_START_MARKER.length).arrayBuffer());
-  if (header.some((value, index) => value !== JPEG_START_MARKER[index])) {
-    throw new X5InspError('invalid-image', 'INSP file is not a JPEG container');
-  }
 };
 
 /**
@@ -217,7 +216,7 @@ const encodeCanvas = (canvas: HTMLCanvasElement, quality: number): Promise<Blob>
  * @throws {X5InspError} 格式、浏览器能力、解码或 WebGL 任一阶段失败时抛出，调用方应降级。
  */
 export const renderX5InspPanorama = async (source: Blob, options: X5InspRenderOptions): Promise<Blob> => {
-  await assertJpegContainer(source);
+  const calibration = await readX5InspCalibration(source);
   const image = await decodeInsp(source);
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2', {
@@ -270,7 +269,26 @@ export const renderX5InspPanorama = async (source: Blob, options: X5InspRenderOp
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, textureSource);
 
     gl.useProgram(program);
-    gl.uniform1i(gl.getUniformLocation(program, 'sourceImage'), 0);
+    const sourceImageLocation = gl.getUniformLocation(program, 'sourceImage');
+    const frontLensCenterLocation = gl.getUniformLocation(program, 'frontLensCenter');
+    const frontLensRadiusLocation = gl.getUniformLocation(program, 'frontLensRadius');
+    const backLensCenterLocation = gl.getUniformLocation(program, 'backLensCenter');
+    const backLensRadiusLocation = gl.getUniformLocation(program, 'backLensRadius');
+    if (
+      !sourceImageLocation ||
+      !frontLensCenterLocation ||
+      !frontLensRadiusLocation ||
+      !backLensCenterLocation ||
+      !backLensRadiusLocation
+    ) {
+      throw new X5InspError('render-failed', 'Unable to resolve X5 calibration shader uniforms');
+    }
+
+    gl.uniform1i(sourceImageLocation, 0);
+    gl.uniform2fv(frontLensCenterLocation, calibration.frontLens.center);
+    gl.uniform2fv(frontLensRadiusLocation, calibration.frontLens.radius);
+    gl.uniform2fv(backLensCenterLocation, calibration.backLens.center);
+    gl.uniform2fv(backLensRadiusLocation, calibration.backLens.radius);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.finish();
 
