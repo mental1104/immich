@@ -1,0 +1,59 @@
+name: X5 Server Image
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['x5-v*']
+
+concurrency:
+  group: x5-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build linux/amd64 image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/immich-server
+          tags: |
+            type=ref,event=tag
+            type=raw,value=x5-dev,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Build and push X5 server
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          build-args: |
+            BUILD_ID=${{ github.run_id }}
+            BUILD_IMAGE=ghcr.io/${{ github.repository_owner }}/immich-server
+            BUILD_REPOSITORY=${{ github.repository }}
+            BUILD_SOURCE_COMMIT=${{ github.sha }}
+            BUILD_SOURCE_REF=${{ github.ref }}
+          cache-from: type=gha,scope=x5-immich-server
+          cache-to: type=gha,mode=max,scope=x5-immich-server
+          context: .
+          file: server/Dockerfile
+          platforms: linux/amd64
+          provenance: true
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
