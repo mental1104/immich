@@ -21,28 +21,60 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check available memory
+      - name: Check available memory and workspace disk
         shell: bash
         run: |
           available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
-          minimum_kib="$((8 * 1024 * 1024))"
+          minimum_kib="$((3 * 1024 * 1024))"
           if [[ -z "${available_kib}" || "${available_kib}" -lt "${minimum_kib}" ]]; then
-            echo "::error::NAS CI requires at least 8 GiB of available host memory."
+            echo "::error::NAS CI requires at least 3 GiB of available host memory."
             exit 1
           fi
-          printf 'Available memory: %s MiB\n' "$((available_kib / 1024))"
 
-      - name: Prepare persistent BuildKit builder
+          workspace_free_kib="$(df -Pk "$GITHUB_WORKSPACE" | awk 'END { print $4 }')"
+          minimum_disk_kib="$((15 * 1024 * 1024))"
+          if [[ -z "${workspace_free_kib}" || "${workspace_free_kib}" -lt "${minimum_disk_kib}" ]]; then
+            echo "::error::NAS CI requires at least 15 GiB of free space on the runner workspace volume."
+            exit 1
+          fi
+
+          printf 'Available memory: %s MiB\n' "$((available_kib / 1024))"
+          printf 'Workspace free space: %s MiB\n' "$((workspace_free_kib / 1024))"
+
+      - name: Prepare resource-limited BuildKit builder
         shell: bash
         run: |
-          if ! docker buildx inspect immich-nas >/dev/null 2>&1; then
+          if ! docker buildx inspect immich-nas-x5 >/dev/null 2>&1; then
             docker buildx create \
-              --name immich-nas \
+              --name immich-nas-x5 \
               --driver docker-container \
+              --driver-opt memory=3g \
+              --driver-opt memory-swap=3g \
               --buildkitd-config .github/buildkitd.nas.toml
           fi
-          docker buildx use immich-nas
+          docker buildx use immich-nas-x5
           docker buildx inspect --bootstrap
+
+      - name: Build Web stage and run X5 parser tests
+        shell: bash
+        run: |
+          web_tag="immich-web-ci:${GITHUB_SHA:0:12}"
+          docker buildx build \
+            --load \
+            --platform linux/amd64 \
+            --target web \
+            --progress plain \
+            --tag "$web_tag" \
+            --file server/Dockerfile .
+
+          set +e
+          docker run --rm --entrypoint /bin/bash "$web_tag" -lc \
+            'pnpm --dir web test --run src/lib/components/asset-viewer/x5/x5-insp.spec.ts'
+          test_status="$?"
+          set -e
+
+          docker image rm "$web_tag" >/dev/null 2>&1 || true
+          exit "$test_status"
 
       - name: Build and verify local image
         shell: bash
@@ -52,7 +84,7 @@ jobs:
             --platform linux/amd64 \
             --progress plain \
             --build-arg BUILD_ID="${GITHUB_RUN_ID}" \
-            --build-arg BUILD_IMAGE="ghcr.io/mental1104/immich-server" \
+            --build-arg BUILD_IMAGE="immich-server:x5-nas-dev" \
             --build-arg BUILD_REPOSITORY="${GITHUB_REPOSITORY}" \
             --build-arg BUILD_SOURCE_REF="${GITHUB_REF}" \
             --build-arg BUILD_SOURCE_COMMIT="${GITHUB_SHA}" \
