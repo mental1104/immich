@@ -13,7 +13,7 @@
 
 ## 元数据与任务队列专项约束
 
-- **Measure Before Optimize**：不得先假定瓶颈来自 TypeScript、Ex​​ifTool 子进程或 BullMQ。先在代表性数据集上分别测量任务生成/等待/执行、ExifTool 读取、数据库写入及磁盘 I/O。
+- **Measure Before Optimize**：不得先假定瓶颈来自 TypeScript、ExifTool 子进程或 BullMQ。先在代表性数据集上分别测量任务生成/等待/执行、ExifTool 读取、数据库写入及磁盘 I/O。
 - **Reproducible Benchmarks**：性能结论需记录代码版本、图片格式与规模、并发度、缓存冷热状态、硬件和存储条件，并至少报告吞吐量、耗时分布、CPU、RSS 内存及 I/O；前后对照条件一致。
 - **Queue Correctness**：修改任务调度时明确去重键、状态迁移、重试、取消、失败恢复与重入语义；区分入队去重和执行幂等；不以无界重试、跳过错误或丢任务换取吞吐量。
 - **Data Safety**：禁止在生产图库上执行破坏性压测、清空队列、批量重建索引、数据库迁移或更改原片，除非用户明确授权并具备恢复方案。使用独立测试数据库、Valkey 和样本文件。
