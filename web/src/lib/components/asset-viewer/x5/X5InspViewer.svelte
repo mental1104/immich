@@ -1,6 +1,6 @@
 <script lang="ts">
   import { authManager } from '$lib/managers/auth-manager.svelte';
-  import { AssetMediaSize, viewAsset, type AssetResponseDto } from '@immich/sdk';
+  import { downloadAsset, type AssetResponseDto } from '@immich/sdk';
   import { LoadingSpinner } from '@immich/ui';
   import { getX5InspFailureReason, type X5InspFallback } from './x5-insp';
   import { renderX5InspPanorama } from './x5-insp-renderer';
@@ -29,7 +29,7 @@
   const initialize = async (assetId: string, generation: number): Promise<void> => {
     let objectUrl: string | undefined;
     try {
-      const source = await viewAsset({ ...authManager.params, id: assetId, size: AssetMediaSize.Original });
+      const source = await downloadAsset({ ...authManager.params, id: assetId });
       if (generation !== requestGeneration) {
         return;
       }
