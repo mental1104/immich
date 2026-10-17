@@ -1,0 +1,62 @@
+name: X5 NAS CI
+
+on:
+  push:
+    branches:
+      - x5-viewer-v3.3.3
+
+permissions:
+  contents: read
+
+concurrency:
+  group: x5-nas-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build local linux/amd64 image
+    runs-on: [self-hosted, Linux, X64, immich-nas]
+    timeout-minutes: 180
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check available memory
+        shell: bash
+        run: |
+          available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
+          minimum_kib="$((8 * 1024 * 1024))"
+          if [[ -z "${available_kib}" || "${available_kib}" -lt "${minimum_kib}" ]]; then
+            echo "::error::NAS CI requires at least 8 GiB of available host memory."
+            exit 1
+          fi
+          printf 'Available memory: %s MiB\n' "$((available_kib / 1024))"
+
+      - name: Prepare persistent BuildKit builder
+        shell: bash
+        run: |
+          if ! docker buildx inspect immich-nas >/dev/null 2>&1; then
+            docker buildx create \
+              --name immich-nas \
+              --driver docker-container \
+              --buildkitd-config .github/buildkitd.nas.toml
+          fi
+          docker buildx use immich-nas
+          docker buildx inspect --bootstrap
+
+      - name: Build and verify local image
+        shell: bash
+        run: |
+          docker buildx build \
+            --load \
+            --platform linux/amd64 \
+            --progress plain \
+            --build-arg BUILD_ID="${GITHUB_RUN_ID}" \
+            --build-arg BUILD_IMAGE="ghcr.io/mental1104/immich-server" \
+            --build-arg BUILD_REPOSITORY="${GITHUB_REPOSITORY}" \
+            --build-arg BUILD_SOURCE_REF="${GITHUB_REF}" \
+            --build-arg BUILD_SOURCE_COMMIT="${GITHUB_SHA}" \
+            --tag immich-server:x5-nas-dev \
+            --tag "immich-server:x5-nas-${GITHUB_SHA:0:12}" \
+            --file server/Dockerfile .
+          docker image inspect immich-server:x5-nas-dev --format '{{.Id}} {{.Os}}/{{.Architecture}}'
