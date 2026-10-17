@@ -26,7 +26,7 @@
 
 ## 构建与部署
 
-推送 `x5-v*` 标签会触发 `X5 Server Image` 工作流，在 GitHub-hosted runner 上构建并推送正式 `linux/amd64` 镜像。NAS CI 则在 `x5-viewer-v3.3.3` 分支构建本地 `immich-server:x5-nas-dev`，只构建、不推送、不自动部署。
+上游自带的 `docker.yml` 在自定义代码合入 `main` 后负责标准镜像的 GitHub-hosted 构建。推送 `x5-v*` 标签会额外触发 `X5 Server Image` 工作流，但只有标签指向的提交已经合入 `main` 时才允许发布。NAS CI 则在 `x5-viewer-v3.3.3` 分支构建本地 `immich-server:x5-nas-dev`，只构建、不推送、不自动部署。
 
 ```text
 ghcr.io/mental1104/immich-server:<x5-v* tag>
