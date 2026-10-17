@@ -54,8 +54,8 @@
   import SlideshowBar from './SlideshowBar.svelte';
   import SlideshowMetadataOverlay from './SlideshowMetadataOverlay.svelte';
   import VideoViewer from './VideoWrapperViewer.svelte';
-import X5InspViewer from './x5/X5InspViewer.svelte';
-import { isX5InspAsset, type X5InspFallback } from './x5/x5-insp';
+  import X5InspViewer from './x5/X5InspViewer.svelte';
+  import { isX5InspAsset, type X5InspFallback } from './x5/x5-insp';
 
   export type AssetCursor = {
     current: AssetResponseDto;
@@ -115,7 +115,7 @@ import { isX5InspAsset, type X5InspFallback } from './x5/x5-insp';
 
   let isPlayingOriginalVideo = $state($alwaysLoadOriginalVideo);
   let slideshowStartAssetId = $state<string>();
-let x5FallbackAssetId = $state<string>();
+  let x5FallbackAssetId = $state<string>();
 
   const setPlayOriginalVideo = (value: boolean) => {
     isPlayingOriginalVideo = value;
