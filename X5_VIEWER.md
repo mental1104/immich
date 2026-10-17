@@ -51,7 +51,7 @@ X5_IMMICH_VERSION=x5-v3.3.3-r1 docker compose \
 ## NAS CI 与版本边界
 
 - NAS runner 标签为 `immich-nas`，仅响应此分支的受信任 push，不响应外部 Pull Request。
-- NAS CI 使用 BuildKit 并限制并行度为 2；主机可用内存低于 8 GiB 时会在构建前停止。
+- NAS CI 先运行 X5 元数据解析单测，再构建完整镜像；BuildKit 并行度为 1，构建容器内存上限为 3 GiB。可用内存低于 3 GiB 或 runner 所在卷剩余空间低于 15 GiB 时会在构建前停止。若构建因内存限制失败，不要直接移除限制；先确认宿主机剩余内存与 Immich 服务负载。
 - CI 成功后镜像只存在于 NAS Docker daemon；它不会重启运行中的 Immich。
 - 当前分支基于官方 v3.3.3。切换前必须核实 NAS 正在运行的 Server 版本不高于此版本；禁止用更旧版本回退数据库。
 
