@@ -69,7 +69,7 @@ jobs:
             --file server/Dockerfile .
 
           set +e
-          docker run --rm --entrypoint /bin/bash "$web_tag" -lc \
+          docker run --rm --memory=2g --memory-swap=2g --entrypoint /bin/bash "$web_tag" -lc \
             'pnpm --dir web test --run src/lib/components/asset-viewer/x5/x5-insp.spec.ts'
           test_status="$?"
           set -e
