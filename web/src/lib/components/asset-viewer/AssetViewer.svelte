@@ -467,7 +467,7 @@ let x5FallbackAssetId = $state<string>();
     }
 
     x5FallbackAssetId = fallback.assetId;
-    toastManager.info('360-degree preview unavailable; using standard photo viewer.', { timeout: 3000 });
+    toastManager.info('360-degree preview unavailable; using standard photo viewer.');
   };
 
   const showActivityStatus = $derived(
