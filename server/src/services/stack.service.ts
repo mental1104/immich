@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import type { ArgOf } from 'src/repositories/event.repository.js';
+import { OnEvent } from 'src/decorators.js';
 import { BulkIdsDto } from 'src/dtos/asset-ids.response.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { StackCreateDto, StackResponseDto, StackSearchDto, StackUpdateDto, mapStack } from 'src/dtos/stack.dto.js';
@@ -8,7 +10,21 @@ import { findOrFail } from 'src/utils/misc.js';
 import { UUIDAssetIDParamDto } from 'src/validation.js';
 
 @Injectable()
+/** 复用既有堆叠 API 与通知，为完成元数据提取的 Nikon 文件触发受限自动配对。 */
 export class StackService extends BaseService {
+  /** 元数据提取完成后尝试唯一 Nikon 配对；仅新建成功时通知用户刷新堆叠。 */
+  @OnEvent({ name: 'AssetMetadataExtracted' })
+  async onAssetMetadataExtracted({ assetId, userId, source }: ArgOf<'AssetMetadataExtracted'>) {
+    // 编辑侧写文件不应把用户刚拆开的堆叠自动重建。
+    if (source === 'sidecar-write') {
+      return;
+    }
+    const stackId = await this.stackRepository.autoStackNikonPair(assetId, userId);
+    if (stackId) {
+      await this.eventRepository.emit('StackCreate', { stackId, userId });
+    }
+  }
+
   async search(auth: AuthDto, dto: StackSearchDto): Promise<StackResponseDto[]> {
     const stacks = await this.stackRepository.search({
       ownerId: auth.user.id,

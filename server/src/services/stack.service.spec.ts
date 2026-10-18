@@ -20,6 +20,17 @@ describe(StackService.name, () => {
     expect(sut).toBeDefined();
   });
 
+  /** 仅新建成功时发送已有刷新事件；侧写任务不重建用户拆开的堆叠。 */
+  it('notifies when a Nikon pair is created and skips sidecar writes', async () => {
+    mocks.stack.autoStackNikonPair.mockResolvedValue('stack-id');
+    await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'upload' });
+    expect(mocks.stack.autoStackNikonPair).toHaveBeenCalledWith('raw-id', 'owner-id');
+    expect(mocks.event.emit).toHaveBeenCalledWith('StackCreate', { stackId: 'stack-id', userId: 'owner-id' });
+    mocks.stack.autoStackNikonPair.mockClear();
+    await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'sidecar-write' });
+    expect(mocks.stack.autoStackNikonPair).not.toHaveBeenCalled();
+  });
+
   describe('search', () => {
     it('should search stacks', async () => {
       const auth = AuthFactory.create();

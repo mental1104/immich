@@ -230,9 +230,16 @@ export class MediaService extends BaseService {
     return JobStatus.Success;
   }
 
-  private async extractImage(originalPath: string, minSize: number) {
+  /**
+   * 提取 RAW 内嵌预览，NEF 允许使用小于预览目标的有效 JPEG，避免回退到不支持的压缩解码。
+   * @param originalPath 只读原片路径。
+   * @param minSize 普通 RAW 预览短边的最低像素数。
+   * @param allowSmaller NEF 为 true；内嵌图存在时不因分辨率不足而丢弃。
+   * @returns 提取结果；无内嵌图或普通 RAW 尺寸不足时为 null。
+   */
+  private async extractImage(originalPath: string, minSize: number, allowSmaller = false) {
     let extracted = await this.mediaRepository.extract(originalPath);
-    if (extracted && !(await this.shouldUseExtractedImage(extracted.buffer, minSize))) {
+    if (extracted && !allowSmaller && !(await this.shouldUseExtractedImage(extracted.buffer, minSize))) {
       extracted = null;
     }
 
@@ -253,11 +260,19 @@ export class MediaService extends BaseService {
     return { info, data, colorspace };
   }
 
+  /**
+   * 为缩略图和浏览器全尺寸预览选择图源，NEF 优先使用相机内嵌 JPEG，原片不变。
+   * @param asset 已加载 EXIF 的待处理资源。
+   * @param image 当前图片处理配置；其他 RAW 继续遵守 extractEmbedded 设置。
+   * @param useEdits 是否需要生成应用编辑后的图像。
+   * @returns 已解码图像与衍生文件生成策略；提取不到内嵌图时保留原有解码回退。
+   */
   private async extractOriginalImage(asset: ThumbnailAsset, image: SystemConfig['image'], useEdits = false) {
-    const isExtractEmbedded = image.extractEmbedded && mimeTypes.isRaw(asset.originalFileName);
-    const extracted = isExtractEmbedded ? await this.extractImage(asset.originalPath, image.preview.size) : null;
+    const isNef = /[.]nef$/i.test(asset.originalFileName);
+    const isExtractEmbedded = (image.extractEmbedded || isNef) && mimeTypes.isRaw(asset.originalFileName);
+    const extracted = isExtractEmbedded ? await this.extractImage(asset.originalPath, image.preview.size, isNef) : null;
     const isGenerateFullsize =
-      ((image.fullsize.enabled || asset.exifInfo.projectionType === 'EQUIRECTANGULAR') &&
+      ((image.fullsize.enabled || isNef || asset.exifInfo.projectionType === 'EQUIRECTANGULAR') &&
         !mimeTypes.isWebSupportedImage(asset.originalPath)) ||
       useEdits;
     const isConvertFullsize =

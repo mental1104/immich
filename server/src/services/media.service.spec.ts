@@ -911,6 +911,23 @@ describe(MediaService.name, () => {
       });
     });
 
+    /** NEF 在通用 RAW 提取关闭时仍使用内嵌 JPEG，并生成供缩放的全尺寸副本。 */
+    it('uses Nikon NEF embedded JPEGs without generic RAW extraction enabled', async () => {
+      const asset = AssetFactory.from({ originalFileName: 'capture.NEF' })
+        .exif({ profileDescription: 'Adobe RGB', orientation: undefined })
+        .build();
+      mocks.systemMetadata.get.mockResolvedValue({ image: { extractEmbedded: false, fullsize: { enabled: false } } });
+      mocks.media.extract.mockResolvedValue({ buffer: extractedBuffer, format: RawExtractedFormat.Jpeg });
+      mocks.assetJob.getForGenerateThumbnailJob.mockResolvedValue(getForGenerateThumbnail(asset));
+
+      await sut.handleGenerateThumbnails({ id: asset.id });
+
+      expect(mocks.media.extract).toHaveBeenCalledWith(asset.originalPath);
+      expect(mocks.media.decodeImage).toHaveBeenCalledWith(extractedBuffer, expect.objectContaining({ size: 1440 }));
+      expect(mocks.storage.createOrOverwriteFile).toHaveBeenCalledWith(expect.any(String), extractedBuffer);
+      expect(mocks.media.getImageMetadata).not.toHaveBeenCalled();
+    });
+
     it('should extract embedded image if enabled and available', async () => {
       const asset = AssetFactory.from({ originalFileName: 'file.dng' })
         .exif({ fileSizeInByte: 5000, profileDescription: 'Adobe RGB', bitsPerSample: 14, orientation: undefined })
