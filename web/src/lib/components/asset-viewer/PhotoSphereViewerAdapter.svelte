@@ -162,6 +162,7 @@
   };
 
   let hasChangedResolution: boolean = false;
+  /** 挂载时创建球形查看器并从最远视角开始；返回的清理函数移除事件监听。 */
   onMount(() => {
     if (!container) {
       return;
@@ -202,6 +203,8 @@
       navbar,
       minFov: 15,
       maxFov: 90,
+      // 0 为现有缩放范围的最远端，避免打开全景时默认放大到中间倍率。
+      defaultZoomLvl: 0,
       zoomSpeed: 0.5,
       fisheye: false,
     });
