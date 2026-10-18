@@ -8,7 +8,7 @@
   import AssetViewerNavBar from '$lib/components/asset-viewer/AssetViewerNavBar.svelte';
   import { preloadManager } from '$lib/components/asset-viewer/PreloadManager.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
-  import { AssetAction, ProjectionType } from '$lib/constants';
+  import { AssetAction } from '$lib/constants';
   import { activityManager } from '$lib/managers/activity-manager.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
@@ -56,6 +56,7 @@
   import VideoViewer from './VideoWrapperViewer.svelte';
   import X5InspViewer from './x5/X5InspViewer.svelte';
   import { isX5InspAsset, type X5InspFallback } from './x5/x5-insp';
+  import { isPanoramaImage } from './x5/x5-jpg';
 
   export type AssetCursor = {
     current: AssetResponseDto;
@@ -433,6 +434,7 @@
     lastCursor = cursor;
   });
 
+  /** 根据当前资源与查看状态选择组件；JPG 回退仅影响已核实的 X5 导出规格。 */
   const viewerKind = $derived.by(() => {
     if (previewStackedAsset) {
       return previewStackedAsset.type === AssetTypeEnum.Image ? 'PhotoViewer' : 'StackVideoViewer';
@@ -446,7 +448,7 @@
     if (isX5InspAsset(asset)) {
       return x5FallbackAssetId === asset.id ? 'PhotoViewer' : 'X5InspViewer';
     }
-    if (asset.exifInfo?.projectionType === ProjectionType.EQUIRECTANGULAR) {
+    if (isPanoramaImage(asset)) {
       return 'ImagePanaramaViewer';
     }
     if (assetViewerManager.isShowEditor && editManager.selectedTool?.type === EditToolType.Transform) {

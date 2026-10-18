@@ -1,0 +1,54 @@
+# NAS 隔离开发环境：仅 Web 端口绑定可信 LAN；所有数据使用独立命名卷。
+# 输入：仓库已安装的 pnpm 依赖；输出：Vite HMR 页面和独立测试图库。
+name: immich-nas-dev
+services:
+  database:
+    image: ghcr.io/immich-app/postgres@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: nas-dev-only
+      POSTGRES_DB: immich
+    volumes:
+      - database:/var/lib/postgresql/data
+    shm_size: 128mb
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d immich']
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  redis:
+    image: valkey/valkey@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+  server:
+    image: ${NAS_DEV_SERVER_IMAGE:-immich-server:x5-nas-14c0f2b1aabc}
+    environment:
+      DB_HOSTNAME: database
+      DB_USERNAME: postgres
+      DB_PASSWORD: nas-dev-only
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: redis
+      IMMICH_MACHINE_LEARNING_ENABLED: 'false'
+    volumes:
+      - library:/data
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+  web:
+    image: node:24.21.0
+    working_dir: /workspace
+    # Corepack 使用 package.json 中锁定的 pnpm；SDK 先编译再启动 HMR。
+    command: sh -c 'corepack enable && pnpm --filter @immich/sdk build && pnpm --dir web exec vite dev --host 0.0.0.0 --port 3000 --strictPort'
+    environment:
+      IMMICH_SERVER_URL: http://server:2283
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+    volumes:
+      - ..:/workspace
+    ports:
+      - '192.168.31.238:3000:3000'
+    mem_limit: 3g
+    depends_on:
+      - server
+volumes:
+  database:
+  library:
