@@ -1,9 +1,11 @@
 import request from 'supertest';
+import { vi } from 'vitest';
 import { AssetMediaController } from 'src/controllers/asset-media.controller.js';
 import { AssetMediaStatus } from 'src/dtos/asset-media-response.dto.js';
 import { AssetMetadataKey } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
+import { HlsService } from 'src/services/hls.service.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, automock, controllerSetup, mockBaseService } from 'test/utils.js';
 
@@ -27,20 +29,43 @@ describe(AssetMediaController.name, () => {
   const assetData = Buffer.from('123');
   const filename = 'example.png';
   const service = mockBaseService(AssetMediaService);
+  const hlsService = { getMainPlaylist: vi.fn() };
 
   beforeAll(async () => {
     ctx = await controllerSetup(AssetMediaController, [
       { provide: LoggingRepository, useValue: automock(LoggingRepository, { strict: false }) },
       { provide: AssetMediaService, useValue: service },
+      { provide: HlsService, useValue: hlsService },
     ]);
     return () => ctx.close();
   });
 
   beforeEach(() => {
     service.resetAllMocks();
+    hlsService.getMainPlaylist.mockReset();
     service.uploadAsset.mockResolvedValue({ status: AssetMediaStatus.DUPLICATE, id: factory.uuid() });
 
     ctx.reset();
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  describe('GET /assets/:id/video/playback', () => {
+    it('returns an HLS playlist at the existing playback URL when enabled', async () => {
+      vi.stubEnv('IMMICH_EXPERIMENTAL_IOS_HLS', 'true');
+      const id = factory.uuid();
+      const playlist = '#EXTM3U\n#EXT-X-VERSION:7\n';
+      hlsService.getMainPlaylist.mockResolvedValue(playlist);
+
+      const response = await request(ctx.getHttpServer()).get(`/assets/${id}/video/playback`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('application/vnd.apple.mpegurl');
+      expect(response.headers['cache-control']).toContain('no-store');
+      expect(response.text ?? response.body.toString('utf8')).toBe(playlist);
+      expect(hlsService.getMainPlaylist).toHaveBeenCalledExactlyOnceWith(undefined, id, 'stream/');
+      expect(service.playbackVideo).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /assets', () => {

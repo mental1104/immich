@@ -99,7 +99,9 @@ export class JobService extends BaseService {
   }
 
   /**
-   * Queue follow up jobs
+   * 在任务完成后安排必要的后续任务；实时视频模式不再安排离线视频编码。
+   * @param item 已成功完成的任务及其资产上下文。
+   * @returns 后续任务安排完成时结束；队列失败将向上抛出。
    */
   private async onDone(item: JobItem) {
     switch (item.name) {
@@ -181,7 +183,8 @@ export class JobService extends BaseService {
           { name: JobName.Ocr, data: item.data },
         ];
 
-        if (asset.type === AssetType.Video) {
+        // 禁用上传后的离线转码，但继续安排人脸、OCR 和智能搜索等任务。
+        if (asset.type === AssetType.Video && process.env.IMMICH_EXPERIMENTAL_IOS_HLS !== 'true') {
           jobs.push({ name: JobName.AssetEncodeVideo, data: item.data });
         }
 

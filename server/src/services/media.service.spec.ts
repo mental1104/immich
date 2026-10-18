@@ -1,5 +1,6 @@
 import { ShallowDehydrateObject } from 'kysely';
 import { OutputInfo } from 'sharp';
+import { vi } from 'vitest';
 import type { AudioStreamInfo, JobCounts, RawImageInfo, VideoFormat, VideoStreamInfo } from 'src/types.js';
 import { Exif } from 'src/database.js';
 import { SystemConfig } from 'src/dtos/config.dto.js';
@@ -1949,6 +1950,17 @@ describe(MediaService.name, () => {
   });
 
   describe('handleQueueVideoConversion', () => {
+    it('skips batch encoding without discovering assets when iOS HLS is enabled', async () => {
+      vi.stubEnv('IMMICH_EXPERIMENTAL_IOS_HLS', 'true');
+      try {
+        await expect(sut.handleQueueVideoConversion({ force: true })).resolves.toBe(JobStatus.Skipped);
+        expect(mocks.assetJob.streamForVideoConversion).not.toHaveBeenCalled();
+        expect(mocks.job.queueAll).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
     it('should queue all video assets', async () => {
       const asset = AssetFactory.create({ type: AssetType.Video });
       mocks.assetJob.streamForVideoConversion.mockReturnValue(makeStream([asset]));
@@ -1996,6 +2008,18 @@ describe(MediaService.name, () => {
   });
 
   describe('handleVideoConversion', () => {
+    it('skips queued encoding without deleting historical transcoded files', async () => {
+      vi.stubEnv('IMMICH_EXPERIMENTAL_IOS_HLS', 'true');
+      try {
+        await expect(sut.handleVideoConversion({ id: 'video-id' })).resolves.toBe(JobStatus.Skipped);
+        expect(mocks.assetJob.getForVideoConversion).not.toHaveBeenCalled();
+        expect(mocks.asset.deleteFiles).not.toHaveBeenCalled();
+        expect(mocks.media.transcode).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
     let asset: ReturnType<typeof AssetFactory.create> & {
       videoStream: VideoStreamInfo & { timeBase: number };
       audioStream: AudioStreamInfo | null;

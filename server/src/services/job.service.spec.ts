@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import type { JobItem } from 'src/types.js';
 import { AssetType, ImmichWorker, JobName, JobStatus, QueueName } from 'src/enum.js';
 import { JobService } from 'src/services/job.service.js';
@@ -20,6 +21,27 @@ describe(JobService.name, () => {
   });
 
   describe('onJobRun', () => {
+    it('does not enqueue offline transcoding after video upload when iOS HLS is enabled', async () => {
+      vi.stubEnv('IMMICH_EXPERIMENTAL_IOS_HLS', 'true');
+      try {
+        const item: JobItem = { name: JobName.AssetGenerateThumbnails, data: { id: 'asset-1', source: 'upload' } };
+        mocks.asset.getByIdsWithAllRelationsButStacks.mockResolvedValue([
+          AssetFactory.create({ id: 'asset-1', type: AssetType.Video }),
+        ]);
+        mocks.job.run.mockResolvedValue(JobStatus.Success);
+
+        await sut.onJobRun(QueueName.ThumbnailGeneration, item);
+
+        expect(mocks.job.queueAll).toHaveBeenCalledWith([
+          { name: JobName.SmartSearch, data: item.data },
+          { name: JobName.AssetDetectFaces, data: item.data },
+          { name: JobName.Ocr, data: item.data },
+        ]);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
     it('should queue metadata extraction when sidecar discovery is skipped', async () => {
       const job: JobItem = { name: JobName.SidecarCheck, data: { id: 'asset-1', source: 'upload' } };
       mocks.job.run.mockResolvedValue(JobStatus.Skipped);
