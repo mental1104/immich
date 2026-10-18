@@ -47,6 +47,7 @@ import {
 } from 'src/repositories/search.repository.js';
 import { DB } from 'src/schema/index.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
+import { panoramaPredicate } from 'src/utils/panorama.js';
 import { fromChecksum } from 'src/utils/request.js';
 
 export const getKyselyConfig = (connection: DatabaseConnectionParams): KyselyConfig => {
@@ -423,6 +424,12 @@ export function withEdits(eb: ExpressionBuilder<DB, 'asset'>): AliasedEditAction
 const joinDeduplicationPlugin = new DeduplicateJoinsPlugin();
 /** TODO: This should only be used for search-related queries, not as a general purpose query builder */
 
+/**
+ * 将兼容版搜索条件组合为分页前的查询，全景筛选不改变既有权限范围。
+ * @param kysely 当前数据库连接。
+ * @param options 已经鉴权的查询条件；沿用原行为填充 withDeleted 默认值。
+ * @returns 保留已有归属、可见性与关联条件的查询构造器。
+ */
 export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearchBuilderOptions) {
   options.withDeleted ||= !!(options.trashedAfter || options.trashedBefore || options.isOffline);
 
@@ -533,6 +540,9 @@ export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearc
     )
     .$if(options.isMotion !== undefined, (qb) =>
       qb.where('asset.livePhotoVideoId', options.isMotion ? 'is not' : 'is', null),
+    )
+    .$if(options.isPanorama !== undefined, (qb) =>
+      qb.where((eb) => (options.isPanorama ? panoramaPredicate() : eb.not(panoramaPredicate()))),
     )
     .$if(!!options.isNotInAlbum && (!options.albumIds || options.albumIds.length === 0), (qb) =>
       qb.where((eb) => eb.not(eb.exists((eb) => eb.selectFrom('album_asset').whereRef('assetId', '=', 'asset.id')))),
@@ -733,6 +743,12 @@ function existsPredicates(
 
 // predicates are collected as expressions rather than chained `where` calls so the same
 // helpers can build each `or` branch, which must compose into eb.and/eb.or
+/**
+ * 为结构化搜索的一个分支收集 AND 条件，供外层保留 OR 与权限组合。
+ * @param eb 已包含 asset 与 asset_exif 别名的表达式构造器。
+ * @param branch 已校验的单个过滤分支；不会修改。
+ * @returns 该分支的条件列表；未设置全景条件时不增加相关 SQL。
+ */
 function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch) {
   const { encodedVideoPath } = branch;
   return [
@@ -743,6 +759,7 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
     ...(branch.isFavorite ? [eb('asset.isFavorite', '=', branch.isFavorite.eq)] : []),
     ...(branch.isOffline ? [eb('asset.isOffline', '=', branch.isOffline.eq)] : []),
     ...(branch.isMotion ? [eb('asset.livePhotoVideoId', branch.isMotion.eq ? 'is not' : 'is', null)] : []),
+    ...(branch.isPanorama ? [branch.isPanorama.eq ? panoramaPredicate() : eb.not(panoramaPredicate())] : []),
     ...existsPredicates(eb, branch.isEncoded, () => encodedVideoFiles(eb)),
     ...existsPredicates(eb, branch.hasAlbums, () => albumAssets(eb)),
     ...existsPredicates(eb, branch.hasPeople, () => visibleFaces(eb)),

@@ -2339,6 +2339,7 @@ export type SearchFilterBranch = {
     isFavorite?: BoolFilter;
     isMotion?: BoolFilter;
     isOffline?: BoolFilter;
+    isPanorama?: BoolFilter;
     lensModel?: StringFilterNullable;
     libraryId?: IdFilterNullable;
     make?: StringFilterNullable;
@@ -2373,6 +2374,7 @@ export type SearchFilter = {
     isFavorite?: BoolFilter;
     isMotion?: BoolFilter;
     isOffline?: BoolFilter;
+    isPanorama?: BoolFilter;
     lensModel?: StringFilterNullable;
     libraryId?: IdFilterNullable;
     make?: StringFilterNullable;
@@ -2427,6 +2429,8 @@ export type MetadataSearchDto = {
     isNotInAlbum?: boolean;
     /** Filter by offline status */
     isOffline?: boolean;
+    /** Filter by panorama status (fork extension) */
+    isPanorama?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -2552,6 +2556,8 @@ export type RandomSearchDto = {
     isNotInAlbum?: boolean;
     /** Filter by offline status */
     isOffline?: boolean;
+    /** Filter by panorama status (fork extension) */
+    isPanorama?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -2617,6 +2623,8 @@ export type SmartSearchDto = {
     isNotInAlbum?: boolean;
     /** Filter by offline status */
     isOffline?: boolean;
+    /** Filter by panorama status (fork extension) */
+    isPanorama?: boolean;
     /** Search language code */
     language?: string;
     /** Filter by lens model */
@@ -2688,6 +2696,8 @@ export type StatisticsSearchDto = {
     isNotInAlbum?: boolean;
     /** Filter by offline status */
     isOffline?: boolean;
+    /** Filter by panorama status (fork extension) */
+    isPanorama?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -6542,7 +6552,7 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isMotion, isNotInAlbum, isOffline, lensModel, libraryId, make, minFileSize, model, ocr, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
+export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isMotion, isNotInAlbum, isOffline, isPanorama, lensModel, libraryId, make, minFileSize, model, ocr, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
     albumIds?: string[];
     city?: string | null;
     country?: string | null;
@@ -6553,6 +6563,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
     isMotion?: boolean;
     isNotInAlbum?: boolean;
     isOffline?: boolean;
+    isPanorama?: boolean;
     lensModel?: string | null;
     libraryId?: string | null;
     make?: string | null;
@@ -6589,6 +6600,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         isMotion,
         isNotInAlbum,
         isOffline,
+        isPanorama,
         lensModel,
         libraryId,
         make,

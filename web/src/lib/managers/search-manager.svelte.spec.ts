@@ -32,4 +32,13 @@ describe('SearchManager', () => {
     searchManager.reset();
     expect(searchManager.filter.queryType).toBe('smart');
   });
+
+  /** 通过 URL 恢复全景条件，清空筛选时关闭，避免误影响后续普通搜索。 */
+  it('restores and clears the panorama filter', () => {
+    expect(searchManager.filter.isPanorama).toBe(false);
+    searchManager.setQuery({ isPanorama: true });
+    expect(searchManager.filter.isPanorama).toBe(true);
+    searchManager.reset();
+    expect(searchManager.filter.isPanorama).toBe(false);
+  });
 });

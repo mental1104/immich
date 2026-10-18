@@ -35,10 +35,13 @@ export interface SearchUserIdOptions {
 
 export type SearchIdOptions = SearchAssetIdOptions & SearchUserIdOptions;
 
+/** 兼容版搜索的资产状态条件；缺省字段不参与过滤。 */
 export interface SearchStatusOptions {
   isEncoded?: boolean;
   isFavorite?: boolean;
   isMotion?: boolean;
+  /** Fork 全景搜索条件；未提供时保持原有查询行为。 */
+  isPanorama?: boolean;
   isOffline?: boolean;
   isNotInAlbum?: boolean;
   type?: AssetType;

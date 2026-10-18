@@ -11820,6 +11820,16 @@
             }
           },
           {
+            "name": "isPanorama",
+            "required": false,
+            "in": "query",
+            "description": "Filter by panorama status (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "lensModel",
             "required": false,
             "in": "query",
@@ -23896,6 +23906,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isPanorama": {
+            "deprecated": true,
+            "description": "Filter by panorama status (fork extension)",
+            "type": "boolean"
+          },
           "lensModel": {
             "deprecated": true,
             "description": "Filter by lens model",
@@ -26591,6 +26606,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isPanorama": {
+            "deprecated": true,
+            "description": "Filter by panorama status (fork extension)",
+            "type": "boolean"
+          },
           "lensModel": {
             "deprecated": true,
             "description": "Filter by lens model",
@@ -27397,6 +27417,9 @@
           "isOffline": {
             "$ref": "#/components/schemas/BoolFilter"
           },
+          "isPanorama": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
           "lensModel": {
             "$ref": "#/components/schemas/StringFilterNullable"
           },
@@ -27504,6 +27527,9 @@
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isOffline": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isPanorama": {
             "$ref": "#/components/schemas/BoolFilter"
           },
           "lensModel": {
@@ -28793,6 +28819,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isPanorama": {
+            "deprecated": true,
+            "description": "Filter by panorama status (fork extension)",
+            "type": "boolean"
+          },
           "language": {
             "description": "Search language code",
             "type": "string"
@@ -29560,6 +29591,11 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "isPanorama": {
+            "deprecated": true,
+            "description": "Filter by panorama status (fork extension)",
+            "type": "boolean"
           },
           "lensModel": {
             "deprecated": true,

@@ -73,6 +73,8 @@ export type SearchFilter = {
   date: SearchDateFilter;
   display: SearchDisplayFilters;
   mediaType: MediaType;
+  /** 仅筛选全景，可与照片／视频等已有条件组合。 */
+  isPanorama?: boolean;
   rating?: number | null;
 };
 

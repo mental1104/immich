@@ -9,6 +9,7 @@ import { asLocalTimeISO, parseUtcDate } from '$lib/utils/date-time';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
 
+/** 管理搜索面板状态与 URL 参数转换，包含可与媒体类型组合的全景开关。 */
 class SearchManager {
   #filter = $state<SearchFilter>(this.#fromQuery({}));
 
@@ -33,6 +34,7 @@ class SearchManager {
     await goto(Route.search(this.#toQuery()));
   }
 
+  /** 从 URL 搜索参数恢复面板状态；全景条件缺省时关闭，不修改输入参数。 */
   #fromQuery(searchQuery: MetadataSearchDto | SmartSearchDto): SearchFilter {
     let query = 'query' in searchQuery && searchQuery.query ? searchQuery.query : '';
     let queryType = query ? QueryType.SMART : this.#defaultQueryType();
@@ -95,9 +97,11 @@ class SearchManager {
             ? MediaType.Video
             : MediaType.All,
       rating: searchQuery.rating,
+      isPanorama: searchQuery.isPanorama ?? false,
     };
   }
 
+  /** 生成现有搜索 API 参数；全景开关关闭时省略字段，保留原有请求语义。 */
   #toQuery(): MetadataSearchDto | SmartSearchDto {
     let type: AssetTypeEnum | undefined = undefined;
     if (this.filter.mediaType === MediaType.Image) {
@@ -134,6 +138,7 @@ class SearchManager {
       tagIds: this.filter.tagIds === null ? null : this.filter.tagIds.size > 0 ? [...this.filter.tagIds] : undefined,
       type,
       rating: this.filter.rating,
+      isPanorama: this.filter.isPanorama || undefined,
     };
   }
 

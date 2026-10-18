@@ -168,12 +168,14 @@
     );
   }
 
+  /** 将搜索参数名转换为筛选标签；key 为查询字段，返回当前语言的标题或原字段名。 */
   function getHumanReadableSearchKey(key: keyof SearchTerms): string {
     const keyMap: Partial<Record<keyof SearchTerms, string>> = {
       takenAfter: $t('start_date'),
       takenBefore: $t('end_date'),
       visibility: $t('in_archive'),
       isFavorite: $t('favorite'),
+      isPanorama: $t('panorama'),
       isNotInAlbum: $t('not_in_any_album'),
       type: $t('media_type'),
       query: $t('context'),

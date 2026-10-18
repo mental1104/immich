@@ -213,6 +213,13 @@
               {item.activeTitle() ?? item.title}
             </SearchButton>
           {/each}
+          <SearchButton
+            checked
+            active={searchManager.filter.isPanorama ?? false}
+            onclick={() => (searchManager.filter.isPanorama = !searchManager.filter.isPanorama)}
+          >
+            {$t('panorama')}
+          </SearchButton>
         </div>
       </div>
       {#if activeFilter}

@@ -218,6 +218,24 @@ describe(SearchService.name, () => {
   });
 
   describe('new shape routing', () => {
+    /** 全景条件作为附加约束传递，不丢失现有用户归属和可见性保护。 */
+    it('passes panorama filters through legacy and structured metadata search', async () => {
+      const auth = AuthFactory.create();
+      mocks.search.searchMetadata.mockResolvedValue({ hasNextPage: false, items: [] });
+      await sut.searchMetadata(auth, { size: 1, isPanorama: true });
+      expect(mocks.search.searchMetadata).toHaveBeenCalledWith(
+        { page: 1, size: 1 },
+        expect.objectContaining({ isPanorama: true, userIds: [auth.user.id], visibility: 'not-locked' }),
+      );
+      mocks.search.searchMetadataV3.mockResolvedValue({ hasNextPage: false, items: [] });
+      await sut.searchMetadata(auth, { size: 1, filter: { isPanorama: { eq: true } } });
+      expect(mocks.search.searchMetadataV3).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ filter: expect.objectContaining({ isPanorama: { eq: true } }) }),
+        expect.objectContaining({ userIds: [auth.user.id] }),
+      );
+    });
+
     it('should route a filter request to the V3 search and a flat request to the legacy search', async () => {
       const auth = AuthFactory.create();
 
