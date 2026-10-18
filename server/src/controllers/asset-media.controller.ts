@@ -17,6 +17,7 @@ import {
 import { ApiBody, ApiConsumes, ApiHeader, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { type NextFunction, type Request, type Response } from 'express';
 import type { UploadFiles } from 'src/types.js';
+import { HLS_PLAYLIST_CONTENT_TYPE } from 'src/constants.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
   AssetBulkUploadCheckResponseDto,
@@ -37,15 +38,23 @@ import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard.js'
 import { FileUploadInterceptor, getFiles } from 'src/middleware/file-upload.interceptor.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
+import { HlsService } from 'src/services/hls.service.js';
 import { ImmichFileResponse, sendFile } from 'src/utils/file.js';
 import { FileNotEmptyValidator, UUIDParamDto } from 'src/validation.js';
 
 @ApiTags(ApiTag.Assets)
 @Controller(RouteKey.Asset)
 export class AssetMediaController {
+  /**
+   * 创建媒体 API 控制器，分别委托普通文件播放与 HLS 会话播放。
+   * @param logger 文件响应错误日志组件。
+   * @param service 原文件上传、缩略图和视频播放组件。
+   * @param hlsService 已有 HLS 会话与播放列表组件。
+   */
   constructor(
     private logger: LoggingRepository,
     private service: AssetMediaService,
+    private hlsService: HlsService,
   ) {}
 
   @Post()
@@ -160,6 +169,14 @@ export class AssetMediaController {
     }
   }
 
+  /**
+   * 在实验模式下以原视频播放 URL 返回 HLS 主列表，否则保持文件 Range 播放接口行为。
+   * @param auth 当前已认证用户或共享链接上下文。
+   * @param id 视频资产的 UUID。
+   * @param res Express 响应对象，直接发送播放列表或视频文件。
+   * @param next 原文件发送失败时的错误处理中间件入口。
+   * @returns 无返回值，播放内容通过 Express 响应发送。
+   */
   @Get(':id/video/playback')
   @FileResponse()
   @Authenticated({ permission: Permission.AssetView, sharedLink: true })
@@ -174,6 +191,15 @@ export class AssetMediaController {
     @Res() res: Response,
     @Next() next: NextFunction,
   ) {
+    if (process.env.IMMICH_EXPERIMENTAL_IOS_HLS === 'true') {
+      // iOS 网络播放器请求原 /video/playback URL；使用 stream/ 相对路径复用已鉴权的 HLS 接口。
+      const playlist = await this.hlsService.getMainPlaylist(auth, id, 'stream/');
+      res.header('Cache-Control', 'private, no-store');
+      res.header('Content-Type', HLS_PLAYLIST_CONTENT_TYPE);
+      res.status(HttpStatus.OK).send(playlist);
+      return;
+    }
+
     await sendFile(res, next, () => this.service.playbackVideo(auth, id), this.logger);
   }
 

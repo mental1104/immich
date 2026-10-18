@@ -46,7 +46,14 @@ export class HlsService extends BaseService {
     this.pendingSegments.complete(this.getSegmentKey(event), event);
   }
 
-  async getMainPlaylist(auth: AuthDto, assetId: string) {
+  /**
+   * 为可访问的视频创建 HLS 会话并返回多码率主播放列表。
+   * @param auth 视频访问权限上下文。
+   * @param assetId 需要播放的视频 UUID。
+   * @param variantPathPrefix 子播放列表 URL 前缀；默认空字符串保持原 HLS 接口兼容。
+   * @returns 包含分支播放列表相对 URL 的 UTF-8 文本，配置或元数据不可用时抛出 HTTP 异常。
+   */
+  async getMainPlaylist(auth: AuthDto, assetId: string, variantPathPrefix = '') {
     await this.requireAccess({ auth, permission: Permission.AssetView, ids: [assetId] });
     const { ffmpeg } = await this.getConfig({ withCache: true });
     if (!ffmpeg.realtime.enabled) {
@@ -65,7 +72,7 @@ export class HlsService extends BaseService {
     await this.pendingSessions.wait(sessionId);
     this.trackSession(sessionId);
 
-    return this.generateMainPlaylist(sessionId, ffmpeg, asset);
+    return this.generateMainPlaylist(sessionId, ffmpeg, asset, variantPathPrefix);
   }
 
   async getMediaPlaylist(auth: AuthDto, assetId: string, sessionId: string, variantIndex: number, position?: number) {
@@ -126,7 +133,20 @@ export class HlsService extends BaseService {
     this.websocketRepository.serverSend('HlsSessionEnd', { sessionId });
   }
 
-  private generateMainPlaylist(sessionId: string, ffmpeg: ConfigFFmpegDto, asset: AssetWithStreamInfo) {
+  /**
+   * 根据视频流元数据、转码设置与 URL 前缀组装 HLS 主播放列表。
+   * @param sessionId 本次播放会话 UUID。
+   * @param ffmpeg 当前允许的 HLS 分辨率、编码器等转码设置。
+   * @param asset 视频的流信息及分帧元数据。
+   * @param variantPathPrefix 相对于请求 URL 的子播放列表路径前缀。
+   * @returns 包含各播放档位的 HLS 主播放列表字符串。
+   */
+  private generateMainPlaylist(
+    sessionId: string,
+    ffmpeg: ConfigFFmpegDto,
+    asset: AssetWithStreamInfo,
+    variantPathPrefix: string,
+  ) {
     const fps = (asset.packets.packetCount * asset.videoStream.timeBase) / asset.packets.totalDuration;
     const roundedFps = fps.toFixed(3);
     const sourceResolution = Math.min(asset.videoStream.height, asset.videoStream.width);
@@ -142,7 +162,7 @@ export class HlsService extends BaseService {
       const codecString = getCodecString(codec, width, height, fps);
       lines.push(
         `#EXT-X-STREAM-INF:BANDWIDTH=${Math.round(bitrate * 1.35)},RESOLUTION=${width}x${height},CODECS="${codecString},mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=${roundedFps}`,
-        `${sessionId}/${i}/playlist.m3u8`,
+        `${variantPathPrefix}${sessionId}/${i}/playlist.m3u8`,
       );
     }
     lines.push('');

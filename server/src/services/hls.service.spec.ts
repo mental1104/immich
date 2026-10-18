@@ -223,6 +223,14 @@ describe(HlsService.name, () => {
       await expect(sut.getMainPlaylist(auth, assetId)).resolves.toBe(eiffelExpectedMasterNoAv1);
     });
 
+    it('prefixes variant URLs without changing the existing HLS endpoint output', async () => {
+      setup(eiffelTower);
+      const result = await sut.getMainPlaylist(auth, assetId, 'stream/');
+
+      expect(result).toBe(eiffelExpectedMasterNoAv1.replaceAll(`${sessionId}/`, `stream/${sessionId}/`));
+      expect(result).not.toContain('stream/stream/');
+    });
+
     it('offers every resolution up to the source and derives 4K codec levels (waterfall, 4K, 29.83fps)', async () => {
       setup(waterfall, allCodecs, allResolutions);
       await expect(sut.getMainPlaylist(auth, assetId)).resolves.toBe(waterfallExpectedMasterAv1);

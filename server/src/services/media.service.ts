@@ -537,8 +537,17 @@ export class MediaService extends BaseService {
     };
   }
 
+  /**
+   * 扫描待转码资产并安排批量离线编码；实验模式不扫描、不入队。
+   * @param job 批量任务参数，force 决定是否强制重新处理。
+   * @returns 普通模式处理完返回 Success；离线转码关闭时返回 Skipped。
+   */
   @OnJob({ name: JobName.AssetEncodeVideoQueueAll, queue: QueueName.VideoConversion })
   async handleQueueVideoConversion(job: JobOf<JobName.AssetEncodeVideoQueueAll>): Promise<JobStatus> {
+    if (process.env.IMMICH_EXPERIMENTAL_IOS_HLS === 'true') {
+      return JobStatus.Skipped;
+    }
+
     const { force } = job;
 
     for await (const assets of batched(this.assetJobRepository.streamForVideoConversion(force))) {
@@ -550,8 +559,17 @@ export class MediaService extends BaseService {
     return JobStatus.Success;
   }
 
+  /**
+   * 为单个视频生成离线编码文件；实验模式下存量队列任务安全跳过且不删除文件。
+   * @param id 需要离线编码的视频 UUID。
+   * @returns 正常编码完成返回 Success，禁用时返回 Skipped，元数据缺失时可能返回 Failed。
+   */
   @OnJob({ name: JobName.AssetEncodeVideo, queue: QueueName.VideoConversion })
   async handleVideoConversion({ id }: JobOf<JobName.AssetEncodeVideo>): Promise<JobStatus> {
+    if (process.env.IMMICH_EXPERIMENTAL_IOS_HLS === 'true') {
+      return JobStatus.Skipped;
+    }
+
     const asset = await this.assetJobRepository.getForVideoConversion(id);
     if (!asset) {
       return JobStatus.Failed;
