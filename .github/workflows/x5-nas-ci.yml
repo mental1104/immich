@@ -26,9 +26,9 @@ jobs:
         shell: bash
         run: |
           available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
-          minimum_kib="$((3 * 1024 * 1024))"
+          minimum_kib="$((8 * 1024 * 1024))"
           if [[ -z "${available_kib}" || "${available_kib}" -lt "${minimum_kib}" ]]; then
-            echo "::error::NAS CI requires at least 3 GiB of available host memory."
+            echo "::error::NAS CI requires at least 8 GiB of available host memory."
             exit 1
           fi
 
@@ -45,14 +45,27 @@ jobs:
       - name: Prepare resource-limited BuildKit builder
         shell: bash
         run: |
-          if ! docker buildx inspect immich-nas-x5 >/dev/null 2>&1; then
+          # 旧 Builder 的内存上限为 3 GiB，已导致 Web 构建被 OOM 杀死。
+          # 配置不匹配时重建 Builder，确保新的资源限制实际生效。
+          builder_info="$(docker buildx inspect immich-nas-x5 2>/dev/null || true)"
+          if [[ -n "${builder_info}" ]] && {
+            ! grep -Fq 'memory="7g"' <<<"${builder_info}" ||
+            ! grep -Fq 'memory-swap="8g"' <<<"${builder_info}";
+          }; then
+            echo "Recreating BuildKit builder with updated memory limits."
+            docker buildx rm immich-nas-x5
+            builder_info=""
+          fi
+
+          if [[ -z "${builder_info}" ]]; then
             docker buildx create \
               --name immich-nas-x5 \
               --driver docker-container \
-              --driver-opt memory=3g \
-              --driver-opt memory-swap=3g \
+              --driver-opt memory=7g \
+              --driver-opt memory-swap=8g \
               --buildkitd-config .github/buildkitd.nas.toml
           fi
+
           docker buildx use immich-nas-x5
           docker buildx inspect --bootstrap
 
