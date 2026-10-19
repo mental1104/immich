@@ -17,9 +17,10 @@
 
   type Props = {
     queues: QueueResponseDto[];
+    only?: QueueName[];
   };
 
-  let { queues }: Props = $props();
+  let { queues, only }: Props = $props();
   const featureFlags = featureFlagsManager.value;
 
   type QueueDetails = {
@@ -78,7 +79,9 @@
     },
   };
 
-  let queueList = Object.entries(queueDetails) as [QueueName, QueueDetails][];
+  const queueList = $derived(
+    (Object.entries(queueDetails) as [QueueName, QueueDetails][]).filter(([name]) => !only || only.includes(name)),
+  );
 
   const handleCommand = async (name: QueueName, dto: QueueCommandDto) => {
     const item = asQueueItem($t, { name });
