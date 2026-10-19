@@ -133,7 +133,7 @@
   const advancedFiltersSet = $derived(
     searchManager.filter.display.isArchive ||
       searchManager.filter.display.isFavorite ||
-      searchManager.filter.display.isNotInAlbum ||
+      searchManager.filter.display.albumStatus !== 'all' ||
       searchManager.filter.rating,
   );
 

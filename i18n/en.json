@@ -2466,5 +2466,7 @@
       "facialRecognition": "Matches detected faces to people. Runs per face, not exactly once per asset."
     },
     "canvas_help": "Select a node for details; scroll horizontally on small screens. Online HLS starts separately when playback is requested."
-  }
+  },
+  "search_filter_display_option_all_albums": "All photos",
+  "search_filter_display_option_in_album": "In an album"
 }

@@ -2323,5 +2323,7 @@
   "you": "你",
   "you_dont_have_any_shared_links": "您沒有任何分享連結",
   "your_wifi_name": "您的 Wi-Fi 名稱",
-  "zoom_image": "縮放圖片"
+  "zoom_image": "縮放圖片",
+  "search_filter_display_option_all_albums": "所有相片",
+  "search_filter_display_option_in_album": "已在相簿中"
 }

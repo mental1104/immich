@@ -2463,5 +2463,7 @@
       "facialRecognition": "对检测到的人脸进行匹配和人物归类；按人脸处理，并非每个资产固定执行一次。"
     },
     "canvas_help": "点击节点查看关卡详情；小屏可在图内左右滑动。在线 HLS 在点击播放时独立触发。"
-  }
+  },
+  "search_filter_display_option_all_albums": "全部照片",
+  "search_filter_display_option_in_album": "已在相册中"
 }

@@ -17,7 +17,18 @@
       <SearchButton checked active={filters.isArchive} onclick={() => (filters.isArchive = !filters.isArchive)}
         >{$t('archive')}</SearchButton
       >
-      <SearchButton checked active={filters.isNotInAlbum} onclick={() => (filters.isNotInAlbum = !filters.isNotInAlbum)}
+    </div>
+  </fieldset>
+  <fieldset>
+    <Text class="py-5" fontWeight="medium">{$t('albums')}</Text>
+    <div class="flex flex-wrap gap-2">
+      <SearchButton checked active={filters.albumStatus === 'all'} onclick={() => (filters.albumStatus = 'all')}
+        >{$t('search_filter_display_option_all_albums')}</SearchButton
+      >
+      <SearchButton checked active={filters.albumStatus === 'in'} onclick={() => (filters.albumStatus = 'in')}
+        >{$t('search_filter_display_option_in_album')}</SearchButton
+      >
+      <SearchButton checked active={filters.albumStatus === 'notIn'} onclick={() => (filters.albumStatus = 'notIn')}
         >{$t('search_filter_display_option_not_in_album')}</SearchButton
       >
     </div>

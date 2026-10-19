@@ -78,7 +78,7 @@
   let scrollY = $state(0);
   let scrollYHistory = 0;
 
-  type SearchTerms = MetadataSearchDto & Pick<SmartSearchDto, 'query' | 'queryAssetId'>;
+  type SearchTerms = MetadataSearchDto & Pick<SmartSearchDto, 'query' | 'queryAssetId'> & { isInAlbum?: boolean };
   let searchQuery = $derived(page.url.searchParams.get(QueryParameter.QUERY));
   let smartSearchEnabled = $derived(featureFlagsManager.value.smartSearch);
   let terms = $derived<SearchTerms>(searchQuery ? JSON.parse(searchQuery) : {});
@@ -241,6 +241,7 @@
       isFavorite: $t('favorite'),
       isPanorama: $t('panorama'),
       isNotInAlbum: $t('not_in_any_album'),
+      isInAlbum: $t('search_filter_display_option_in_album'),
       type: $t('media_type'),
       query: $t('context'),
       city: $t('city'),
@@ -332,7 +333,7 @@
             {getHumanReadableSearchKey(searchKey as keyof SearchTerms)}
           </span>
 
-          {#if value !== true}
+          {#if value !== true && searchKey !== 'isInAlbum' && searchKey !== 'isNotInAlbum'}
             <span class="max-w-[min(36rem,55vw)] min-w-0 truncate px-3 py-1.5 text-immich-fg dark:text-immich-dark-fg">
               {#if (searchKey === 'takenAfter' || searchKey === 'takenBefore') && typeof value === 'string'}
                 {getHumanReadableDate(value)}

@@ -8,6 +8,7 @@ import type { SearchFilter } from '$lib/types';
 import { asLocalTimeISO, parseUtcDate } from '$lib/utils/date-time';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
+type SearchQuery = (MetadataSearchDto | SmartSearchDto) & { isInAlbum?: boolean };
 
 /** 管理搜索面板状态与 URL 参数转换，包含可与媒体类型组合的全景开关。 */
 class SearchManager {
@@ -21,7 +22,7 @@ class SearchManager {
     this.#filter = this.#fromQuery({});
   }
 
-  setQuery(query: MetadataSearchDto | SmartSearchDto) {
+  setQuery(query: SearchQuery) {
     this.#filter = this.#fromQuery(query);
   }
 
@@ -88,7 +89,12 @@ class SearchManager {
       display: {
         isArchive: searchQuery.visibility === AssetVisibility.Archive,
         isFavorite: searchQuery.isFavorite ?? false,
-        isNotInAlbum: 'isNotInAlbum' in searchQuery ? (searchQuery.isNotInAlbum ?? false) : false,
+        albumStatus:
+          'isNotInAlbum' in searchQuery && searchQuery.isNotInAlbum
+            ? 'notIn'
+            : 'isInAlbum' in searchQuery && searchQuery.isInAlbum
+              ? 'in'
+              : 'all',
       },
       mediaType:
         searchQuery.type === AssetTypeEnum.Image
@@ -102,7 +108,7 @@ class SearchManager {
   }
 
   /** 生成现有搜索 API 参数；全景开关关闭时省略字段，保留原有请求语义。 */
-  #toQuery(): MetadataSearchDto | SmartSearchDto {
+  #toQuery(): SearchQuery {
     let type: AssetTypeEnum | undefined = undefined;
     if (this.filter.mediaType === MediaType.Image) {
       type = AssetTypeEnum.Image;
@@ -133,7 +139,8 @@ class SearchManager {
         : undefined,
       visibility: this.filter.display.isArchive ? AssetVisibility.Archive : undefined,
       isFavorite: this.filter.display.isFavorite || undefined,
-      isNotInAlbum: this.filter.display.isNotInAlbum || undefined,
+      isNotInAlbum: this.filter.display.albumStatus === 'notIn' || undefined,
+      isInAlbum: this.filter.display.albumStatus === 'in' || undefined,
       personIds: this.filter.personIds.size > 0 ? [...this.filter.personIds] : undefined,
       tagIds: this.filter.tagIds === null ? null : this.filter.tagIds.size > 0 ? [...this.filter.tagIds] : undefined,
       type,

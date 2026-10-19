@@ -50,7 +50,7 @@ export type SearchDateFilter = {
 };
 
 export type SearchDisplayFilters = {
-  isNotInAlbum: boolean;
+  albumStatus: 'all' | 'in' | 'notIn';
   isArchive: boolean;
   isFavorite: boolean;
 };
