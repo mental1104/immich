@@ -63,6 +63,18 @@ const QueueResponseSchema = z
     name: QueueNameSchema,
     isPaused: z.boolean().describe('Whether the queue is paused'),
     statistics: QueueStatisticsSchema,
+    metadataProgress: z
+      .object({
+        total: z.int().nonnegative(),
+        completed: z.int().nonnegative(),
+        queued: z.int().nonnegative(),
+        running: z.int().nonnegative(),
+        failed: z.int().nonnegative(),
+        skipped: z.int().nonnegative(),
+        notStarted: z.int().nonnegative(),
+      })
+      .optional()
+      .describe('PostgreSQL-backed global metadata extraction progress'),
   })
   .meta({ id: 'QueueResponseDto' });
 

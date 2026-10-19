@@ -470,6 +470,42 @@ export class AssetJobRepository {
       .execute();
   }
 
+  async getMetadataExtractionProgress() {
+    const counts = await this.db
+      .selectFrom('asset')
+      .leftJoin('asset_job_status as legacy_status', 'legacy_status.assetId', 'asset.id')
+      .leftJoin('fork_asset_task_status as task_status', (join) =>
+        join
+          .onRef('task_status.assetId', '=', 'asset.id')
+          .on('task_status.taskName', '=', ForkAssetTask.MetadataExtraction),
+      )
+      .where('asset.deletedAt', 'is', null)
+      .select([
+        sql<number>`count(*)`.as('total'),
+        sql<number>`count(*) filter (where task_status.status = ${ForkAssetTaskState.Completed} or (task_status."assetId" is null and legacy_status."metadataExtractedAt" is not null))`.as(
+          'completed',
+        ),
+        sql<number>`count(*) filter (where task_status.status = ${ForkAssetTaskState.Queued})`.as('queued'),
+        sql<number>`count(*) filter (where task_status.status = ${ForkAssetTaskState.Running})`.as('running'),
+        sql<number>`count(*) filter (where task_status.status = ${ForkAssetTaskState.Failed})`.as('failed'),
+        sql<number>`count(*) filter (where task_status.status = ${ForkAssetTaskState.Skipped})`.as('skipped'),
+        sql<number>`count(*) filter (where task_status."assetId" is null and legacy_status."metadataExtractedAt" is null)`.as(
+          'notStarted',
+        ),
+      ])
+      .executeTakeFirstOrThrow();
+
+    return Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, Number(value)])) as {
+      total: number;
+      completed: number;
+      queued: number;
+      running: number;
+      failed: number;
+      skipped: number;
+      notStarted: number;
+    };
+  }
+
   async queueAssetTasks(taskName: ForkAssetTaskName, assetIds: string[]): Promise<void> {
     const ids = [...new Set(assetIds)];
     if (ids.length === 0) {

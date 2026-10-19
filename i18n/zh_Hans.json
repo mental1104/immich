@@ -253,6 +253,8 @@
     "metadata_extraction_job_description": "从每个文件中提取元数据信息，例如GPS、人脸和分辨率",
     "metadata_faces_import_setting": "启用人脸导入",
     "metadata_faces_import_setting_description": "从图片EXIF数据和附带文件中导入人脸信息",
+    "metadata_progress": "全图库元数据处理进度",
+    "metadata_progress_details": "排队 {queued} · 运行中 {running} · 失败 {failed} · 跳过 {skipped} · 尚未开始 {notStarted}",
     "metadata_settings": "元数据设置",
     "metadata_settings_description": "管理元数据设置",
     "migration_job": "迁移",

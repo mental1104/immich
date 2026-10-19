@@ -254,6 +254,8 @@
     "metadata_extraction_job_description": "Extract metadata information from each asset, such as GPS, faces and resolution",
     "metadata_faces_import_setting": "Enable face import",
     "metadata_faces_import_setting_description": "Import faces from image EXIF data and sidecar files",
+    "metadata_progress": "Metadata progress across the library",
+    "metadata_progress_details": "Queued {queued} · Running {running} · Failed {failed} · Skipped {skipped} · Not started {notStarted}",
     "metadata_settings": "Metadata Settings",
     "metadata_settings_description": "Manage metadata settings",
     "migration_job": "Migration",

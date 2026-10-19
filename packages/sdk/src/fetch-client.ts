@@ -2214,6 +2214,15 @@ export type PublicConfigDto = {
     theme: PublicConfigThemeDto;
 };
 export type QueueResponseDto = {
+    metadataProgress?: {
+        completed: number;
+        failed: number;
+        notStarted: number;
+        queued: number;
+        running: number;
+        skipped: number;
+        total: number;
+    };
     /** Whether the queue is paused */
     isPaused: boolean;
     name: QueueName;

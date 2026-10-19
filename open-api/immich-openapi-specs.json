@@ -26261,6 +26261,20 @@
       },
       "QueueResponseDto": {
         "properties": {
+          "metadataProgress": {
+            "description": "PostgreSQL-backed global metadata extraction progress",
+            "properties": {
+              "completed": { "minimum": 0, "type": "integer" },
+              "failed": { "minimum": 0, "type": "integer" },
+              "notStarted": { "minimum": 0, "type": "integer" },
+              "queued": { "minimum": 0, "type": "integer" },
+              "running": { "minimum": 0, "type": "integer" },
+              "skipped": { "minimum": 0, "type": "integer" },
+              "total": { "minimum": 0, "type": "integer" }
+            },
+            "required": ["total", "completed", "queued", "running", "failed", "skipped", "notStarted"],
+            "type": "object"
+          },
           "isPaused": {
             "description": "Whether the queue is paused",
             "type": "boolean"

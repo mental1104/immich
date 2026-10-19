@@ -6,7 +6,7 @@
   import { asQueueItem } from '$lib/services/queue.service';
   import { locale } from '$lib/stores/preferences.store';
   import { transformToTitleCase } from '$lib/utils';
-  import { QueueCommand, type QueueCommandDto, type QueueResponseDto } from '@immich/sdk';
+  import { QueueCommand, QueueName, type QueueCommandDto, type QueueResponseDto } from '@immich/sdk';
   import { Badge, Icon, IconButton, Link } from '@immich/ui';
   import {
     mdiAlertCircle,
@@ -127,6 +127,40 @@
           <p>{$t('waiting')}</p>
         </div>
       </div>
+
+      {#if queue.name === QueueName.MetadataExtraction && queue.metadataProgress}
+        {@const progress = queue.metadataProgress}
+        {@const percent = progress.total === 0 ? 0 : Math.floor((progress.completed / progress.total) * 100)}
+        <div class="mt-3 flex max-w-xl flex-col gap-2 text-sm">
+          <div class="flex justify-between gap-4">
+            <span>{$t('admin.metadata_progress')}</span>
+            <span class="tabular-nums">
+              {progress.completed.toLocaleString($locale)} / {progress.total.toLocaleString($locale)} ({percent}%)
+            </span>
+          </div>
+          <div
+            class="h-2 overflow-hidden rounded-full bg-gray-300 dark:bg-gray-600"
+            role="progressbar"
+            aria-label={$t('admin.metadata_progress')}
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div class="h-full rounded-full bg-immich-primary" style={`width: ${percent}%`}></div>
+          </div>
+          <p class="text-xs text-immich-gray dark:text-immich-dark-fg">
+            {$t('admin.metadata_progress_details', {
+              values: {
+                queued: progress.queued.toLocaleString($locale),
+                running: progress.running.toLocaleString($locale),
+                failed: progress.failed.toLocaleString($locale),
+                skipped: progress.skipped.toLocaleString($locale),
+                notStarted: progress.notStarted.toLocaleString($locale),
+              },
+            })}
+          </p>
+        </div>
+      {/if}
     </div>
   </div>
   <div class="flex w-full flex-row sm:w-32 sm:flex-col">
