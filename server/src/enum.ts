@@ -841,6 +841,9 @@ export enum BootstrapEventPriority {
 export enum QueueName {
   ThumbnailGeneration = 'thumbnailGeneration',
   MetadataExtraction = 'metadataExtraction',
+  VideoMetadataExtraction = 'videoMetadataExtraction',
+  // Preserve the queue key so pending work in Redis remains available after the rename.
+  RawPairing = 'nikonPairing',
   VideoConversion = 'videoConversion',
   FaceDetection = 'faceDetection',
   FacialRecognition = 'facialRecognition',
@@ -889,6 +892,8 @@ export enum JobName {
   AssetFileMigration = 'AssetFileMigration',
   AssetGenerateThumbnailsQueueAll = 'AssetGenerateThumbnailsQueueAll',
   AssetGenerateThumbnails = 'AssetGenerateThumbnails',
+  // Keep the Redis job name stable so already-enqueued Nikon pairing jobs remain consumable.
+  AssetStackRawPair = 'AssetStackNikonPair',
 
   AuditTableCleanup = 'AuditTableCleanup',
 

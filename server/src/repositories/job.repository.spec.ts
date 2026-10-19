@@ -1,0 +1,81 @@
+import { AssetType, JobName, QueueName } from 'src/enum.js';
+import { shouldPauseVideoMetadataExtraction } from 'src/repositories/job.repository.js';
+
+describe('shouldPauseVideoMetadataExtraction', () => {
+  it('pauses on I/O pressure even when CPU is mostly idle', () => {
+    expect(
+      shouldPauseVideoMetadataExtraction({
+        paused: false,
+        cpuPressure: 0,
+        ioPressure: 6,
+        cpuBusy: 12,
+        ioWait: 1,
+        diskBusy: 20,
+        photoWorkPending: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('waits for lower load before resuming and avoids threshold flapping', () => {
+    const load = { cpuPressure: 6, ioPressure: 1, cpuBusy: 45, ioWait: 2, diskBusy: 55, photoWorkPending: false };
+    expect(shouldPauseVideoMetadataExtraction({ ...load, paused: true })).toBe(true);
+    expect(shouldPauseVideoMetadataExtraction({ ...load, paused: false })).toBe(false);
+    expect(shouldPauseVideoMetadataExtraction({ ...load, cpuPressure: 4, paused: true })).toBe(false);
+  });
+
+  it('honors CPU pressure as a pause condition', () => {
+    expect(
+      shouldPauseVideoMetadataExtraction({
+        paused: false,
+        cpuPressure: 12,
+        ioPressure: 0,
+        cpuBusy: 20,
+        ioWait: 0,
+        diskBusy: null,
+        photoWorkPending: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('keeps videos queued while any photo metadata work remains', () => {
+    expect(
+      shouldPauseVideoMetadataExtraction({
+        paused: false,
+        cpuPressure: 0,
+        ioPressure: 0,
+        cpuBusy: 10,
+        ioWait: 0,
+        diskBusy: 0,
+        photoWorkPending: true,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('video metadata queue classification', () => {
+  it('uses a separate queue for video metadata jobs', async () => {
+    const { JobRepository } = await import('src/repositories/job.repository.js');
+    const repository = Object.create(JobRepository.prototype) as InstanceType<typeof JobRepository>;
+    repository['handlers'] = {
+      [JobName.AssetExtractMetadata]: {
+        jobName: JobName.AssetExtractMetadata,
+        queueName: QueueName.MetadataExtraction,
+        handler: () => Promise.resolve('success' as never),
+        label: 'test',
+      },
+    };
+
+    expect(repository['getQueueName'](JobName.AssetExtractMetadata, { assetType: AssetType.Video })).toBe(
+      QueueName.VideoMetadataExtraction,
+    );
+    expect(repository['getQueueName'](JobName.AssetExtractMetadata, { assetType: AssetType.Image })).toBe(
+      QueueName.MetadataExtraction,
+    );
+    expect(
+      repository['getJobOptions']({
+        name: JobName.AssetExtractMetadata,
+        data: { id: 'asset-1', assetType: AssetType.Image },
+      }),
+    ).toEqual({ jobId: 'asset-1', priority: 1 });
+  });
+});

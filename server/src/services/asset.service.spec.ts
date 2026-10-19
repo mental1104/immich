@@ -43,6 +43,7 @@ describe(AssetService.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(AssetService));
+    mocks.assetJob.getTaskStatuses.mockResolvedValue([]);
   });
 
   describe('getStatistics', () => {
@@ -92,6 +93,37 @@ describe(AssetService.name, () => {
       );
     });
 
+    it('should include per-asset task status for an owner', async () => {
+      const asset = AssetFactory.create();
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset.id]));
+      mocks.asset.getById.mockResolvedValue(getForAsset(asset));
+      mocks.assetJob.getTaskStatuses.mockResolvedValue([
+        {
+          taskName: 'thumbnail-generation',
+          status: 'failed',
+          attempts: 2,
+          generation: 3,
+          queuedAt: new Date('2026-10-18T10:00:00Z'),
+          startedAt: new Date('2026-10-18T10:01:00Z'),
+          completedAt: null,
+          failedAt: new Date('2026-10-18T10:02:00Z'),
+          errorMessage: 'thumbnail failed',
+        },
+      ]);
+
+      const result = await sut.get(authStub.admin, asset.id);
+
+      expect(result.taskStatuses).toEqual([
+        expect.objectContaining({
+          taskName: 'thumbnail-generation',
+          status: 'failed',
+          attempts: 2,
+          errorMessage: 'thumbnail failed',
+        }),
+      ]);
+      expect(mocks.assetJob.getTaskStatuses).toHaveBeenCalledWith(asset.id);
+    });
+
     it('should allow shared link access', async () => {
       const asset = AssetFactory.create();
       mocks.access.asset.checkSharedLinkAccess.mockResolvedValue(new Set([asset.id]));
@@ -117,6 +149,7 @@ describe(AssetService.name, () => {
 
       expect(result).toEqual(expect.objectContaining({ hasMetadata: false }));
       expect(result).not.toHaveProperty('exifInfo');
+      expect(result).not.toHaveProperty('taskStatuses');
       expect(mocks.access.asset.checkSharedLinkAccess).toHaveBeenCalledWith(
         authStub.adminSharedLink.sharedLink?.id,
         new Set([asset.id]),
@@ -722,11 +755,23 @@ describe(AssetService.name, () => {
 
     it('should run the refresh metadata job', async () => {
       mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(['asset-1']));
+      mocks.assetJob.getAssetTypes.mockResolvedValue([{ id: 'asset-1', type: AssetType.Image }]);
 
       await sut.run(authStub.admin, { assetIds: ['asset-1'], name: AssetJobName.REFRESH_METADATA });
 
       expect(mocks.job.queueAll).toHaveBeenCalledWith([
-        { name: JobName.AssetExtractMetadata, data: { id: 'asset-1' } },
+        { name: JobName.AssetExtractMetadata, data: { id: 'asset-1', assetType: AssetType.Image, force: true } },
+      ]);
+    });
+
+    it('should route refreshed video metadata to the low-priority queue', async () => {
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(['asset-1']));
+      mocks.assetJob.getAssetTypes.mockResolvedValue([{ id: 'asset-1', type: AssetType.Video }]);
+
+      await sut.run(authStub.admin, { assetIds: ['asset-1'], name: AssetJobName.REFRESH_METADATA });
+
+      expect(mocks.job.queueAll).toHaveBeenCalledWith([
+        { name: JobName.AssetExtractMetadata, data: { id: 'asset-1', assetType: AssetType.Video, force: true } },
       ]);
     });
 

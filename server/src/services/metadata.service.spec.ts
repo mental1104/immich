@@ -85,6 +85,9 @@ describe(MetadataService.name, () => {
   beforeEach(() => {
     ({ sut, mocks } = newTestService(MetadataService));
 
+    mocks.assetJob.queueMetadataTasks.mockImplementation((ids) => Promise.resolve(ids));
+    mocks.assetJob.completeMetadataTask.mockResolvedValue();
+
     mockReadTags();
 
     mocks.config.getWorker.mockReturnValue(ImmichWorker.Microservices);
@@ -145,7 +148,7 @@ describe(MetadataService.name, () => {
       expect(mocks.job.queueAll).toHaveBeenCalledWith([
         {
           name: JobName.AssetExtractMetadata,
-          data: { id: asset.id },
+          data: { id: asset.id, assetType: asset.type },
         },
       ]);
     });
@@ -159,7 +162,7 @@ describe(MetadataService.name, () => {
       expect(mocks.job.queueAll).toHaveBeenCalledWith([
         {
           name: JobName.AssetExtractMetadata,
-          data: { id: asset.id },
+          data: { id: asset.id, assetType: asset.type, force: true },
         },
       ]);
     });
@@ -187,6 +190,20 @@ describe(MetadataService.name, () => {
       expect(mocks.asset.update).not.toHaveBeenCalled();
     });
 
+    it('should move an unclassified video job to the low-priority video queue', async () => {
+      const asset = AssetFactory.create({ type: AssetType.Video });
+      mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
+
+      await expect(sut.handleMetadataExtraction({ id: asset.id })).resolves.toBe(JobStatus.Skipped);
+
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.AssetExtractMetadata,
+        data: { id: asset.id, assetType: AssetType.Video, force: true },
+      });
+      expect(mocks.media.probe).not.toHaveBeenCalled();
+      expect(mocks.storage.stat).not.toHaveBeenCalled();
+    });
+
     it('should handle a date in a sidecar file', async () => {
       const originalDate = new Date('2023-11-21T16:13:17.517Z');
       const sidecarDate = new Date('2022-01-01T00:00:00.000Z');
@@ -194,7 +211,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ CreationDate: originalDate.toISOString() }, { CreationDate: sidecarDate.toISOString() });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -210,6 +227,7 @@ describe(MetadataService.name, () => {
           localDateTime: sidecarDate,
         }),
       );
+      expect(mocks.assetJob.completeMetadataTask).toHaveBeenCalledWith(asset.id);
     });
 
     it('should take the file modification date when missing exif and earlier than creation date', async () => {
@@ -225,7 +243,7 @@ describe(MetadataService.name, () => {
       } as Stats);
       mockReadTags();
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -257,7 +275,7 @@ describe(MetadataService.name, () => {
       } as Stats);
       mockReadTags();
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -282,7 +300,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ DateTimeOriginal: '2022:01:01 00:00:00' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -310,7 +328,7 @@ describe(MetadataService.name, () => {
       } as Stats);
       mockReadTags({ ISO: [160] });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -334,7 +352,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ISO: 65_535, RecommendedExposureIndex: 128_000 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({ exif: expect.objectContaining({ iso: 128_000 }) }),
       );
@@ -356,7 +374,7 @@ describe(MetadataService.name, () => {
         GPSLongitude: asset.exifInfo.longitude!,
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -388,7 +406,7 @@ describe(MetadataService.name, () => {
       } as Stats);
       mockReadTags({ GPSLatitude: 10, GPSLongitude: 20 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -415,7 +433,7 @@ describe(MetadataService.name, () => {
         GPSLongitude: 0,
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -432,7 +450,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ TagsList: ['Parent'] });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: 'Parent', parent: undefined });
     });
@@ -445,7 +463,7 @@ describe(MetadataService.name, () => {
       mocks.tag.upsertValue.mockResolvedValueOnce(tagStub.parentUpsert);
       mocks.tag.upsertValue.mockResolvedValueOnce(tagStub.childUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenNthCalledWith(1, {
         userId: asset.ownerId,
@@ -466,7 +484,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ Keywords: 'Parent' });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: 'Parent', parent: undefined });
     });
@@ -478,7 +496,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ Keywords: ['Parent'] });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: 'Parent', parent: undefined });
     });
@@ -490,7 +508,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ Keywords: ['Parent', 2024] });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: 'Parent', parent: undefined });
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: '2024', parent: undefined });
@@ -503,7 +521,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ Keywords: 'Parent/Child' });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.tag.upsertValue).toHaveBeenNthCalledWith(1, {
         userId: asset.ownerId,
         value: 'Parent',
@@ -523,7 +541,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ Keywords: 'Child', TagsList: ['Parent/Child'] });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenNthCalledWith(1, {
         userId: asset.ownerId,
@@ -545,7 +563,7 @@ describe(MetadataService.name, () => {
       mocks.tag.upsertValue.mockResolvedValueOnce(tagStub.parentUpsert);
       mocks.tag.upsertValue.mockResolvedValueOnce(tagStub.childUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenNthCalledWith(1, {
         userId: asset.ownerId,
@@ -571,7 +589,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ HierarchicalSubject: ['Parent', 2024] });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: 'Parent', parent: undefined });
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({ userId: asset.ownerId, value: '2024', parent: undefined });
@@ -584,7 +602,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ HierarchicalSubject: ['Mom/Dad'] });
       mocks.tag.upsertValue.mockResolvedValueOnce(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenCalledWith({
         userId: asset.ownerId,
@@ -600,7 +618,7 @@ describe(MetadataService.name, () => {
       mockReadTags({ HierarchicalSubject: ['Parent2|Child2'], TagsList: ['Parent/Child'] });
       mocks.tag.upsertValue.mockResolvedValue(tagStub.parentUpsert);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.upsertValue).toHaveBeenNthCalledWith(1, {
         userId: asset.ownerId,
@@ -619,7 +637,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.tag.replaceAssetTags).toHaveBeenCalledWith(asset.id, []);
     });
@@ -629,7 +647,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mocks.media.probe.mockResolvedValue(videoInfoStub.matroskaContainer);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.storage.createOrOverwriteFile).not.toHaveBeenCalled();
       expect(mocks.job.queue).not.toHaveBeenCalled();
@@ -647,7 +665,7 @@ describe(MetadataService.name, () => {
         ContainerDirectory: [{ Foo: 100 }],
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
     });
 
     it('should extract the correct video orientation', async () => {
@@ -656,7 +674,7 @@ describe(MetadataService.name, () => {
       mocks.media.probe.mockResolvedValue(videoInfoStub.videoStreamVertical2160p);
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
@@ -674,7 +692,7 @@ describe(MetadataService.name, () => {
       mocks.media.probePackets.mockResolvedValue(emptyPackets);
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -700,7 +718,7 @@ describe(MetadataService.name, () => {
       mocks.media.probePackets.mockResolvedValue(emptyPackets);
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -728,7 +746,7 @@ describe(MetadataService.name, () => {
       });
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -752,7 +770,7 @@ describe(MetadataService.name, () => {
       mocks.media.probePackets.mockResolvedValue(emptyPackets);
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.not.objectContaining({ keyframes: expect.anything() }),
@@ -766,7 +784,7 @@ describe(MetadataService.name, () => {
       mocks.media.probePackets.mockResolvedValue(emptyPackets);
       mockReadTags({ VideoFrameRate: '30' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -781,7 +799,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.media.probe).not.toHaveBeenCalled();
       expect(mocks.media.probePackets).not.toHaveBeenCalled();
@@ -819,7 +837,7 @@ describe(MetadataService.name, () => {
       const video = randomBytes(512);
       mocks.metadata.extractBinaryTag.mockResolvedValue(video);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.metadata.extractBinaryTag).toHaveBeenCalledWith(asset.originalPath, 'MotionPhotoVideo');
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.create).toHaveBeenCalledWith({
@@ -871,7 +889,7 @@ describe(MetadataService.name, () => {
       const video = randomBytes(512);
       mocks.metadata.extractBinaryTag.mockResolvedValue(video);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.metadata.extractBinaryTag).toHaveBeenCalledWith(asset.originalPath, 'EmbeddedVideoFile');
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.create).toHaveBeenCalledWith({
@@ -923,7 +941,7 @@ describe(MetadataService.name, () => {
       const video = randomBytes(512);
       mocks.storage.readFile.mockResolvedValue(video);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.storage.readFile).toHaveBeenCalledWith(asset.originalPath, expect.any(Object));
       expect(mocks.asset.create).toHaveBeenCalledWith({
@@ -968,7 +986,7 @@ describe(MetadataService.name, () => {
       const video = randomBytes(512);
       mocks.storage.readFile.mockResolvedValue(video);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.job.queue).toHaveBeenNthCalledWith(1, {
         name: JobName.AssetDelete,
         data: { id: asset.livePhotoVideoId, deleteOnDisk: true },
@@ -991,7 +1009,7 @@ describe(MetadataService.name, () => {
       mocks.storage.readFile.mockResolvedValue(video);
       mocks.storage.checkFileExists.mockResolvedValue(true);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.create).not.toHaveBeenCalled();
       expect(mocks.storage.createOrOverwriteFile).not.toHaveBeenCalled();
       // The still asset gets saved by handleMetadataExtraction, but not the video
@@ -1014,7 +1032,7 @@ describe(MetadataService.name, () => {
       const video = randomBytes(512);
       mocks.storage.readFile.mockResolvedValue(video);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.update).toHaveBeenCalledWith({
         id: motionAsset.id,
         visibility: AssetVisibility.Hidden,
@@ -1041,7 +1059,7 @@ describe(MetadataService.name, () => {
       const video = randomBytes(512);
       mocks.storage.readFile.mockResolvedValue(video);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.user.updateUsage).not.toHaveBeenCalled();
     });
 
@@ -1077,7 +1095,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags(tags);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1144,7 +1162,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags(tags);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1167,7 +1185,7 @@ describe(MetadataService.name, () => {
         },
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalled();
@@ -1189,7 +1207,7 @@ describe(MetadataService.name, () => {
           duration: 6.21,
         },
       });
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalled();
@@ -1212,7 +1230,7 @@ describe(MetadataService.name, () => {
         },
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalled();
@@ -1235,7 +1253,7 @@ describe(MetadataService.name, () => {
         },
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.upsertExif).toHaveBeenCalled();
@@ -1252,7 +1270,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Duration: 123 }, {});
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.metadata.readTags).toHaveBeenCalledTimes(1);
       expect(mocks.asset.update).toHaveBeenCalledWith(expect.objectContaining({ duration: 123_000 }));
@@ -1264,7 +1282,7 @@ describe(MetadataService.name, () => {
 
       mockReadTags({ Duration: 123 }, { Duration: 456 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.metadata.readTags).toHaveBeenCalledTimes(2);
       expect(mocks.asset.update).toHaveBeenCalledWith(expect.objectContaining({ duration: 123_000 }));
@@ -1275,7 +1293,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Duration: 123 }, { Duration: 456 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.metadata.readTags).toHaveBeenCalledTimes(1);
       expect(mocks.asset.update).toHaveBeenCalledWith(expect.objectContaining({ duration: null }));
@@ -1293,7 +1311,7 @@ describe(MetadataService.name, () => {
         },
       });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.metadata.readTags).toHaveBeenCalledTimes(1);
       expect(mocks.asset.update).toHaveBeenCalledWith(expect.objectContaining({ duration: 456_000 }));
@@ -1304,7 +1322,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Description: '\t \v \f \n \r' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1315,7 +1333,7 @@ describe(MetadataService.name, () => {
       );
 
       mockReadTags({ ImageDescription: ' my\n description' });
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1331,7 +1349,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Description: 1000 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1347,7 +1365,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mocks.systemMetadata.get.mockResolvedValue({ metadata: { faces: { import: false } } });
       mockReadTags(makeFaceTags({ Name: 'Person 1' }));
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.person.getDistinctNames).not.toHaveBeenCalled();
     });
 
@@ -1356,7 +1374,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mocks.systemMetadata.get.mockResolvedValue({ metadata: { faces: { import: true } } });
       mockReadTags();
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.person.getDistinctNames).not.toHaveBeenCalled();
     });
 
@@ -1367,7 +1385,7 @@ describe(MetadataService.name, () => {
       mockReadTags(makeFaceTags());
       mocks.person.getDistinctNames.mockResolvedValue([]);
       mocks.person.createAll.mockResolvedValue([]);
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.person.createAll).not.toHaveBeenCalled();
       expect(mocks.person.refreshFaces).not.toHaveBeenCalled();
       expect(mocks.person.updateAll).not.toHaveBeenCalled();
@@ -1380,7 +1398,7 @@ describe(MetadataService.name, () => {
       mockReadTags(makeFaceTags({ Name: '' }));
       mocks.person.getDistinctNames.mockResolvedValue([]);
       mocks.person.createAll.mockResolvedValue([]);
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.person.createAll).not.toHaveBeenCalled();
       expect(mocks.person.refreshFaces).not.toHaveBeenCalled();
       expect(mocks.person.updateAll).not.toHaveBeenCalled();
@@ -1404,7 +1422,7 @@ describe(MetadataService.name, () => {
       mocks.person.createAll.mockResolvedValue([person]);
       mocks.person.update.mockResolvedValue(person);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.person.refreshFaces).toHaveBeenCalledWith(
         [
@@ -1427,7 +1445,7 @@ describe(MetadataService.name, () => {
       mocks.person.createGroups.mockResolvedValue([PersonGroupFactory.create({ id: person.personGroupId })]);
       mocks.person.createAll.mockResolvedValue([person]);
       mocks.person.update.mockResolvedValue(person);
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.person.getDistinctNames).toHaveBeenCalledWith(asset.ownerId, { withHidden: true });
       expect(mocks.person.createAll).toHaveBeenCalledWith([expect.objectContaining({ name: person.name })]);
@@ -1470,7 +1488,7 @@ describe(MetadataService.name, () => {
       mocks.person.createGroups.mockResolvedValue([]);
       mocks.person.createAll.mockResolvedValue([]);
       mocks.person.update.mockResolvedValue(person);
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.person.getDistinctNames).toHaveBeenCalledWith(asset.ownerId, { withHidden: true });
       expect(mocks.person.createAll).not.toHaveBeenCalled();
@@ -1558,7 +1576,7 @@ describe(MetadataService.name, () => {
           mocks.person.createGroups.mockResolvedValue([PersonGroupFactory.create({ id: person.personGroupId })]);
           mocks.person.createAll.mockResolvedValue([person]);
           mocks.person.update.mockResolvedValue(person);
-          await sut.handleMetadataExtraction({ id: asset.id });
+          await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
           expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
           expect(mocks.person.getDistinctNames).toHaveBeenCalledWith(asset.ownerId, {
             withHidden: true,
@@ -1599,7 +1617,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ModifyDate: '00:00:00.000' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1615,7 +1633,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Rating: 6 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1631,7 +1649,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Rating: 5 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1647,7 +1665,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ Rating: 0 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1662,7 +1680,7 @@ describe(MetadataService.name, () => {
       const asset = AssetFactory.create();
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.findLivePhotoMatch).not.toHaveBeenCalled();
@@ -1678,7 +1696,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ContentIdentifier: 'CID' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.findLivePhotoMatch).toHaveBeenCalledWith({
@@ -1701,7 +1719,7 @@ describe(MetadataService.name, () => {
       mocks.asset.findLivePhotoMatch.mockResolvedValue(motionAsset);
       mockReadTags({ ContentIdentifier: 'CID' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.assetJob.getForMetadataExtraction).toHaveBeenCalledWith(asset.id);
       expect(mocks.asset.findLivePhotoMatch).toHaveBeenCalledWith({
@@ -1729,7 +1747,7 @@ describe(MetadataService.name, () => {
       mocks.asset.findLivePhotoMatch.mockResolvedValue(motionAsset);
       mockReadTags({ ContentIdentifier: 'CID' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.event.emit).toHaveBeenCalledWith('AssetHide', {
         userId: motionAsset.ownerId,
@@ -1744,7 +1762,7 @@ describe(MetadataService.name, () => {
       mocks.asset.findLivePhotoMatch.mockResolvedValue(motionAsset);
       mockReadTags({ ContentIdentifier: 'CID' });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
 
       expect(mocks.event.emit).toHaveBeenCalledWith('AssetMetadataExtracted', {
         assetId: asset.id,
@@ -1785,7 +1803,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags(exif);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining(expected),
@@ -1813,7 +1831,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags(exif);
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
         expect.objectContaining({
           exif: expect.objectContaining({
@@ -1829,7 +1847,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ImageWidth: 1000, ImageHeight: 2000 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.update).toHaveBeenCalledWith(
         expect.objectContaining({
           width: 1000,
@@ -1843,7 +1861,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ImageWidth: 1000, ImageHeight: 2000, Orientation: 6 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.update).toHaveBeenCalledWith(
         expect.objectContaining({
           width: 2000,
@@ -1857,7 +1875,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ImageWidth: 1280, ImageHeight: 720 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.update).toHaveBeenCalledWith(
         expect.objectContaining({
           width: 1280,
@@ -1871,7 +1889,7 @@ describe(MetadataService.name, () => {
       mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
       mockReadTags({ ImageWidth: 1280, ImageHeight: 720 });
 
-      await sut.handleMetadataExtraction({ id: asset.id });
+      await sut.handleMetadataExtraction({ id: asset.id, assetType: asset.type });
       expect(mocks.asset.update).toHaveBeenCalledWith(
         expect.objectContaining({
           width: undefined,

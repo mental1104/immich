@@ -21,6 +21,8 @@ const QueuesResponseLegacySchema = z
   .object({
     [QueueName.ThumbnailGeneration]: QueueResponseLegacySchema,
     [QueueName.MetadataExtraction]: QueueResponseLegacySchema,
+    [QueueName.VideoMetadataExtraction]: QueueResponseLegacySchema,
+    [QueueName.RawPairing]: QueueResponseLegacySchema,
     [QueueName.VideoConversion]: QueueResponseLegacySchema,
     [QueueName.SmartSearch]: QueueResponseLegacySchema,
     [QueueName.StorageTemplateMigration]: QueueResponseLegacySchema,

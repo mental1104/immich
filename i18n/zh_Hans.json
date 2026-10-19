@@ -332,6 +332,8 @@
     "queues": "任务队列",
     "queues_page_description": "管理任务队列页面",
     "quota_size_gib": "配额大小（GiB）",
+    "raw_pairing_job": "RAW + 成片配对",
+    "raw_pairing_job_description": "元数据提取后，将匹配的 NEF/DNG 与 JPG/HEIC/HEIF 加入同一堆叠",
     "refreshing_all_libraries": "刷新所有库",
     "registration": "管理员注册",
     "registration_description": "由于您是系统的第一位用户，系统将自动为您分配管理员权限。您需要负责相关的管理任务，后续的其他用户也将由您来创建。",
@@ -495,7 +497,9 @@
     "version_check_settings": "新版本检查",
     "version_check_settings_description": "启用/禁用新版本通知",
     "video_conversion_job": "转码视频",
-    "video_conversion_job_description": "对视频进行转码，以兼容更多的浏览器和设备"
+    "video_conversion_job_description": "对视频进行转码，以兼容更多的浏览器和设备",
+    "video_metadata_extraction_job": "视频元数据提取",
+    "video_metadata_extraction_job_description": "系统 CPU 和磁盘 I/O 负载较低时提取视频元数据"
   },
   "admin_email": "管理员邮箱",
   "admin_password": "管理员密码",
@@ -600,8 +604,23 @@
   "asset_not_found_on_icloud": "iCloud中未找到该照片/视频。可能是由于iCloud中存储了错误的文件导致资源无法访问",
   "asset_offline": "项目离线",
   "asset_offline_description": "磁盘上未找到此外部文件。请联系您的 Immich 管理员寻求帮助。",
+  "asset_processing_tasks": "处理任务",
   "asset_skipped": "已跳过",
   "asset_skipped_in_trash": "在回收站中",
+  "asset_task": {
+    "face-detection": "人脸识别",
+    "metadata-extraction": "元数据提取",
+    "thumbnail-generation": "缩略图生成",
+    "video-encoding": "视频转码"
+  },
+  "asset_task_status": {
+    "completed": "成功",
+    "failed": "失败",
+    "not-run": "暂无记录",
+    "queued": "排队中",
+    "running": "执行中",
+    "skipped": "已跳过"
+  },
   "asset_troubleshoot": "文件诊断",
   "asset_uploaded": "已上传",
   "asset_uploading": "上传中…",
@@ -1862,6 +1881,7 @@
   "role_viewer": "仅查看",
   "rotate_api_key_prompt": "确定要轮换此 API 密钥吗？当前密钥将立即失效。",
   "rotate_key": "轮换密钥",
+  "run_task": "执行",
   "running": "正在运行",
   "save": "保存",
   "saved": "已保存",

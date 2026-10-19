@@ -7,6 +7,11 @@ import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetFileType, AssetStatus, AssetType, AssetVisibility } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import {
+  ForkAssetTask,
+  type ForkAssetTaskName,
+  ForkAssetTaskState,
+} from 'src/schema/tables/fork-asset-task-status.table.js';
+import {
   anyUuid,
   asUuid,
   withAudioStream,
@@ -21,6 +26,8 @@ import {
   withVideoStream,
 } from 'src/utils/database.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
+
+const METADATA_EXTRACTION_MAX_ATTEMPTS = 3;
 
 @Injectable()
 export class AssetJobRepository {
@@ -155,6 +162,14 @@ export class AssetJobRepository {
       .select(['user.clusterGroupId'])
       .where('asset.id', '=', id)
       .executeTakeFirst();
+  }
+
+  getAssetType(id: string) {
+    return this.db.selectFrom('asset').select('type').where('id', '=', id).executeTakeFirst();
+  }
+
+  getAssetTypes(ids: string[]) {
+    return this.db.selectFrom('asset').select(['id', 'type']).where('id', 'in', ids).execute();
   }
 
   @GenerateSql({ params: [DummyValue.UUID] })
@@ -366,16 +381,226 @@ export class AssetJobRepository {
   streamForMetadataExtraction(force?: boolean) {
     return this.db
       .selectFrom('asset')
-      .select(['asset.id'])
+      .select(['asset.id', 'asset.type'])
+      .leftJoin('asset_job_status as legacy_status', 'legacy_status.assetId', 'asset.id')
+      .leftJoin('fork_asset_task_status as task_status', (join) =>
+        join
+          .onRef('task_status.assetId', '=', 'asset.id')
+          .on('task_status.taskName', '=', ForkAssetTask.MetadataExtraction),
+      )
       .$if(!force, (qb) =>
-        qb
-          .leftJoin('asset_job_status', 'asset_job_status.assetId', 'asset.id')
-          .where((eb) =>
-            eb.or([eb('asset_job_status.metadataExtractedAt', 'is', null), eb('asset_job_status.assetId', 'is', null)]),
-          ),
+        qb.where((eb) =>
+          eb.or([
+            eb.and([eb('task_status.assetId', 'is', null), eb('legacy_status.metadataExtractedAt', 'is', null)]),
+            eb.and([
+              eb('task_status.status', '=', ForkAssetTaskState.Failed),
+              eb('task_status.attempts', '<', METADATA_EXTRACTION_MAX_ATTEMPTS),
+            ]),
+          ]),
+        ),
       )
       .where('asset.deletedAt', 'is', null)
       .stream();
+  }
+
+  async queueMetadataTasks(assetIds: string[], force = false): Promise<string[]> {
+    const ids = [...new Set(assetIds)];
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const now = new Date();
+    const rows = await this.db
+      .insertInto('fork_asset_task_status')
+      .values(
+        ids.map((assetId) => ({
+          assetId,
+          taskName: ForkAssetTask.MetadataExtraction,
+          status: ForkAssetTaskState.Queued,
+          queuedAt: now,
+        })),
+      )
+      .onConflict((oc) =>
+        oc
+          .columns(['assetId', 'taskName'])
+          .doUpdateSet((eb) => ({
+            status: ForkAssetTaskState.Queued,
+            attempts: force ? 0 : eb.ref('fork_asset_task_status.attempts'),
+            generation: force
+              ? sql<number>`"fork_asset_task_status"."generation" + 1`
+              : eb.ref('fork_asset_task_status.generation'),
+            queuedAt: now,
+            startedAt: null,
+            completedAt: null,
+            failedAt: null,
+            errorMessage: null,
+            updatedAt: now,
+          }))
+          .where((eb) =>
+            force
+              ? eb('fork_asset_task_status.assetId', 'is not', null)
+              : eb.and([
+                  eb('fork_asset_task_status.status', '=', ForkAssetTaskState.Failed),
+                  eb('fork_asset_task_status.attempts', '<', METADATA_EXTRACTION_MAX_ATTEMPTS),
+                ]),
+          ),
+      )
+      .returning('assetId')
+      .execute();
+
+    return rows.map(({ assetId }) => assetId);
+  }
+
+  async getTaskStatuses(assetId: string) {
+    return this.db
+      .selectFrom('fork_asset_task_status')
+      .select([
+        'taskName',
+        'status',
+        'attempts',
+        'generation',
+        'queuedAt',
+        'startedAt',
+        'completedAt',
+        'failedAt',
+        'errorMessage',
+      ])
+      .where('assetId', '=', asUuid(assetId))
+      .orderBy('taskName', 'asc')
+      .execute();
+  }
+
+  async queueAssetTasks(taskName: ForkAssetTaskName, assetIds: string[]): Promise<void> {
+    const ids = [...new Set(assetIds)];
+    if (ids.length === 0) {
+      return;
+    }
+
+    const now = new Date();
+    await this.db
+      .insertInto('fork_asset_task_status')
+      .values(ids.map((assetId) => ({ assetId, taskName, status: ForkAssetTaskState.Queued, queuedAt: now })))
+      .onConflict((oc) =>
+        oc.columns(['assetId', 'taskName']).doUpdateSet(() => ({
+          status: ForkAssetTaskState.Queued,
+          generation: sql<number>`"fork_asset_task_status"."generation" + 1`,
+          queuedAt: now,
+          startedAt: null,
+          completedAt: null,
+          failedAt: null,
+          errorMessage: null,
+          updatedAt: now,
+        })),
+      )
+      .execute();
+  }
+
+  async startAssetTask(assetId: string, taskName: ForkAssetTaskName): Promise<void> {
+    const now = new Date();
+    await this.db
+      .insertInto('fork_asset_task_status')
+      .values({ assetId, taskName, status: ForkAssetTaskState.Running, attempts: 1, startedAt: now })
+      .onConflict((oc) =>
+        oc.columns(['assetId', 'taskName']).doUpdateSet(() => ({
+          status: ForkAssetTaskState.Running,
+          attempts: sql<number>`"fork_asset_task_status"."attempts" + 1`,
+          startedAt: now,
+          completedAt: null,
+          failedAt: null,
+          errorMessage: null,
+          updatedAt: now,
+        })),
+      )
+      .execute();
+  }
+
+  async completeAssetTask(assetId: string, taskName: ForkAssetTaskName): Promise<void> {
+    const now = new Date();
+    await this.db
+      .updateTable('fork_asset_task_status')
+      .set({
+        status: ForkAssetTaskState.Completed,
+        completedAt: now,
+        failedAt: null,
+        errorMessage: null,
+        updatedAt: now,
+      })
+      .where('assetId', '=', asUuid(assetId))
+      .where('taskName', '=', taskName)
+      .execute();
+  }
+
+  async skipAssetTask(assetId: string, taskName: ForkAssetTaskName): Promise<void> {
+    const now = new Date();
+    await this.db
+      .updateTable('fork_asset_task_status')
+      .set({ status: ForkAssetTaskState.Skipped, completedAt: now, failedAt: null, errorMessage: null, updatedAt: now })
+      .where('assetId', '=', asUuid(assetId))
+      .where('taskName', '=', taskName)
+      .execute();
+  }
+
+  async failAssetTask(assetId: string, taskName: ForkAssetTaskName, error: unknown): Promise<void> {
+    const now = new Date();
+    const message = String(error instanceof Error ? error.message : error).slice(0, 4000);
+    await this.db
+      .updateTable('fork_asset_task_status')
+      .set({ status: ForkAssetTaskState.Failed, failedAt: now, errorMessage: message, updatedAt: now })
+      .where('assetId', '=', asUuid(assetId))
+      .where('taskName', '=', taskName)
+      .execute();
+  }
+
+  async startMetadataTask(assetId: string): Promise<void> {
+    const now = new Date();
+    await this.db
+      .insertInto('fork_asset_task_status')
+      .values({
+        assetId,
+        taskName: ForkAssetTask.MetadataExtraction,
+        status: ForkAssetTaskState.Running,
+        attempts: 1,
+        startedAt: now,
+      })
+      .onConflict((oc) =>
+        oc.columns(['assetId', 'taskName']).doUpdateSet((_eb) => ({
+          status: ForkAssetTaskState.Running,
+          attempts: sql<number>`"fork_asset_task_status"."attempts" + 1`,
+          startedAt: now,
+          completedAt: null,
+          failedAt: null,
+          errorMessage: null,
+          updatedAt: now,
+        })),
+      )
+      .execute();
+  }
+
+  async completeMetadataTask(assetId: string): Promise<void> {
+    const now = new Date();
+    await this.db
+      .updateTable('fork_asset_task_status')
+      .set({
+        status: ForkAssetTaskState.Completed,
+        completedAt: now,
+        failedAt: null,
+        errorMessage: null,
+        updatedAt: now,
+      })
+      .where('assetId', '=', assetId)
+      .where('taskName', '=', ForkAssetTask.MetadataExtraction)
+      .execute();
+  }
+
+  async failMetadataTask(assetId: string, error: unknown): Promise<void> {
+    const now = new Date();
+    const message = String(error instanceof Error ? error.message : error).slice(0, 4000);
+    await this.db
+      .updateTable('fork_asset_task_status')
+      .set({ status: ForkAssetTaskState.Failed, failedAt: now, errorMessage: message, updatedAt: now })
+      .where('assetId', '=', assetId)
+      .where('taskName', '=', ForkAssetTask.MetadataExtraction)
+      .execute();
   }
 
   private storageTemplateAssetQuery() {

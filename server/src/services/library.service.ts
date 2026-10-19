@@ -36,6 +36,8 @@ import { BaseService } from 'src/services/base.service.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, findOrFail, handlePromiseError } from 'src/utils/misc.js';
 
+const DEFERRED_VIDEO_SIZE_BYTES = 3 * 1024 ** 3;
+
 @Injectable()
 export class LibraryService extends BaseService {
   private watchLibraries = false;
@@ -264,16 +266,25 @@ export class LibraryService extends BaseService {
     }
 
     const assetImports: Insertable<AssetTable>[] = [];
+    let deferredCount = 0;
     await Promise.all(
       job.paths.map(async (path) => {
         try {
           const asset = await this.processEntity(path, library.ownerId, job.libraryId);
-          assetImports.push(asset);
+          if (asset) {
+            assetImports.push(asset);
+          } else {
+            deferredCount++;
+          }
         } catch (error) {
           this.logger.error(`Error processing ${path} for library ${job.libraryId}: ${error}`);
         }
       }),
     );
+
+    if (deferredCount > 0) {
+      this.logger.log(`Deferred ${deferredCount} heavy video file(s) from library ${job.libraryId}`);
+    }
 
     const assetIds = await this.assetRepository.createAll(assetImports);
 
@@ -401,7 +412,15 @@ export class LibraryService extends BaseService {
 
   private async processEntity(filePath: string, ownerId: string, libraryId: string) {
     const assetPath = path.normalize(filePath);
+    // Keep these files discoverable on later scans, but avoid creating assets that would enqueue heavy processing.
+    if (path.extname(assetPath).toLowerCase() === '.insv') {
+      return;
+    }
+
     const stat = await this.storageRepository.stat(assetPath);
+    if (mimeTypes.isVideo(assetPath) && stat.size > DEFERRED_VIDEO_SIZE_BYTES) {
+      return;
+    }
 
     return {
       ownerId,

@@ -1,12 +1,20 @@
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { mkdtempDisposableSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import sharp from 'sharp';
 import { AssetEditAction, MirrorAxis } from 'src/dtos/editing.dto.js';
 import { Colorspace, ImageFormat } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { automock } from 'test/utils.js';
+
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:child_process')>()),
+  spawn: vi.fn(),
+}));
 
 const getPixelColor = async (buffer: Buffer, x: number, y: number) => {
   const metadata = await sharp(buffer).metadata();
@@ -66,6 +74,50 @@ describe(MediaRepository.name, () => {
   beforeEach(() => {
     // eslint-disable-next-line no-sparse-arrays
     sut = new MediaRepository(automock(LoggingRepository, { args: [, { getEnv: () => ({}) }], strict: false }));
+  });
+
+  describe('probePackets', () => {
+    it('uses the stream timeline when packet durations omit PTS gaps', async () => {
+      const child = new EventEmitter() as ReturnType<typeof spawn>;
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      Object.assign(child, { stdout, stderr });
+      vi.mocked(spawn).mockReturnValue(child);
+
+      const pts = Array.from({ length: 42 }, (_, index) => Math.round((index * 1002) / 42));
+      const result = sut.probePackets('/video.mov', 0, 600, 1.67);
+      stdout.end(pts.map((value, index) => `${value},1,${index === 0 ? 'K__' : '___'}`).join('\n'));
+      child.emit('close', 0);
+
+      await expect(result).resolves.toMatchObject({
+        totalDuration: 1002,
+        packetCount: 42,
+        outputFrames: 42,
+      });
+    });
+
+    it('preserves packet frames when rounded packet durations undercount the stream timeline', async () => {
+      const child = new EventEmitter() as ReturnType<typeof spawn>;
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      Object.assign(child, { stdout, stderr });
+      vi.mocked(spawn).mockReturnValue(child);
+
+      const pts = [
+        0, 80, 40, 20, 60, 160, 120, 100, 140, 180, 273, 220, 200, 248, 298, 399, 349, 323, 374, 500, 450, 424, 475,
+        601, 550, 525, 575, 626, 651, 676, 777, 727, 702, 752, 853, 828, 803, 878, 954, 929, 903, 979,
+      ];
+      const keyframes = new Set([0, 626, 878, 979]);
+      const result = sut.probePackets('/video.mov', 0, 600, 1.67);
+      stdout.end(pts.map((value) => `${value},1,${keyframes.has(value) ? 'K__' : '___'}`).join('\n'));
+      child.emit('close', 0);
+
+      await expect(result).resolves.toMatchObject({
+        totalDuration: 1002,
+        packetCount: 42,
+        outputFrames: 42,
+      });
+    });
   });
 
   describe('edit (single actions)', () => {

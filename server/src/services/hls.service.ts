@@ -21,6 +21,7 @@ type ApiSession = { lastRequestedSegment: number | null; lastVariantIndex: numbe
 @Injectable()
 export class HlsService extends BaseService {
   private pendingSegments = new PendingEvents<'HlsSegmentResult'>({ timeoutMs: 15_000 });
+  private pendingInits = new PendingEvents<'HlsInitResult'>({ timeoutMs: 15_000 });
   private pendingSessions = new PendingEvents<'HlsSessionResult'>({ timeoutMs: 5000 });
   private sessions = new Map<string, ApiSession>();
 
@@ -33,17 +34,24 @@ export class HlsService extends BaseService {
 
     this.sessions.delete(event.sessionId);
     this.pendingSegments.rejectByPrefix(`${event.sessionId}:`, event.error);
+    this.pendingInits.rejectByPrefix(`${event.sessionId}:`, event.error);
   }
 
   @OnEvent({ name: 'HlsSessionEnd', server: true, workers: [ImmichWorker.Api] })
   onSessionEnd({ sessionId }: ArgOf<'HlsSessionEnd'>) {
     this.sessions.delete(sessionId);
     this.pendingSegments.rejectByPrefix(`${sessionId}:`, 'Session ended');
+    this.pendingInits.rejectByPrefix(`${sessionId}:`, 'Session ended');
   }
 
   @OnEvent({ name: 'HlsSegmentResult', server: true, workers: [ImmichWorker.Api] })
   onSegmentResult(event: ArgOf<'HlsSegmentResult'>) {
     this.pendingSegments.complete(this.getSegmentKey(event), event);
+  }
+
+  @OnEvent({ name: 'HlsInitResult', server: true, workers: [ImmichWorker.Api] })
+  onInitResult(event: ArgOf<'HlsInitResult'>) {
+    this.pendingInits.complete(this.getInitKey(event), event);
   }
 
   /**
@@ -121,8 +129,17 @@ export class HlsService extends BaseService {
       return response;
     }
 
-    this.websocketRepository.serverSend('HlsSegmentRequest', { sessionId, assetId, variantIndex, segmentIndex });
-    await this.pendingSegments.wait(this.getSegmentKey({ sessionId, variantIndex, segmentIndex }));
+    const isInit = filename === 'init.mp4';
+    const key = isInit
+      ? this.getInitKey({ sessionId, variantIndex })
+      : this.getSegmentKey({ sessionId, variantIndex, segmentIndex });
+    const pending = isInit ? this.pendingInits.wait(key) : this.pendingSegments.wait(key);
+    if (isInit && (await this.storageRepository.checkFileExists(path, constants.R_OK))) {
+      this.pendingInits.complete(key, { sessionId, variantIndex });
+    } else {
+      this.websocketRepository.serverSend('HlsSegmentRequest', { sessionId, assetId, variantIndex, segmentIndex });
+    }
+    await pending;
 
     return response;
   }
@@ -153,8 +170,10 @@ export class HlsService extends BaseService {
     const targetResolution = Math.max(sourceResolution, HLS_VARIANTS[0].resolution);
     const lines = ['#EXTM3U', `#EXT-X-VERSION:${HLS_VERSION}`, '#EXT-X-INDEPENDENT-SEGMENTS'];
     const { videoCodecs, resolutions } = ffmpeg.realtime;
-    for (let i = 0; i < HLS_VARIANTS.length; i++) {
-      const { resolution, bitrate, codec } = HLS_VARIANTS[i];
+    const variants = HLS_VARIANTS.map((variant, index) => ({ ...variant, index })).sort(
+      (a, b) => a.bitrate - b.bitrate,
+    );
+    for (const { index: i, resolution, bitrate, codec } of variants) {
       if (resolution > targetResolution || !videoCodecs.includes(codec) || !resolutions.includes(resolution)) {
         continue;
       }
@@ -215,7 +234,7 @@ export class HlsService extends BaseService {
     }
 
     const nextSegment = session && session.lastRequestedSegment !== null ? session.lastRequestedSegment + 1 : undefined;
-    const segmentIndex = hintedSegment ?? nextSegment;
+    const segmentIndex = hintedSegment ?? nextSegment ?? 0;
     if (segmentIndex !== undefined) {
       this.websocketRepository.serverSend('HlsSegmentRequest', { sessionId, assetId, variantIndex, segmentIndex });
     }
@@ -223,6 +242,10 @@ export class HlsService extends BaseService {
 
   private getSegmentKey({ sessionId, variantIndex, segmentIndex }: ArgOf<'HlsSegmentResult'>) {
     return `${sessionId}:${variantIndex}:${segmentIndex}`;
+  }
+
+  private getInitKey({ sessionId, variantIndex }: ArgOf<'HlsInitResult'>) {
+    return `${sessionId}:${variantIndex}:init`;
   }
 
   private getSegmentIndex(session: ApiSession, filename: string, initSegment?: number) {
@@ -248,6 +271,7 @@ export class HlsService extends BaseService {
 
     if (session.lastVariantIndex !== null && session.lastVariantIndex !== variantIndex) {
       this.pendingSegments.rejectByPrefix(`${id}:${session.lastVariantIndex}:`, 'Variant changed');
+      this.pendingInits.rejectByPrefix(`${id}:${session.lastVariantIndex}:`, 'Variant changed');
     }
     session.lastVariantIndex = variantIndex;
     return session;

@@ -281,6 +281,10 @@ export class TranscodingService extends BaseService {
       if (eventType !== 'rename' || !filename || session.process !== process) {
         return;
       }
+      if (filename === 'init.mp4') {
+        this.websocketRepository.serverSend('HlsInitResult', { sessionId: session.id, variantIndex });
+        return;
+      }
       const match = HLS_SEGMENT_FILENAME_REGEX.exec(filename);
       if (!match) {
         return;

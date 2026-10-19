@@ -1286,6 +1286,17 @@ export type TagResponseDto = {
     /** Tag value (full path) */
     value: string;
 };
+export type AssetTaskStatusResponseDto = {
+    attempts: number;
+    completedAt: string | null;
+    errorMessage: string | null;
+    failedAt: string | null;
+    generation: number;
+    queuedAt: string | null;
+    startedAt: string | null;
+    status: string;
+    taskName: string;
+};
 export type AssetResponseDto = {
     /** Base64 encoded SHA1 hash */
     checksum: string;
@@ -1336,6 +1347,8 @@ export type AssetResponseDto = {
     resized?: boolean;
     stack?: (AssetStackResponseDto) | null;
     tags?: TagResponseDto[];
+    /** Processing task status for this asset */
+    taskStatuses?: AssetTaskStatusResponseDto[];
     /** Thumbhash for thumbnail generation (base64) also used as the c query param for thumbnail cache busting. */
     thumbhash: string | null;
     "type": AssetTypeEnum;
@@ -1780,6 +1793,7 @@ export type QueuesResponseLegacyDto = {
     library: QueueResponseLegacyDto;
     metadataExtraction: QueueResponseLegacyDto;
     migration: QueueResponseLegacyDto;
+    nikonPairing: QueueResponseLegacyDto;
     notifications: QueueResponseLegacyDto;
     ocr: QueueResponseLegacyDto;
     search: QueueResponseLegacyDto;
@@ -1788,6 +1802,7 @@ export type QueuesResponseLegacyDto = {
     storageTemplateMigration: QueueResponseLegacyDto;
     thumbnailGeneration: QueueResponseLegacyDto;
     videoConversion: QueueResponseLegacyDto;
+    videoMetadataExtraction: QueueResponseLegacyDto;
     workflow: QueueResponseLegacyDto;
 };
 export type JobCreateDto = {
@@ -5048,7 +5063,7 @@ export function viewAsset({ edited, id, key, size, slug }: {
     }));
 }
 /**
- * Play asset video
+ * 在实验模式下以原视频播放 URL 返回 HLS 主列表，否则保持文件 Range 播放接口行为。
  */
 export function playAssetVideo({ id, key, slug }: {
     id: string;
@@ -8373,6 +8388,8 @@ export enum ManualJobName {
 export enum QueueName {
     ThumbnailGeneration = "thumbnailGeneration",
     MetadataExtraction = "metadataExtraction",
+    VideoMetadataExtraction = "videoMetadataExtraction",
+    NikonPairing = "nikonPairing",
     VideoConversion = "videoConversion",
     FaceDetection = "faceDetection",
     FacialRecognition = "facialRecognition",
@@ -8450,6 +8467,7 @@ export enum JobName {
     AssetFileMigration = "AssetFileMigration",
     AssetGenerateThumbnailsQueueAll = "AssetGenerateThumbnailsQueueAll",
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
+    AssetStackNikonPair = "AssetStackNikonPair",
     AuditTableCleanup = "AuditTableCleanup",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",

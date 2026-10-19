@@ -99,6 +99,8 @@ export interface VideoStreamInfo {
   level: number | null;
   frameCount: number;
   frameRate: number | null;
+  /** Stream timeline duration in seconds, when reported by ffprobe. */
+  duration?: number | null;
   timeBase: number | null;
   bitrate: number;
   pixelFormat: string;
@@ -209,6 +211,8 @@ export interface VideoInterfaces {
 export type ConcurrentQueueName = Exclude<
   QueueName,
   | QueueName.StorageTemplateMigration
+  | QueueName.VideoMetadataExtraction
+  | QueueName.RawPairing
   | QueueName.FacialRecognition
   | QueueName.DuplicateDetection
   | QueueName.BackupDatabase
@@ -236,6 +240,16 @@ export interface IEntityJob extends IBaseJob {
   id: string;
   source?: JobSource;
   notify?: boolean;
+}
+
+export interface IMetadataExtractionJob extends IEntityJob {
+  assetType?: AssetType;
+  force?: boolean;
+}
+
+export interface IRawPairJob {
+  assetId: string;
+  ownerId: string;
 }
 
 export interface IAssetDeleteJob extends IEntityJob {
@@ -360,6 +374,7 @@ export type JobItem =
   // Thumbnails
   | { name: JobName.AssetGenerateThumbnailsQueueAll; data: IBaseJob }
   | { name: JobName.AssetGenerateThumbnails; data: IEntityJob }
+  | { name: JobName.AssetStackRawPair; data: IRawPairJob }
 
   // User
   | { name: JobName.UserDeleteCheck; data?: IBaseJob }
@@ -377,7 +392,7 @@ export type JobItem =
 
   // Metadata Extraction
   | { name: JobName.AssetExtractMetadataQueueAll; data: IBaseJob }
-  | { name: JobName.AssetExtractMetadata; data: IEntityJob }
+  | { name: JobName.AssetExtractMetadata; data: IMetadataExtractionJob }
 
   // Notifications
   | { name: JobName.NotificationsCleanup; data?: IBaseJob }

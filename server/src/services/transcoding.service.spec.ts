@@ -5,6 +5,7 @@ import {
   HLS_CLEANUP_INTERVAL_MS,
   HLS_INACTIVITY_TIMEOUT_MS,
   HLS_LEASE_DURATION_MS,
+  HLS_SEGMENT_DURATION,
 } from 'src/constants.js';
 import { TranscodingService } from 'src/services/transcoding.service.js';
 import { VIDEO_STREAM_SESSION_PK_CONSTRAINT } from 'src/utils/database.js';
@@ -23,6 +24,12 @@ describe(TranscodingService.name, () => {
     const listener = vi.mocked(mocks.storage.watchDir).mock.lastCall?.[1];
     expect(listener).toBeDefined();
     listener!('rename', `seg_${index}.m4s`);
+  };
+
+  const completeInit = () => {
+    const listener = vi.mocked(mocks.storage.watchDir).mock.lastCall?.[1];
+    expect(listener).toBeDefined();
+    listener!('rename', 'init.mp4');
   };
 
   const completeSegmentsThrough = (start: number, end: number) => {
@@ -134,6 +141,16 @@ describe(TranscodingService.name, () => {
 
       expect(mocks.process.spawn).toHaveBeenCalledTimes(1);
       expect(mocks.process.spawn).toHaveBeenCalledWith('ffmpeg', expect.any(Array), expect.any(Object));
+    });
+
+    it('signals when the HLS initialization file is ready', async () => {
+      mocks.process.spawn.mockReturnValue(mockSpawn(0, '', ''));
+      await sut.onSessionRequest({ sessionId, assetId, ownerId });
+      await sut.onSegmentRequest({ sessionId, assetId, variantIndex: 0, segmentIndex: 0 });
+
+      completeInit();
+
+      expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsInitResult', { sessionId, variantIndex: 0 });
     });
 
     it('kills and respawns when the variant changes', async () => {
@@ -378,9 +395,9 @@ describe(TranscodingService.name, () => {
       '-map',
       '0:1',
       '-g',
-      '50',
+      '25',
       '-keyint_min',
-      '50',
+      '25',
       '-ac',
       '2',
       '-copyts',
@@ -391,7 +408,7 @@ describe(TranscodingService.name, () => {
       '-f',
       'hls',
       '-hls_time',
-      '2',
+      '1',
       '-hls_list_size',
       '0',
       '-hls_segment_type',
@@ -466,9 +483,9 @@ describe(TranscodingService.name, () => {
           '-crf',
           '23',
           '-maxrate',
-          '2500k',
+          '800k',
           '-bufsize',
-          '5000k',
+          '1600k',
           '-sc_threshold:v',
           '0',
           '-vf',
@@ -489,39 +506,20 @@ describe(TranscodingService.name, () => {
   });
 
   describe('FFmpeg seek per segment', () => {
-    const eiffelSeeks = [
-      0, 1.98715, 3.994372222222222, 6.001594444444444, 8.008816666666666, 10.016038888888888, 12.023261111111111,
-      14.030483333333333, 16.037705555555554, 18.044927777777776, 20.052149999999997, 22.059372222222223,
+    const fixtures = [
+      { fixture: eiffelTower, segments: 12 },
+      { fixture: waterfall, segments: 6 },
+      { fixture: train, segments: 11 },
     ];
-    const waterfallSeeks = [
-      0, 1.994642826321467, 4.006047357065803, 6.0174518878101395, 8.028856418554476, 10.040260949298812,
-    ];
-    const trainSeeks = [
-      0, 1.9916666666666667, 3.9916666666666667, 5.991666666666666, 7.991666666666666, 9.991666666666667,
-      11.991666666666667, 13.991666666666667, 15.991666666666667, 17.991666666666667, 19.991666666666667,
-    ];
-    const cases = [
-      ...eiffelSeeks.map((expected, segmentIndex) => ({
-        name: `${eiffelTower.originalPath} K=${segmentIndex}`,
-        fixture: eiffelTower,
+    const cases = fixtures.flatMap(({ fixture, segments }) =>
+      Array.from({ length: segments }, (_, segmentIndex) => ({
+        name: `${fixture.originalPath} K=${segmentIndex}`,
+        fixture,
         segmentIndex,
-        expected,
       })),
-      ...waterfallSeeks.map((expected, segmentIndex) => ({
-        name: `${waterfall.originalPath} K=${segmentIndex}`,
-        fixture: waterfall,
-        segmentIndex,
-        expected,
-      })),
-      ...trainSeeks.map((expected, segmentIndex) => ({
-        name: `${train.originalPath} K=${segmentIndex}`,
-        fixture: train,
-        segmentIndex,
-        expected,
-      })),
-    ];
+    );
 
-    it.each(cases)('$name', async ({ fixture, segmentIndex, expected }) => {
+    it.each(cases)('$name', async ({ fixture, segmentIndex }) => {
       mocks.videoStream.getForTranscoding.mockResolvedValue(fixture);
       mocks.process.spawn.mockReturnValue(mockSpawn(0, '', ''));
 
@@ -529,10 +527,13 @@ describe(TranscodingService.name, () => {
       await sut.onSegmentRequest({ sessionId, assetId, variantIndex: 0, segmentIndex });
 
       const args = mocks.process.spawn.mock.calls[0][1] as string[];
-      if (expected === 0) {
+      if (segmentIndex === 0) {
         expect(args).toEqual(expect.arrayContaining(['-copyts', '-avoid_negative_ts', 'disabled']));
         expect(args).not.toContain('-ss');
       } else {
+        const fps = (fixture.packets.packetCount * fixture.videoStream.timeBase) / fixture.packets.totalDuration;
+        const gop = Math.ceil(HLS_SEGMENT_DURATION * fps);
+        const expected = (segmentIndex * gop - 0.5) / fps;
         expect(args).toEqual(
           expect.arrayContaining(['-ss', String(expected), '-copyts', '-avoid_negative_ts', 'disabled']),
         );

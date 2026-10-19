@@ -21,6 +21,7 @@ export const serverEvents = [
   'AppRestart',
   'HlsSegmentRequest',
   'HlsSegmentResult',
+  'HlsInitResult',
   'HlsHeartbeat',
   'HlsSessionRequest',
   'HlsSessionResult',

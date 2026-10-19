@@ -843,6 +843,9 @@ export class QsvSwDecodeConfig extends BaseHWConfig {
 
   // recommended from https://github.com/intel/media-delivery/blob/master/doc/benchmarks/intel-iris-xe-max-graphics/intel-iris-xe-max-graphics.md
   getBFrames() {
+    if (this.tune.lowLatency) {
+      return 0;
+    }
     if (this.config.bframes < 0) {
       return 7;
     }

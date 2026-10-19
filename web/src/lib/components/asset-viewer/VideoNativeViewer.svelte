@@ -9,7 +9,8 @@
   import { mediaCapabilitiesManager } from '$lib/managers/media-capabilities-manager.svelte';
   import { autoPlayVideo, lang, loopVideo as loopVideoPreference } from '$lib/stores/preferences.store';
   import { getAssetHlsSessionUrl, getAssetHlsUrl, getAssetMediaUrl, getAssetPlaybackUrl } from '$lib/utils';
-  import { AssetMediaSize, type AssetResponseDto } from '@immich/sdk';
+  import { shouldPlaySmallVideoOriginal } from '$lib/utils/video-playback';
+  import { AssetMediaSize, getAssetInfo, type AssetResponseDto } from '@immich/sdk';
   import { Icon, LoadingSpinner, shortcuts } from '@immich/ui';
   import {
     mdiCheck,
@@ -77,8 +78,50 @@
   let videoPlayer: HTMLVideoElement | undefined = $state();
   let isLoading = $state(true);
   let hasLoadedMetadata = $state(false);
+  let motionVideoInfo: { id: string; fileSize: number | null | undefined } | undefined = $state();
+  let originalFailedFor: string | undefined = $state();
+  const playbackInfoReady = $derived(
+    !featureFlagsManager.value.realtimeTranscoding || assetId === asset.id || motionVideoInfo?.id === assetId,
+  );
+  const preferSmallOriginal = $derived(
+    featureFlagsManager.value.realtimeTranscoding &&
+      shouldPlaySmallVideoOriginal(
+        assetId === asset.id ? asset.exifInfo?.fileSizeInByte : motionVideoInfo?.fileSize,
+        originalFailedFor === assetId,
+      ),
+  );
+  const useHls = $derived(featureFlagsManager.value.realtimeTranscoding && !preferSmallOriginal);
+
+  $effect(() => {
+    const id = assetId;
+    if (!featureFlagsManager.value.realtimeTranscoding || id === asset.id) {
+      return;
+    }
+
+    // 实况组件收到的是照片 DTO，阈值必须使用关联视频的大小。
+    let cancelled = false;
+    void getAssetInfo({ id, ...authManager.params })
+      .then((video) => {
+        if (!cancelled) {
+          motionVideoInfo = { id, fileSize: video.exifInfo?.fileSizeInByte };
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          motionVideoInfo = { id, fileSize: undefined };
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
   let assetFileUrl = $derived.by(() => {
-    if (featureFlagsManager.value.realtimeTranscoding) {
+    if (preferSmallOriginal) {
+      return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey, edited: false });
+    }
+
+    if (useHls) {
       return getAssetHlsUrl(assetId);
     }
 
@@ -137,6 +180,7 @@
   }
 
   const hlsConfig: Partial<HlsConfig> = {
+    startLevel: 0,
     abrController: NoAbandonAbrController,
     highBufferWatchdogPeriod: 10,
     detectStallWithCurrentTimeMs: 10_000,
@@ -243,6 +287,7 @@
   $effect(() => {
     // reactive on `assetFileUrl` changes
     hasLoadedMetadata = false;
+    isLoading = true;
     if (videoPlayer && assetFileUrl) {
       hasFocused = false;
       rebuildCount = 0;
@@ -350,7 +395,7 @@
   ]}
 />
 
-{#if showVideo}
+{#if showVideo && playbackInfoReady}
   <div
     transition:fade={{ duration: assetViewerFadeDuration }}
     class="flex h-full place-content-center place-items-center select-none"
@@ -376,7 +421,7 @@
         style:aspect-ratio={aspectRatio}
         defaultduration={asset.duration! / 1000}
       >
-        {#if featureFlagsManager.value.realtimeTranscoding}
+        {#if useHls}
           <hls-video
             bind:this={videoPlayer}
             slot="media"
@@ -413,6 +458,12 @@
             {...useSwipe(onSwipe)}
             class="h-full object-contain"
             oncanplay={(e) => handleCanPlay(e.currentTarget)}
+            onerror={(e) => {
+              // 解码、封装或原文件权限不兼容时，每个资产只回退一次 HLS。
+              if (preferSmallOriginal && e.currentTarget === videoPlayer) {
+                originalFailedFor = assetId;
+              }
+            }}
             onloadedmetadata={() => (hasLoadedMetadata = true)}
             onended={onVideoEnded}
             onseeking={onSeeking}

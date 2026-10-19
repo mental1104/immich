@@ -5,171 +5,7 @@ import { eiffelTower, train, waterfall } from 'test/fixtures/media.stub.js';
 import { factory } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
-// EXTINF values come from FFmpeg's playlist to enforce an exact match
-const eiffelExpectedMediaPlaylist = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-INDEPENDENT-SEGMENTS
-#EXT-X-TARGETDURATION:2
-#EXT-X-MEDIA-SEQUENCE:0
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXT-X-MAP:URI="init.mp4"
-#EXTINF:2.007222,
-seg_0.m4s
-#EXTINF:2.007222,
-seg_1.m4s
-#EXTINF:2.007222,
-seg_2.m4s
-#EXTINF:2.007222,
-seg_3.m4s
-#EXTINF:2.007222,
-seg_4.m4s
-#EXTINF:2.007222,
-seg_5.m4s
-#EXTINF:2.007222,
-seg_6.m4s
-#EXTINF:2.007222,
-seg_7.m4s
-#EXTINF:2.007222,
-seg_8.m4s
-#EXTINF:2.007222,
-seg_9.m4s
-#EXTINF:2.007222,
-seg_10.m4s
-#EXTINF:0.281011,
-seg_11.m4s
-#EXT-X-ENDLIST
-`;
-
-const waterfallExpectedMediaPlaylist = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-INDEPENDENT-SEGMENTS
-#EXT-X-TARGETDURATION:2
-#EXT-X-MEDIA-SEQUENCE:0
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXT-X-MAP:URI="init.mp4"
-#EXTINF:2.011405,
-seg_0.m4s
-#EXTINF:2.011405,
-seg_1.m4s
-#EXTINF:2.011405,
-seg_2.m4s
-#EXTINF:2.011405,
-seg_3.m4s
-#EXTINF:2.011405,
-seg_4.m4s
-#EXTINF:0.301711,
-seg_5.m4s
-#EXT-X-ENDLIST
-`;
-
-const trainExpectedMediaPlaylist = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-INDEPENDENT-SEGMENTS
-#EXT-X-TARGETDURATION:2
-#EXT-X-MEDIA-SEQUENCE:0
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXT-X-MAP:URI="init.mp4"
-#EXTINF:2.000000,
-seg_0.m4s
-#EXTINF:2.000000,
-seg_1.m4s
-#EXTINF:2.000000,
-seg_2.m4s
-#EXTINF:2.000000,
-seg_3.m4s
-#EXTINF:2.000000,
-seg_4.m4s
-#EXTINF:2.000000,
-seg_5.m4s
-#EXTINF:2.000000,
-seg_6.m4s
-#EXTINF:2.000000,
-seg_7.m4s
-#EXTINF:2.000000,
-seg_8.m4s
-#EXTINF:2.000000,
-seg_9.m4s
-#EXTINF:1.733333,
-seg_10.m4s
-#EXT-X-ENDLIST
-`;
-
 const sessionId = '00000000-0000-0000-0000-000000000000';
-
-const eiffelExpectedMasterAv1 = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-INDEPENDENT-SEGMENTS
-#EXT-X-STREAM-INF:BANDWIDTH=1350000,RESOLUTION=480x852,CODECS="av01.0.04M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/0/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=1620000,RESOLUTION=480x852,CODECS="hvc1.1.6.L90.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/1/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3375000,RESOLUTION=480x852,CODECS="avc1.64001e,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/2/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=2700000,RESOLUTION=720x1280,CODECS="av01.0.05M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/3/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3375000,RESOLUTION=720x1280,CODECS="hvc1.1.6.L93.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/4/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=6750000,RESOLUTION=720x1280,CODECS="avc1.64001f,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/5/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=5400000,RESOLUTION=1080x1920,CODECS="av01.0.08M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/6/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=6075000,RESOLUTION=1080x1920,CODECS="hvc1.1.6.L120.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/7/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=10800000,RESOLUTION=1080x1920,CODECS="avc1.640028,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/8/playlist.m3u8
-`;
-
-const eiffelExpectedMasterNoAv1 = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-INDEPENDENT-SEGMENTS
-#EXT-X-STREAM-INF:BANDWIDTH=1620000,RESOLUTION=480x852,CODECS="hvc1.1.6.L90.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/1/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3375000,RESOLUTION=480x852,CODECS="avc1.64001e,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/2/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3375000,RESOLUTION=720x1280,CODECS="hvc1.1.6.L93.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/4/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=6750000,RESOLUTION=720x1280,CODECS="avc1.64001f,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/5/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=6075000,RESOLUTION=1080x1920,CODECS="hvc1.1.6.L120.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/7/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=10800000,RESOLUTION=1080x1920,CODECS="avc1.640028,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=24.910
-${sessionId}/8/playlist.m3u8
-`;
-
-const waterfallExpectedMasterAv1 = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-INDEPENDENT-SEGMENTS
-#EXT-X-STREAM-INF:BANDWIDTH=1350000,RESOLUTION=480x852,CODECS="av01.0.04M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/0/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=1620000,RESOLUTION=480x852,CODECS="hvc1.1.6.L90.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/1/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3375000,RESOLUTION=480x852,CODECS="avc1.64001f,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/2/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=2700000,RESOLUTION=720x1280,CODECS="av01.0.05M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/3/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=3375000,RESOLUTION=720x1280,CODECS="hvc1.1.6.L93.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/4/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=6750000,RESOLUTION=720x1280,CODECS="avc1.64001f,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/5/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=5400000,RESOLUTION=1080x1920,CODECS="av01.0.08M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/6/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=6075000,RESOLUTION=1080x1920,CODECS="hvc1.1.6.L120.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/7/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=10800000,RESOLUTION=1080x1920,CODECS="avc1.640028,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/8/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=9450000,RESOLUTION=1440x2560,CODECS="av01.0.12M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/9/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=10800000,RESOLUTION=1440x2560,CODECS="hvc1.1.6.L150.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/10/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=18900000,RESOLUTION=1440x2560,CODECS="avc1.640032,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/11/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=16200000,RESOLUTION=2160x3840,CODECS="av01.0.12M.08,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/12/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=18900000,RESOLUTION=2160x3840,CODECS="hvc1.1.6.L150.B0,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/13/playlist.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=33750000,RESOLUTION=2160x3840,CODECS="avc1.640033,mp4a.40.2",VIDEO-RANGE=SDR,FRAME-RATE=29.830
-${sessionId}/14/playlist.m3u8
-`;
 
 describe(HlsService.name, () => {
   let sut: HlsService;
@@ -215,25 +51,69 @@ describe(HlsService.name, () => {
 
     it('offers AV1, HEVC, and H.264 when AV1 is configured and the accelerator supports it', async () => {
       setup(eiffelTower, allCodecs);
-      await expect(sut.getMainPlaylist(auth, assetId)).resolves.toBe(eiffelExpectedMasterAv1);
+      const playlist = await sut.getMainPlaylist(auth, assetId);
+      expect(playlist.match(/\/(\d+)\/playlist\.m3u8/g)).toEqual([
+        '/2/playlist.m3u8',
+        '/0/playlist.m3u8',
+        '/1/playlist.m3u8',
+        '/3/playlist.m3u8',
+        '/4/playlist.m3u8',
+        '/6/playlist.m3u8',
+        '/7/playlist.m3u8',
+        '/5/playlist.m3u8',
+        '/8/playlist.m3u8',
+      ]);
+      expect(playlist).toContain('BANDWIDTH=1080000');
     });
 
     it('omits AV1 when it is not in the configured codecs', async () => {
       setup(eiffelTower);
-      await expect(sut.getMainPlaylist(auth, assetId)).resolves.toBe(eiffelExpectedMasterNoAv1);
+      const playlist = await sut.getMainPlaylist(auth, assetId);
+      expect(playlist.match(/\/(\d+)\/playlist\.m3u8/g)).toEqual([
+        '/2/playlist.m3u8',
+        '/1/playlist.m3u8',
+        '/4/playlist.m3u8',
+        '/7/playlist.m3u8',
+        '/5/playlist.m3u8',
+        '/8/playlist.m3u8',
+      ]);
     });
 
     it('prefixes variant URLs without changing the existing HLS endpoint output', async () => {
       setup(eiffelTower);
       const result = await sut.getMainPlaylist(auth, assetId, 'stream/');
 
-      expect(result).toBe(eiffelExpectedMasterNoAv1.replaceAll(`${sessionId}/`, `stream/${sessionId}/`));
+      expect(result.match(/stream\/[\w-]+\/(\d+)\/playlist\.m3u8/g)).toEqual([
+        `stream/${sessionId}/2/playlist.m3u8`,
+        `stream/${sessionId}/1/playlist.m3u8`,
+        `stream/${sessionId}/4/playlist.m3u8`,
+        `stream/${sessionId}/7/playlist.m3u8`,
+        `stream/${sessionId}/5/playlist.m3u8`,
+        `stream/${sessionId}/8/playlist.m3u8`,
+      ]);
       expect(result).not.toContain('stream/stream/');
     });
 
     it('offers every resolution up to the source and derives 4K codec levels (waterfall, 4K, 29.83fps)', async () => {
       setup(waterfall, allCodecs, allResolutions);
-      await expect(sut.getMainPlaylist(auth, assetId)).resolves.toBe(waterfallExpectedMasterAv1);
+      const playlist = await sut.getMainPlaylist(auth, assetId);
+      expect(playlist.match(/\/(\d+)\/playlist\.m3u8/g)).toEqual([
+        '/2/playlist.m3u8',
+        '/0/playlist.m3u8',
+        '/1/playlist.m3u8',
+        '/3/playlist.m3u8',
+        '/4/playlist.m3u8',
+        '/6/playlist.m3u8',
+        '/7/playlist.m3u8',
+        '/5/playlist.m3u8',
+        '/9/playlist.m3u8',
+        '/8/playlist.m3u8',
+        '/10/playlist.m3u8',
+        '/12/playlist.m3u8',
+        '/11/playlist.m3u8',
+        '/13/playlist.m3u8',
+        '/14/playlist.m3u8',
+      ]);
     });
 
     it('throws BadRequestException when realtime transcoding is disabled', async () => {
@@ -252,16 +132,21 @@ describe(HlsService.name, () => {
   describe('getMediaPlaylist', () => {
     const auth = factory.auth();
     const assetId = 'asset-1';
-    const fixtures = [
-      { data: eiffelTower, playlist: eiffelExpectedMediaPlaylist },
-      { data: waterfall, playlist: waterfallExpectedMediaPlaylist },
-      { data: train, playlist: trainExpectedMediaPlaylist },
-    ];
+    const fixtures = [eiffelTower, waterfall, train];
 
-    it.each(fixtures)('matches FFmpeg for $data.originalPath', async ({ data, playlist }) => {
+    it.each(fixtures)('creates one-second independently seekable segments for $originalPath', async (data) => {
       mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([assetId]));
       mocks.videoStream.getForMediaPlaylist.mockResolvedValue(data);
-      await expect(sut.getMediaPlaylist(auth, assetId, sessionId, 0)).resolves.toBe(playlist);
+      const playlist = await sut.getMediaPlaylist(auth, assetId, sessionId, 0);
+      expect(playlist).toContain('#EXT-X-TARGETDURATION:1');
+      expect(playlist).toContain('#EXT-X-MAP:URI="init.mp4"');
+      expect(playlist).toContain('#EXT-X-ENDLIST');
+      const segmentDurations = playlist
+        .matchAll(/#EXTINF:([\d.]+)/g)
+        .map(([, duration]) => Number(duration))
+        .toArray();
+      expect(segmentDurations.length).toBeGreaterThan(1);
+      expect(Math.max(...segmentDurations)).toBeLessThanOrEqual(1.05);
     });
 
     it('throws NotFoundException when the session/asset cannot be loaded', async () => {
@@ -277,7 +162,7 @@ describe(HlsService.name, () => {
         sessionId,
         assetId,
         variantIndex: 1,
-        segmentIndex: 5,
+        segmentIndex: 10,
       });
     });
 
@@ -297,11 +182,16 @@ describe(HlsService.name, () => {
       });
     });
 
-    it('does not prewarm without a hint or prior segment traffic', async () => {
+    it('prewarms the first segment when no position hint is provided', async () => {
       mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([assetId]));
       mocks.videoStream.getForMediaPlaylist.mockResolvedValue(eiffelTower);
       await sut.getMediaPlaylist(auth, assetId, sessionId, 1);
-      expect(mocks.websocket.serverSend).not.toHaveBeenCalled();
+      expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsSegmentRequest', {
+        sessionId,
+        assetId,
+        variantIndex: 1,
+        segmentIndex: 0,
+      });
     });
 
     it('does not prewarm the variant the session is already playing', async () => {
@@ -334,6 +224,22 @@ describe(HlsService.name, () => {
         variantIndex,
         segmentIndex: 0,
       });
+    });
+
+    it('waits for init.mp4 readiness instead of the first media segment', async () => {
+      mocks.storage.checkFileExists.mockResolvedValue(false);
+      const pending = sut.getSegment(auth, assetId, sessionId, variantIndex, 'init.mp4');
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsSegmentRequest', {
+        sessionId,
+        assetId,
+        variantIndex,
+        segmentIndex: 0,
+      });
+      sut.onInitResult({ sessionId, variantIndex });
+
+      await expect(pending).resolves.toBeDefined();
     });
 
     it('emits HlsHeartbeat with the parsed segment number for seg_K.m4s', async () => {

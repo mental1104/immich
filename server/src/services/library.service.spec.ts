@@ -592,6 +592,62 @@ describe(LibraryService.name, () => {
       ]);
     });
 
+    it('should defer INSV files without importing or queueing extraction jobs', async () => {
+      const library = factory.library();
+      mocks.library.get.mockResolvedValue(library);
+      mocks.asset.createAll.mockResolvedValue([]);
+
+      await expect(sut.handleSyncFiles({ libraryId: library.id, paths: ['/data/user1/camera.insv'] })).resolves.toBe(
+        JobStatus.Success,
+      );
+
+      expect(mocks.storage.stat).not.toHaveBeenCalled();
+      expect(mocks.asset.createAll).toHaveBeenCalledWith([]);
+      expect(mocks.job.queueAll).not.toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ name: JobName.SidecarCheck })]),
+      );
+    });
+
+    it('should defer videos larger than 3 GiB', async () => {
+      const library = factory.library();
+      mocks.library.get.mockResolvedValue(library);
+      mocks.asset.createAll.mockResolvedValue([]);
+      mocks.storage.stat.mockResolvedValue({
+        size: 3 * 1024 ** 3 + 1,
+        mtime: new Date('2023-01-01'),
+        ctime: new Date('2023-01-01'),
+      } as Stats);
+
+      await expect(sut.handleSyncFiles({ libraryId: library.id, paths: ['/data/user1/camera.mp4'] })).resolves.toBe(
+        JobStatus.Success,
+      );
+
+      expect(mocks.asset.createAll).toHaveBeenCalledWith([]);
+      expect(mocks.job.queueAll).not.toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ name: JobName.SidecarCheck })]),
+      );
+    });
+
+    it('should still import videos at or below 3 GiB', async () => {
+      const library = factory.library();
+      const asset = AssetFactory.create();
+      mocks.library.get.mockResolvedValue(library);
+      mocks.asset.createAll.mockResolvedValue([asset.id]);
+      mocks.storage.stat.mockResolvedValue({
+        size: 3 * 1024 ** 3,
+        mtime: new Date('2023-01-01'),
+        ctime: new Date('2023-01-01'),
+      } as Stats);
+
+      await expect(sut.handleSyncFiles({ libraryId: library.id, paths: ['/data/user1/camera.mp4'] })).resolves.toBe(
+        JobStatus.Success,
+      );
+
+      expect(mocks.asset.createAll).toHaveBeenCalledWith([
+        expect.objectContaining({ originalPath: '/data/user1/camera.mp4', type: AssetType.Video }),
+      ]);
+    });
+
     it('should not import an asset to a soft deleted library', async () => {
       const library = factory.library({ deletedAt: new Date() });
 

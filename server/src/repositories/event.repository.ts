@@ -98,6 +98,7 @@ type EventMap = {
   // hls streaming events
   HlsSegmentRequest: [{ sessionId: string; assetId: string; variantIndex: number; segmentIndex: number }];
   HlsSegmentResult: [{ sessionId: string; variantIndex: number; segmentIndex: number; error?: string }];
+  HlsInitResult: [{ sessionId: string; variantIndex: number; error?: string }];
   HlsHeartbeat: [{ sessionId: string; variantIndex?: number; segmentIndex?: number }];
   HlsSessionRequest: [{ sessionId: string; assetId: string; ownerId: string }];
   HlsSessionResult: [{ sessionId: string; error?: string }];

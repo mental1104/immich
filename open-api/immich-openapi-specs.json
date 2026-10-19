@@ -5181,7 +5181,7 @@
             "api_key": []
           }
         ],
-        "summary": "Play asset video",
+        "summary": "在实验模式下以原视频播放 URL 返回 HLS 主列表，否则保持文件 Range 播放接口行为。",
         "tags": [
           "Assets"
         ],
@@ -21371,6 +21371,13 @@
             },
             "type": "array"
           },
+          "taskStatuses": {
+            "description": "Processing task status for this asset",
+            "items": {
+              "$ref": "#/components/schemas/AssetTaskStatusResponseDto"
+            },
+            "type": "array"
+          },
           "thumbhash": {
             "description": "Thumbhash for thumbnail generation (base64) also used as the c query param for thumbnail cache busting.",
             "nullable": true,
@@ -21474,6 +21481,66 @@
           "images",
           "total",
           "videos"
+        ],
+        "type": "object"
+      },
+      "AssetTaskStatusResponseDto": {
+        "properties": {
+          "attempts": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "errorMessage": {
+            "nullable": true,
+            "type": "string"
+          },
+          "failedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "generation": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "queuedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "taskName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempts",
+          "completedAt",
+          "errorMessage",
+          "failedAt",
+          "generation",
+          "queuedAt",
+          "startedAt",
+          "status",
+          "taskName"
         ],
         "type": "object"
       },
@@ -22799,6 +22866,7 @@
           "AssetFileMigration",
           "AssetGenerateThumbnailsQueueAll",
           "AssetGenerateThumbnails",
+          "AssetStackNikonPair",
           "AuditTableCleanup",
           "DatabaseBackup",
           "FacialRecognitionQueueAll",
@@ -26169,6 +26237,8 @@
         "enum": [
           "thumbnailGeneration",
           "metadataExtraction",
+          "videoMetadataExtraction",
+          "nikonPairing",
           "videoConversion",
           "faceDetection",
           "facialRecognition",
@@ -26331,6 +26401,9 @@
           "migration": {
             "$ref": "#/components/schemas/QueueResponseLegacyDto"
           },
+          "nikonPairing": {
+            "$ref": "#/components/schemas/QueueResponseLegacyDto"
+          },
           "notifications": {
             "$ref": "#/components/schemas/QueueResponseLegacyDto"
           },
@@ -26355,6 +26428,9 @@
           "videoConversion": {
             "$ref": "#/components/schemas/QueueResponseLegacyDto"
           },
+          "videoMetadataExtraction": {
+            "$ref": "#/components/schemas/QueueResponseLegacyDto"
+          },
           "workflow": {
             "$ref": "#/components/schemas/QueueResponseLegacyDto"
           }
@@ -26370,6 +26446,7 @@
           "library",
           "metadataExtraction",
           "migration",
+          "nikonPairing",
           "notifications",
           "ocr",
           "search",
@@ -26378,6 +26455,7 @@
           "storageTemplateMigration",
           "thumbnailGeneration",
           "videoConversion",
+          "videoMetadataExtraction",
           "workflow"
         ],
         "type": "object"

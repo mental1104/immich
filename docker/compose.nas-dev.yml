@@ -42,6 +42,7 @@ services:
     environment:
       IMMICH_SERVER_URL: http://server:2283
       COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+      NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
     volumes:
       - ..:/workspace
     ports:

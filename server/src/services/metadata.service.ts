@@ -218,7 +218,10 @@ export class MetadataService extends BaseService {
 
     for await (const assets of batched(this.assetJobRepository.streamForMetadataExtraction(force))) {
       await this.jobRepository.queueAll(
-        assets.map((asset) => ({ name: JobName.AssetExtractMetadata, data: { id: asset.id } })),
+        assets.map((asset) => ({
+          name: JobName.AssetExtractMetadata,
+          data: { id: asset.id, assetType: asset.type, ...(force && { force }) },
+        })),
       );
     }
 
@@ -234,6 +237,15 @@ export class MetadataService extends BaseService {
 
     if (!asset) {
       return;
+    }
+
+    // Redirect unclassified legacy jobs before running ExifTool or ffprobe.
+    if (asset.type === AssetType.Video && data.assetType !== AssetType.Video) {
+      await this.jobRepository.queue({
+        name: JobName.AssetExtractMetadata,
+        data: { ...data, assetType: AssetType.Video, force: true },
+      });
+      return JobStatus.Skipped;
     }
 
     const [exifResult, stats] = await Promise.all([
@@ -409,6 +421,7 @@ export class MetadataService extends BaseService {
     }
 
     await this.assetRepository.upsertJobStatus({ assetId: asset.id, metadataExtractedAt: new Date() });
+    await this.assetJobRepository.completeMetadataTask(asset.id);
 
     await this.eventRepository.emit('AssetMetadataExtracted', {
       assetId: asset.id,
@@ -1112,7 +1125,9 @@ export class MetadataService extends BaseService {
     const { videoStreams, audioStreams, format } = await this.mediaRepository.probe(originalPath);
     const video = videoStreams[0];
     const audio = audioStreams[0];
-    const packets = video?.timeBase ? await this.mediaRepository.probePackets(originalPath, video.index) : null;
+    const packets = video?.timeBase
+      ? await this.mediaRepository.probePackets(originalPath, video.index, video.timeBase, video.duration)
+      : null;
 
     const tags: Pick<ImmichTags, 'Duration' | 'Orientation' | 'ImageWidth' | 'ImageHeight'> = {};
 

@@ -276,6 +276,7 @@ export class MediaRepository {
             level: this.parseOptionalInt(stream.level),
             frameCount: this.parseInt(options?.countFrames ? stream.nb_read_packets : stream.nb_frames),
             frameRate: this.parseFrameRate(stream.avg_frame_rate ?? stream.r_frame_rate),
+            duration: this.parseFloat(stream.duration) || null,
             timeBase: this.parseRational(stream.time_base)?.den ?? null,
             rotation: this.parseInt(stream.rotation),
             bitrate: this.parseInt(stream.bit_rate),
@@ -307,7 +308,12 @@ export class MediaRepository {
    * Needed for accurate segments, especially when remuxing, seeking and/or VFR is involved.
    * Scanning packets for keyframes in JS is much faster than -skip_frame nokey since it avoids decoding the video.
    */
-  probePackets(input: string, streamIndex: number): Promise<VideoPacketInfo | null> {
+  probePackets(
+    input: string,
+    streamIndex: number,
+    timeBase?: number,
+    streamDuration?: number | null,
+  ): Promise<VideoPacketInfo | null> {
     const ffprobe = spawn(
       'ffprobe',
       [
@@ -382,10 +388,19 @@ export class MediaRepository {
           return resolve(null);
         }
 
+        // Packet duration can be shorter than the gap between presentation timestamps (e.g. MOV HEVC
+        // packets reporting duration=1 with a 1/600 time base). Prefer ffprobe's stream timeline when
+        // available so CFR conversion and HLS frame-rate calculations use the actual video duration.
+        const streamTimelineDuration =
+          timeBase && streamDuration && streamDuration > 0 ? Math.round(timeBase * streamDuration) : 0;
+        const timelineDuration = streamTimelineDuration || totalDuration;
+        const normalizedFrames = this.cfrOutputFrames(postDiscard, postDiscard.length / timelineDuration);
         resolve({
-          totalDuration,
+          totalDuration: timelineDuration,
           packetCount: postDiscard.length,
-          outputFrames: this.cfrOutputFrames(postDiscard, postDiscard.length / totalDuration),
+          // Rounded packet durations can make CFR slot calculation miss an edge frame; preserve every
+          // packet that ffprobe reported so metadata cannot produce an output frame count below the input.
+          outputFrames: Math.max(postDiscard.length, normalizedFrames),
           keyframePts,
           keyframeAccDuration,
           keyframeOwnDuration,

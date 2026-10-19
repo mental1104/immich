@@ -333,6 +333,8 @@
     "queues": "Job Queues",
     "queues_page_description": "Admin job queues page",
     "quota_size_gib": "Quota Size (GiB)",
+    "raw_pairing_job": "RAW + rendered image pairing",
+    "raw_pairing_job_description": "Match NEF/DNG files with JPG/HEIC/HEIF images into a stack after metadata extraction",
     "refreshing_all_libraries": "Refreshing all libraries",
     "registration": "Admin Registration",
     "registration_description": "Since you are the first user on the system, you will be assigned as the Admin and are responsible for administrative tasks, and additional users will be created by you.",
@@ -496,7 +498,9 @@
     "version_check_settings": "Version Check",
     "version_check_settings_description": "Enable/disable the new version notification",
     "video_conversion_job": "Transcode videos",
-    "video_conversion_job_description": "Transcode videos for wider compatibility with browsers and devices"
+    "video_conversion_job_description": "Transcode videos for wider compatibility with browsers and devices",
+    "video_metadata_extraction_job": "Video metadata extraction",
+    "video_metadata_extraction_job_description": "Video metadata is extracted when system CPU and disk I/O load is low"
   },
   "admin_email": "Admin Email",
   "admin_password": "Admin Password",
@@ -601,8 +605,23 @@
   "asset_not_found_on_icloud": "Asset not found on iCloud. the asset may be inaccessible due to bad file stored on iCloud",
   "asset_offline": "Asset Offline",
   "asset_offline_description": "This external asset is no longer found on disk. Please contact your Immich administrator for help.",
+  "asset_processing_tasks": "Processing tasks",
   "asset_skipped": "Skipped",
   "asset_skipped_in_trash": "In trash",
+  "asset_task": {
+    "face-detection": "Face detection",
+    "metadata-extraction": "Metadata extraction",
+    "thumbnail-generation": "Thumbnail generation",
+    "video-encoding": "Video encoding"
+  },
+  "asset_task_status": {
+    "completed": "Completed",
+    "failed": "Failed",
+    "not-run": "Not recorded",
+    "queued": "Queued",
+    "running": "Running",
+    "skipped": "Skipped"
+  },
   "asset_troubleshoot": "Asset Troubleshoot",
   "asset_uploaded": "Uploaded",
   "asset_uploading": "Uploading…",
@@ -1865,6 +1884,7 @@
   "role_viewer": "Viewer",
   "rotate_api_key_prompt": "Are you sure you want to rotate this API key? The current key will stop working immediately.",
   "rotate_key": "Rotate key",
+  "run_task": "Run",
   "running": "Running",
   "save": "Save",
   "saved": "Saved",

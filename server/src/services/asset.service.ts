@@ -49,7 +49,7 @@ import {
   onBeforeUnlink,
 } from 'src/utils/asset.util.js';
 import { updateLockedColumns } from 'src/utils/database.js';
-import { extractTimeZone } from 'src/utils/date.js';
+import { asDateTimeString, extractTimeZone } from 'src/utils/date.js';
 import { batched, findOrFail } from 'src/utils/misc.js';
 import { transformOcrBoundingBox } from 'src/utils/transform.js';
 
@@ -85,6 +85,17 @@ export class AssetService extends BaseService {
     }
 
     const data = mapAsset(asset, { withStack: true, auth });
+
+    if (!auth.sharedLink && (auth.user.id === asset.ownerId || auth.user.isAdmin)) {
+      const taskStatuses = await this.assetJobRepository.getTaskStatuses(id);
+      data.taskStatuses = taskStatuses.map((status) => ({
+        ...status,
+        queuedAt: status.queuedAt ? asDateTimeString(status.queuedAt) : null,
+        startedAt: status.startedAt ? asDateTimeString(status.startedAt) : null,
+        completedAt: status.completedAt ? asDateTimeString(status.completedAt) : null,
+        failedAt: status.failedAt ? asDateTimeString(status.failedAt) : null,
+      }));
+    }
 
     if (auth.sharedLink) {
       delete data.owner;
@@ -268,7 +279,7 @@ export class AssetService extends BaseService {
     targetAsset,
   }: {
     sourceAsset: { files: AssetFile[] };
-    targetAsset: { id: string; files: AssetFile[]; originalPath: string };
+    targetAsset: { id: string; type: AssetType; files: AssetFile[]; originalPath: string };
   }) {
     const { sidecarFile: sourceFile } = getAssetFiles(sourceAsset.files);
     if (!sourceFile?.path) {
@@ -286,7 +297,10 @@ export class AssetService extends BaseService {
       path: `${targetAsset.originalPath}.xmp`,
       type: AssetFileType.Sidecar,
     });
-    await this.jobRepository.queue({ name: JobName.AssetExtractMetadata, data: { id: targetAsset.id } });
+    await this.jobRepository.queue({
+      name: JobName.AssetExtractMetadata,
+      data: { id: targetAsset.id, assetType: targetAsset.type, force: true },
+    });
   }
 
   @OnJob({ name: JobName.AssetDeleteCheck, queue: QueueName.BackgroundTask })
@@ -473,6 +487,9 @@ export class AssetService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: dto.assetIds });
 
     const jobs: JobItem[] = [];
+    const assetsWithTypes =
+      dto.name === AssetJobName.REFRESH_METADATA ? await this.assetJobRepository.getAssetTypes(dto.assetIds) : [];
+    const assetTypes = new Map(assetsWithTypes.map(({ id, type }) => [id, type]));
 
     for (const id of dto.assetIds) {
       switch (dto.name) {
@@ -482,7 +499,7 @@ export class AssetService extends BaseService {
         }
 
         case AssetJobName.REFRESH_METADATA: {
-          jobs.push({ name: JobName.AssetExtractMetadata, data: { id } });
+          jobs.push({ name: JobName.AssetExtractMetadata, data: { id, assetType: assetTypes.get(id), force: true } });
           break;
         }
 

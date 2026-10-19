@@ -1,5 +1,6 @@
 FROM ghcr.io/immich-app/base-server-dev:202610131110@sha256:082dc5e2611953d63d7b30dc8427da37ff5cd1d932aa9e99ccc4a26298b5f7a5 AS builder
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+  npm_config_registry=https://registry.npmmirror.com \
   CI=1 \
   COREPACK_HOME=/tmp \
   PNPM_HOME=/buildcache/pnpm-store \

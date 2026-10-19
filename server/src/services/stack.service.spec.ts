@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { JobName, JobStatus } from 'src/enum.js';
 import { StackService } from 'src/services/stack.service.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
@@ -20,15 +21,35 @@ describe(StackService.name, () => {
     expect(sut).toBeDefined();
   });
 
-  /** 仅新建成功时发送已有刷新事件；侧写任务不重建用户拆开的堆叠。 */
-  it('notifies when a Nikon pair is created and skips sidecar writes', async () => {
-    mocks.stack.autoStackNikonPair.mockResolvedValue('stack-id');
+  /** 配对由独立任务队列处理；侧写任务不重建用户拆开的堆叠。 */
+  it('queues RAW pairing and skips sidecar writes', async () => {
     await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'upload' });
-    expect(mocks.stack.autoStackNikonPair).toHaveBeenCalledWith('raw-id', 'owner-id');
-    expect(mocks.event.emit).toHaveBeenCalledWith('StackCreate', { stackId: 'stack-id', userId: 'owner-id' });
-    mocks.stack.autoStackNikonPair.mockClear();
+    expect(mocks.job.queue).toHaveBeenCalledWith({
+      name: JobName.AssetStackRawPair,
+      data: { assetId: 'raw-id', ownerId: 'owner-id' },
+    });
+    mocks.stack.autoStackRawPair.mockClear();
+    mocks.job.queue.mockClear();
     await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'sidecar-write' });
-    expect(mocks.stack.autoStackNikonPair).not.toHaveBeenCalled();
+    expect(mocks.stack.autoStackRawPair).not.toHaveBeenCalled();
+    expect(mocks.job.queue).not.toHaveBeenCalled();
+  });
+
+  it('stacks RAW pairs from the dedicated worker and notifies on a match', async () => {
+    mocks.stack.autoStackRawPair.mockResolvedValue('stack-id');
+    await expect(sut.handleAutoStackRawPair({ assetId: 'raw-id', ownerId: 'owner-id' })).resolves.toBe(
+      JobStatus.Success,
+    );
+    expect(mocks.stack.autoStackRawPair).toHaveBeenCalledWith('raw-id', 'owner-id');
+    expect(mocks.event.emit).toHaveBeenCalledWith('StackCreate', { stackId: 'stack-id', userId: 'owner-id' });
+  });
+
+  it('skips when no unique RAW pair is found', async () => {
+    mocks.stack.autoStackRawPair.mockResolvedValue(undefined);
+    await expect(sut.handleAutoStackRawPair({ assetId: 'raw-id', ownerId: 'owner-id' })).resolves.toBe(
+      JobStatus.Skipped,
+    );
+    expect(mocks.event.emit).not.toHaveBeenCalled();
   });
 
   describe('search', () => {

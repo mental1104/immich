@@ -14,6 +14,10 @@ describe(JobService.name, () => {
     ({ sut, mocks } = newTestService(JobService));
 
     mocks.config.getWorker.mockReturnValue(ImmichWorker.Microservices);
+    mocks.assetJob.startAssetTask.mockResolvedValue();
+    mocks.assetJob.completeAssetTask.mockResolvedValue();
+    mocks.assetJob.skipAssetTask.mockResolvedValue();
+    mocks.assetJob.failAssetTask.mockResolvedValue();
   });
 
   it('should work', () => {
@@ -44,13 +48,14 @@ describe(JobService.name, () => {
 
     it('should queue metadata extraction when sidecar discovery is skipped', async () => {
       const job: JobItem = { name: JobName.SidecarCheck, data: { id: 'asset-1', source: 'upload' } };
+      mocks.assetJob.getAssetType.mockResolvedValue({ type: AssetType.Image });
       mocks.job.run.mockResolvedValue(JobStatus.Skipped);
 
       await sut.onJobRun(QueueName.Sidecar, job);
 
       expect(mocks.job.queue).toHaveBeenCalledExactlyOnceWith({
         name: JobName.AssetExtractMetadata,
-        data: job.data,
+        data: { ...job.data, assetType: AssetType.Image, force: true },
       });
     });
 
@@ -64,6 +69,40 @@ describe(JobService.name, () => {
       expect(mocks.event.emit).toHaveBeenCalledWith('JobSuccess', { job, response: JobStatus.Success });
       expect(mocks.event.emit).toHaveBeenCalledWith('JobComplete', QueueName.BackgroundTask, job);
       expect(mocks.logger.error).not.toHaveBeenCalled();
+    });
+
+    it('tracks metadata extraction attempts and failures', async () => {
+      const job: JobItem = { name: JobName.AssetExtractMetadata, data: { id: 'asset-1', assetType: AssetType.Image } };
+      const error = new Error('metadata read failed');
+      mocks.assetJob.startMetadataTask.mockResolvedValue();
+      mocks.job.run.mockRejectedValue(error);
+
+      await sut.onJobRun(QueueName.MetadataExtraction, job);
+
+      expect(mocks.assetJob.startMetadataTask).toHaveBeenCalledWith('asset-1');
+      expect(mocks.assetJob.failMetadataTask).toHaveBeenCalledWith('asset-1', error);
+      expect(mocks.event.emit).toHaveBeenCalledWith('JobError', { job, error });
+    });
+
+    it('tracks thumbnail task success in the per-asset task table', async () => {
+      const job: JobItem = { name: JobName.AssetGenerateThumbnails, data: { id: 'asset-1' } };
+      mocks.job.run.mockResolvedValue(JobStatus.Success);
+
+      await sut.onJobRun(QueueName.ThumbnailGeneration, job);
+
+      expect(mocks.assetJob.startAssetTask).toHaveBeenCalledWith('asset-1', 'thumbnail-generation');
+      expect(mocks.assetJob.completeAssetTask).toHaveBeenCalledWith('asset-1', 'thumbnail-generation');
+    });
+
+    it('tracks face detection task failure in the per-asset task table', async () => {
+      const job: JobItem = { name: JobName.AssetDetectFaces, data: { id: 'asset-1' } };
+      const error = new Error('face detection failed');
+      mocks.job.run.mockRejectedValue(error);
+
+      await sut.onJobRun(QueueName.FacialRecognition, job);
+
+      expect(mocks.assetJob.startAssetTask).toHaveBeenCalledWith('asset-1', 'face-detection');
+      expect(mocks.assetJob.failAssetTask).toHaveBeenCalledWith('asset-1', 'face-detection', error);
     });
 
     const tests: Array<{ item: JobItem; jobs: JobName[]; stub?: any }> = [
@@ -123,6 +162,7 @@ describe(JobService.name, () => {
 
     for (const { item, jobs, stub } of tests) {
       it(`should queue ${jobs.length} jobs when a ${item.name} job finishes successfully`, async () => {
+        mocks.assetJob.getAssetType.mockResolvedValue({ type: AssetType.Image });
         if (stub) {
           mocks.asset.getById.mockResolvedValue(stub[0]);
           mocks.asset.getByIdsWithAllRelationsButStacks.mockResolvedValue(stub);

@@ -237,12 +237,12 @@ export const HLS_CRF: Record<VideoCodec, number> = {
 export const HLS_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 export const HLS_LEASE_DURATION_MS = 30 * 60 * 1000;
 export const HLS_PLAYLIST_CONTENT_TYPE = 'application/vnd.apple.mpegurl';
-export const HLS_SEGMENT_DURATION = 2;
+export const HLS_SEGMENT_DURATION = 1;
 export const HLS_SEGMENT_FILENAME_REGEX = /^seg_(\d+)\.m4s$/;
 export const HLS_VARIANTS = [
   { resolution: 480, codec: VideoCodec.Av1, bitrate: 1_000_000 },
   { resolution: 480, codec: VideoCodec.Hevc, bitrate: 1_200_000 },
-  { resolution: 480, codec: VideoCodec.H264, bitrate: 2_500_000 },
+  { resolution: 480, codec: VideoCodec.H264, bitrate: 800_000 },
   { resolution: 720, codec: VideoCodec.Av1, bitrate: 2_000_000 },
   { resolution: 720, codec: VideoCodec.Hevc, bitrate: 2_500_000 },
   { resolution: 720, codec: VideoCodec.H264, bitrate: 5_000_000 },

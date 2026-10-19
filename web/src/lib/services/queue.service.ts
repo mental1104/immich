@@ -173,6 +173,16 @@ export const asQueueItem = ($t: MessageFormatter, queue: { name: QueueName }): Q
       title: $t('admin.metadata_extraction_job'),
       subtitle: $t('admin.metadata_extraction_job_description'),
     },
+    [QueueName.VideoMetadataExtraction]: {
+      icon: mdiVideo,
+      title: $t('admin.video_metadata_extraction_job'),
+      subtitle: $t('admin.video_metadata_extraction_job_description'),
+    },
+    [QueueName.NikonPairing]: {
+      icon: mdiFileJpgBox,
+      title: $t('admin.raw_pairing_job'),
+      subtitle: $t('admin.raw_pairing_job_description'),
+    },
     [QueueName.Library]: {
       icon: mdiLibraryShelves,
       title: $t('external_libraries'),

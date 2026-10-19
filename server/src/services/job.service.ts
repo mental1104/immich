@@ -5,8 +5,31 @@ import { mapAsset } from 'src/dtos/asset-response.dto.js';
 import { JobCreateDto } from 'src/dtos/job.dto.js';
 import { AssetType, AssetVisibility, IntegrityReport, JobName, JobStatus, ManualJobName } from 'src/enum.js';
 import { ArgsOf } from 'src/repositories/event.repository.js';
+import { ForkAssetTask, type ForkAssetTaskName } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import { hexOrBufferToBase64 } from 'src/utils/bytes.js';
+
+const getAssetTaskName = (item: JobItem): ForkAssetTaskName | undefined => {
+  switch (item.name) {
+    case JobName.AssetGenerateThumbnails: {
+      return ForkAssetTask.ThumbnailGeneration;
+    }
+    case JobName.AssetDetectFaces: {
+      return ForkAssetTask.FaceDetection;
+    }
+    case JobName.AssetEncodeVideo: {
+      return ForkAssetTask.VideoEncoding;
+    }
+    default: {
+      return;
+    }
+  }
+};
+
+const getAssetTaskId = (item: JobItem): string | undefined => {
+  const data = item.data as { id?: string; assetId?: string } | undefined;
+  return data?.id ?? data?.assetId;
+};
 
 const asJobItem = (dto: JobCreateDto): JobItem => {
   switch (dto.name) {
@@ -86,12 +109,45 @@ export class JobService extends BaseService {
   async onJobRun(...[queueName, job]: ArgsOf<'JobRun'>) {
     try {
       await this.eventRepository.emit('JobStart', queueName, job);
+      if (job.name === JobName.AssetExtractMetadata) {
+        await this.assetJobRepository.startMetadataTask(job.data.id);
+      } else {
+        const taskName = getAssetTaskName(job);
+        const assetId = getAssetTaskId(job);
+        if (taskName && assetId) {
+          await this.assetJobRepository.startAssetTask(assetId, taskName);
+        }
+      }
       const response = await this.jobRepository.run(job);
       await this.eventRepository.emit('JobSuccess', { job, response });
       if (response && typeof response === 'string' && [JobStatus.Success, JobStatus.Skipped].includes(response)) {
+        const taskName = getAssetTaskName(job);
+        const assetId = getAssetTaskId(job);
+        if (taskName && assetId) {
+          await (response === JobStatus.Skipped
+            ? this.assetJobRepository.skipAssetTask(assetId, taskName)
+            : this.assetJobRepository.completeAssetTask(assetId, taskName));
+        }
         await this.onDone(job);
       }
     } catch (error: Error | any) {
+      if (job.name === JobName.AssetExtractMetadata) {
+        try {
+          await this.assetJobRepository.failMetadataTask(job.data.id, error);
+        } catch (statusError) {
+          this.logger.error(`Failed to persist metadata task failure for asset ${job.data.id}: ${statusError}`);
+        }
+      } else {
+        const taskName = getAssetTaskName(job);
+        const assetId = getAssetTaskId(job);
+        if (taskName && assetId) {
+          try {
+            await this.assetJobRepository.failAssetTask(assetId, taskName, error);
+          } catch (statusError) {
+            this.logger.error(`Failed to persist ${taskName} failure for asset ${assetId}: ${statusError}`);
+          }
+        }
+      }
       await this.eventRepository.emit('JobError', { job, error });
     } finally {
       await this.eventRepository.emit('JobComplete', queueName, job);
@@ -106,14 +162,19 @@ export class JobService extends BaseService {
   private async onDone(item: JobItem) {
     switch (item.name) {
       case JobName.SidecarCheck: {
-        await this.jobRepository.queue({ name: JobName.AssetExtractMetadata, data: item.data });
+        const asset = await this.assetJobRepository.getAssetType(item.data.id);
+        await this.jobRepository.queue({
+          name: JobName.AssetExtractMetadata,
+          data: { ...item.data, assetType: asset?.type, force: true },
+        });
         break;
       }
 
       case JobName.SidecarWrite: {
+        const asset = await this.assetJobRepository.getAssetType(item.data.id);
         await this.jobRepository.queue({
           name: JobName.AssetExtractMetadata,
-          data: { id: item.data.id, source: 'sidecar-write' },
+          data: { id: item.data.id, source: 'sidecar-write', assetType: asset?.type, force: true },
         });
         break;
       }

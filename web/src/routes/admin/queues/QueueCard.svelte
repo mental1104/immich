@@ -28,11 +28,21 @@
     disabled?: boolean;
     allText?: string;
     refreshText?: string;
-    missingText: string;
+    missingText?: string;
+    startable?: boolean;
     onCommand: (command: QueueCommandDto) => void;
   }
 
-  let { queue, description, disabled = false, allText, refreshText, missingText, onCommand }: Props = $props();
+  let {
+    queue,
+    description,
+    disabled = false,
+    allText,
+    refreshText,
+    missingText,
+    startable = true,
+    onCommand,
+  }: Props = $props();
 
   const { icon, title, subtitle } = $derived(asQueueItem($t, queue));
   const { statistics } = $derived(queue);
@@ -153,7 +163,7 @@
       {/if}
     {/if}
 
-    {#if !disabled && multipleButtons && isIdle}
+    {#if !disabled && startable && multipleButtons && isIdle}
       {#if allText}
         <QueueCardButton color="dark-gray" onClick={() => onCommand({ command: QueueCommand.Start, force: true })}>
           <Icon icon={mdiAllInclusive} size="24" />
@@ -172,7 +182,7 @@
       </QueueCardButton>
     {/if}
 
-    {#if !disabled && !multipleButtons && isIdle}
+    {#if !disabled && startable && !multipleButtons && isIdle}
       <QueueCardButton color="light-gray" onClick={() => onCommand({ command: QueueCommand.Start, force: false })}>
         <Icon icon={mdiPlay} size="48" />
         <span>{missingText}</span>

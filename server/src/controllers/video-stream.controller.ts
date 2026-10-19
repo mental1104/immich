@@ -1,4 +1,16 @@
-import { Controller, Delete, Get, Header, Headers, HttpCode, HttpStatus, Next, Param, Res } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  GatewayTimeoutException,
+  Get,
+  Header,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Next,
+  Param,
+  Res,
+} from '@nestjs/common';
 import { ApiProduces, ApiTags } from '@nestjs/swagger';
 import { ZodValidationException } from 'nestjs-zod';
 import type { NextFunction, Response } from 'express';
@@ -84,12 +96,24 @@ export class VideoStreamController {
     } catch (error) {
       throw new ZodValidationException(error);
     }
-    await sendFile(
-      res,
-      next,
-      () => this.service.getSegment(auth, id, sessionId, variantIndex, filename, headers[ImmichHeader.HlsInitSegment]),
-      this.logger,
-    );
+    let file: Awaited<ReturnType<HlsService['getSegment']>>;
+    try {
+      file = await this.service.getSegment(
+        auth,
+        id,
+        sessionId,
+        variantIndex,
+        filename,
+        headers[ImmichHeader.HlsInitSegment],
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Request timed out') {
+        throw new GatewayTimeoutException('HLS segment was not ready before the request timed out');
+      }
+      throw error;
+    }
+
+    await sendFile(res, next, () => file, this.logger);
   }
 
   @Delete(':id/video/stream/:sessionId')

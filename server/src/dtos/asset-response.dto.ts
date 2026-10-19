@@ -58,6 +58,20 @@ const AssetStackResponseSchema = z
   })
   .meta({ id: 'AssetStackResponseDto' });
 
+const AssetTaskStatusResponseSchema = z
+  .object({
+    taskName: z.string(),
+    status: z.string(),
+    attempts: z.number().int(),
+    generation: z.number().int(),
+    queuedAt: z.string().datetime().nullable(),
+    startedAt: z.string().datetime().nullable(),
+    completedAt: z.string().datetime().nullable(),
+    failedAt: z.string().datetime().nullable(),
+    errorMessage: z.string().nullable(),
+  })
+  .meta({ id: 'AssetTaskStatusResponseDto' });
+
 export const AssetResponseSchema = SanitizedAssetResponseSchema.extend(
   z.object({
     // TODO: use `isoDatetimeToDate` when using `ZodSerializerDto` on the controllers.
@@ -113,6 +127,7 @@ export const AssetResponseSchema = SanitizedAssetResponseSchema.extend(
       .boolean()
       .describe('Is edited')
       .meta(new HistoryBuilder().added('v2.5.0').beta('v2.5.0').getExtensions()),
+    taskStatuses: z.array(AssetTaskStatusResponseSchema).optional().describe('Processing task status for this asset'),
   }).shape,
 ).meta({ id: 'AssetResponseDto' });
 

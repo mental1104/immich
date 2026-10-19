@@ -15,6 +15,8 @@
   const queueNames = [
     QueueName.ThumbnailGeneration,
     QueueName.MetadataExtraction,
+    QueueName.VideoMetadataExtraction,
+    QueueName.NikonPairing,
     QueueName.Library,
     QueueName.Sidecar,
     QueueName.SmartSearch,
@@ -33,6 +35,8 @@
   const queueTitles: Record<QueueName, string> = $derived({
     [QueueName.ThumbnailGeneration]: $t('admin.thumbnail_generation_job'),
     [QueueName.MetadataExtraction]: $t('admin.metadata_extraction_job'),
+    [QueueName.VideoMetadataExtraction]: $t('admin.video_metadata_extraction_job'),
+    [QueueName.NikonPairing]: $t('admin.raw_pairing_job'),
     [QueueName.Sidecar]: $t('admin.sidecar_job'),
     [QueueName.SmartSearch]: $t('admin.machine_learning_smart_search'),
     [QueueName.DuplicateDetection]: $t('admin.machine_learning_duplicate_detection'),

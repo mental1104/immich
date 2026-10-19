@@ -53,6 +53,7 @@ import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
+import { ForkAssetTaskStatusTable } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -118,6 +119,7 @@ export class ImmichDatabase {
     AssetMetadataTable,
     AssetMetadataAuditTable,
     AssetJobStatusTable,
+    ForkAssetTaskStatusTable,
     AssetOcrTable,
     AssetOcrAuditTable,
     AssetTable,
@@ -232,6 +234,7 @@ export interface DB {
   asset_metadata: AssetMetadataTable;
   asset_metadata_audit: AssetMetadataAuditTable;
   asset_job_status: AssetJobStatusTable;
+  fork_asset_task_status: ForkAssetTaskStatusTable;
   asset_ocr: AssetOcrTable;
   asset_ocr_audit: AssetOcrAuditTable;
   asset_audio: AssetAudioTable;

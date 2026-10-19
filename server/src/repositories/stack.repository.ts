@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { sql } from 'kysely';
 import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
-import { dirname, parse } from 'node:path';
 import type { ExpressionBuilder, Insertable, Kysely, Updateable } from 'kysely';
 import { columns } from 'src/database.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
@@ -50,30 +49,32 @@ const withAssets = (eb: ExpressionBuilder<DB, 'stack'>, withTags = false) => {
 };
 
 @Injectable()
-/** 持久化现有照片堆叠，并对唯一 Nikon RAW/JPEG 配对提供事务与幂等保护。 */
+/** 持久化现有照片堆叠，并对唯一 RAW/成片拍摄参数配对提供事务与幂等保护。 */
 export class StackRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
 
   /**
-   * 把唯一匹配的 Nikon NEF+JPEG 放入既有堆叠，JPEG 为封面；不删除或移动原片。
+   * 把拍摄参数唯一匹配的 NEF/DNG 与 JPG/HEIC/HEIF 放入既有堆叠，成片为封面；不删除或移动原片。
    * @param assetId 元数据提取完成的资源 ID，允许由任一文件先触发。
    * @param ownerId 事件所属用户；查询与事务均限定此用户。
    * @returns 新建的 stackId；无唯一配对、信息不足或已有堆叠时为 undefined。
    */
-  async autoStackNikonPair(assetId: string, ownerId: string): Promise<string | undefined> {
+  async autoStackRawPair(assetId: string, ownerId: string): Promise<string | undefined> {
     const anchor = await this.db
       .selectFrom('asset')
       .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
       .select([
-        'asset.originalPath',
         'asset.originalFileName',
         'asset.libraryId',
         'asset.isExternal',
         'asset.visibility',
         'asset.stackId',
-        'asset_exif.make',
         'asset_exif.model',
         'asset_exif.dateTimeOriginal',
+        'asset_exif.exposureTime',
+        'asset_exif.fNumber',
+        'asset_exif.focalLength',
+        'asset_exif.iso',
       ])
       .where('asset.id', '=', assetId)
       .where('asset.ownerId', '=', ownerId)
@@ -85,16 +86,19 @@ export class StackRepository {
       anchor.stackId ||
       !anchor.dateTimeOriginal ||
       !anchor.model ||
-      !/^NIKON(?: CORPORATION)?$/i.test(anchor.make ?? '') ||
-      !/[.](nef|jpe?g)$/i.test(anchor.originalFileName) ||
+      !anchor.exposureTime ||
+      anchor.fNumber === null ||
+      anchor.focalLength === null ||
+      anchor.iso === null ||
+      !/[.](nef|dng|jpe?g|heic|heif)$/i.test(anchor.originalFileName) ||
       (anchor.visibility !== AssetVisibility.Timeline && anchor.visibility !== AssetVisibility.Archive)
     ) {
       return;
     }
 
     return this.db.transaction().execute(async (tx) => {
-      // 仅 Nikon 候选进入事务。同一用户的配对串行执行，避免同时完成时重复建堆叠。
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`nikon-pair:${ownerId}`}, 0))`.execute(tx);
+      // 同一用户的配对串行执行，避免同时完成时重复建堆叠。
+      await sql`select pg_advisory_xact_lock(hashtextextended(${`raw-pair:${ownerId}`}, 0))`.execute(tx);
       const candidates = await tx
         .selectFrom('asset')
         .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
@@ -105,33 +109,23 @@ export class StackRepository {
         .where('asset.type', '=', AssetType.Image)
         .where('asset.visibility', '=', anchor.visibility)
         .where('asset.deletedAt', 'is', null)
-        .where('asset_exif.make', '=', anchor.make)
         .where('asset_exif.model', '=', anchor.model)
         .where('asset_exif.dateTimeOriginal', '=', anchor.dateTimeOriginal)
-        .where(sql<boolean>`asset."originalFileName" ~* '[.](nef|jpe?g)$'`)
-        .where(
-          sql<string>`regexp_replace(lower(asset."originalFileName"), '[.](nef|jpe?g)$', '')`,
-          '=',
-          parse(anchor.originalFileName).name.toLowerCase(),
-        )
-        // 外部图库还必须是同一目录；上传文件实际存储目录随机，使用上面的拍摄证据。
-        .$if(anchor.isExternal, (qb) =>
-          qb.where(
-            sql<string>`regexp_replace(asset."originalPath", '[^/]*$', '')`,
-            '=',
-            `${dirname(anchor.originalPath).replace(/\/$/, '')}/`,
-          ),
-        )
+        .where('asset_exif.exposureTime', '=', anchor.exposureTime)
+        .where('asset_exif.fNumber', '=', anchor.fNumber)
+        .where('asset_exif.focalLength', '=', anchor.focalLength)
+        .where('asset_exif.iso', '=', anchor.iso)
+        .where(sql<boolean>`asset."originalFileName" ~* '[.](nef|dng|jpe?g|heic|heif)$'`)
         .orderBy('asset.id')
         .forUpdate('asset')
         .execute();
-      const raw = candidates.filter((asset) => /[.]nef$/i.test(asset.originalFileName));
-      const jpeg = candidates.filter((asset) => /[.]jpe?g$/i.test(asset.originalFileName));
-      // 不猜测重复导入或连拍中的对应关系，也不覆盖手工堆叠。
+      const raw = candidates.filter((asset) => /[.](nef|dng)$/i.test(asset.originalFileName));
+      const rendered = candidates.filter((asset) => /[.](jpe?g|heic|heif)$/i.test(asset.originalFileName));
+      // 仅在完整拍摄参数唯一匹配时配对；不猜测歧义候选，也不覆盖手工堆叠。
       if (
         candidates.length !== 2 ||
         raw.length !== 1 ||
-        jpeg.length !== 1 ||
+        rendered.length !== 1 ||
         candidates.every((asset) => asset.id !== assetId) ||
         candidates.some((asset) => asset.stackId)
       ) {
@@ -139,13 +133,13 @@ export class StackRepository {
       }
       const stack = await tx
         .insertInto('stack')
-        .values({ ownerId, primaryAssetId: jpeg[0].id })
+        .values({ ownerId, primaryAssetId: rendered[0].id })
         .returning('id')
         .executeTakeFirstOrThrow();
       await tx
         .updateTable('asset')
         .set({ stackId: stack.id, updatedAt: new Date() })
-        .where('id', 'in', [jpeg[0].id, raw[0].id])
+        .where('id', 'in', [rendered[0].id, raw[0].id])
         .execute();
       return stack.id;
     });

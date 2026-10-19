@@ -27,7 +27,8 @@
     description?: Component;
     allText?: string;
     refreshText?: string;
-    missingText: string;
+    missingText?: string;
+    startable?: boolean;
     disabled?: boolean;
     handleCommand?: (jobId: QueueName, jobCommand: QueueCommandDto) => Promise<void>;
   };
@@ -41,6 +42,8 @@
       allText: $t('all'),
       missingText: $t('missing'),
     },
+    [QueueName.VideoMetadataExtraction]: { startable: false },
+    [QueueName.NikonPairing]: { startable: false },
     [QueueName.Library]: {
       missingText: $t('rescan'),
     },

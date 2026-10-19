@@ -384,7 +384,8 @@ where
 
 -- AssetJobRepository.streamForSearchDuplicates
 select
-  "asset"."id"
+  "asset"."id",
+  "asset"."type"
 from
   "asset"
   inner join "smart_search" on "asset"."id" = "smart_search"."assetId"
@@ -705,14 +706,23 @@ where
 
 -- AssetJobRepository.streamForMetadataExtraction
 select
-  "asset"."id"
+  "asset"."id",
+  "asset"."type"
 from
   "asset"
-  left join "asset_job_status" on "asset_job_status"."assetId" = "asset"."id"
+  left join "asset_job_status" as "legacy_status" on "legacy_status"."assetId" = "asset"."id"
+  left join "fork_asset_task_status" as "task_status" on "task_status"."assetId" = "asset"."id"
+  and "task_status"."taskName" = 'metadata-extraction'
 where
   (
-    "asset_job_status"."metadataExtractedAt" is null
-    or "asset_job_status"."assetId" is null
+    (
+      "task_status"."assetId" is null
+      and "legacy_status"."metadataExtractedAt" is null
+    )
+    or (
+      "task_status"."status" = 'failed'
+      and "task_status"."attempts" < 3
+    )
   )
   and "asset"."deletedAt" is null
 
