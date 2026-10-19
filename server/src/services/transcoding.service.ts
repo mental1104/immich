@@ -94,6 +94,11 @@ export class TranscodingService extends BaseService {
     }
   }
 
+  /**
+   * 关闭 HLS 会话，作废尚未完成的 FFmpeg 启动并释放分片文件。
+   * @param event 包含待关闭的会话 ID；不存在时直接返回。
+   * @returns 清理目录和数据库租约的完成 Promise。
+   */
   @OnEvent({ name: 'HlsSessionEnd', server: true, workers: [ImmichWorker.Microservices] })
   async onSessionEnd({ sessionId }: ArgOf<'HlsSessionEnd'>) {
     const session = this.sessions.get(sessionId);
@@ -101,6 +106,8 @@ export class TranscodingService extends BaseService {
       return;
     }
     this.sessions.delete(sessionId);
+    // 关闭与 FFmpeg 启动并发时，令尚未完成的 startTranscode 在 spawn 前自动放弃。
+    session.revision++;
     if (this.cleanupInterval && this.sessions.size === 0) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;

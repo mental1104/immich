@@ -90,6 +90,21 @@ describe(TranscodingService.name, () => {
       expect(mocks.videoStream.deleteSession).toHaveBeenCalledWith(sessionId);
     });
 
+    it('does not spawn FFmpeg after a session ends during media lookup', async () => {
+      const mediaLookup = Promise.withResolvers<typeof eiffelTower>();
+      mocks.videoStream.getForTranscoding.mockImplementationOnce(() => mediaLookup.promise);
+      await sut.onSessionRequest({ sessionId, assetId, ownerId });
+
+      const pendingStart = sut.onSegmentRequest({ sessionId, assetId, variantIndex: 0, segmentIndex: 0 });
+      await vi.waitFor(() => expect(mocks.videoStream.getForTranscoding).toHaveBeenCalledTimes(1));
+      await sut.onSessionEnd({ sessionId });
+      mediaLookup.resolve(eiffelTower);
+      await pendingStart;
+
+      expect(mocks.process.spawn).not.toHaveBeenCalled();
+      expect(mocks.storage.unlinkDir).toHaveBeenCalled();
+    });
+
     it('is a no-op when the session is unknown', async () => {
       await sut.onSessionEnd({ sessionId: 'never-created' });
 
