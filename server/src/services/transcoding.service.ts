@@ -31,6 +31,7 @@ type Session = {
   ownerId: string;
   paused: boolean;
   process: ChildProcess | null;
+  revision: number;
   starting: boolean;
   startSegment: number | null;
   variantIndex: number | null;
@@ -77,6 +78,7 @@ export class TranscodingService extends BaseService {
         ownerId,
         paused: false,
         process: null,
+        revision: 0,
         starting: false,
         startSegment: null,
         variantIndex: null,
@@ -130,6 +132,11 @@ export class TranscodingService extends BaseService {
     }
   }
 
+  /**
+   * 处理媒体分片请求，同一片段复用现有进程；跳转时废弃尚未完成的旧启动操作。
+   * @param request 包含会话、视频档位和目标分片索引；来自已鉴权的 HLS API。
+   * @returns 转码进程进入运行或复用状态；无效会话不产生副作用。
+   */
   @OnEvent({ name: 'HlsSegmentRequest', server: true, workers: [ImmichWorker.Microservices] })
   async onSegmentRequest({ sessionId, variantIndex, segmentIndex }: ArgOf<'HlsSegmentRequest'>) {
     const session = this.sessions.get(sessionId);
@@ -154,14 +161,22 @@ export class TranscodingService extends BaseService {
       return;
     }
 
+    // 同一会话可能在异步读取配置期间又收到 Seek；revision 保证过时启动不会接管进程。
+    const revision = ++session.revision;
     session.starting = true;
     try {
-      const process = await this.startTranscode(session, variantIndex, segmentIndex);
+      const process = await this.startTranscode(session, variantIndex, segmentIndex, revision);
       if (process) {
-        session.process = process;
+        if (session.revision === revision) {
+          session.process = process;
+        } else {
+          process.kill('SIGKILL');
+        }
       }
     } finally {
-      session.starting = false;
+      if (session.revision === revision) {
+        session.starting = false;
+      }
     }
   }
 
@@ -178,7 +193,16 @@ export class TranscodingService extends BaseService {
     }
   }
 
-  private async startTranscode(session: Session, variantIndex: number, startSegment: number) {
+  /**
+   * 为当前 revision 准备并启动单个 FFmpeg 进程，记录启动阶段耗时。
+   * @param session 已创建的播放会话，可在异步操作期间被新的 Seek 更新。
+   * @param variantIndex 输出编码与码率档位。
+   * @param startSegment 本次编码起始分片索引。
+   * @param revision 调度代次；不再匹配时不得创建过时进程。
+   * @returns 有效时返回进程句柄；会话已改变或资产缺失时不启动。
+   */
+  private async startTranscode(session: Session, variantIndex: number, startSegment: number, revision: number) {
+    const preparationStartedAt = Date.now();
     const { ffmpeg } = await this.getConfig({ withCache: true });
 
     const asset = await this.videoStreamRepository.getForTranscoding(session.assetId);
@@ -187,7 +211,7 @@ export class TranscodingService extends BaseService {
       return;
     }
 
-    if (session.variantIndex !== variantIndex || session.startSegment !== startSegment) {
+    if (session.revision !== revision || session.variantIndex !== variantIndex || session.startSegment !== startSegment) {
       return;
     }
 
@@ -252,11 +276,19 @@ export class TranscodingService extends BaseService {
       asset.videoStream,
       asset.audioStream ?? undefined,
     );
+    // BaseConfig.create 和 getHlsCommand 中没有 await；前面的 getConfig 是最后一个可能让出执行权的位置。
+    if (session.revision !== revision || session.variantIndex !== variantIndex || session.startSegment !== startSegment) {
+      return;
+    }
     this.logger.log(
       `Starting HLS transcode for asset ${session.assetId} variant ${variantIndex} with command: ffmpeg ${args.join(' ')}`,
     );
+    const spawnStartedAt = Date.now();
     const process = this.processRepository.spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
-    this.attachProcessHandlers(process, session, variantIndex);
+    this.logger.log(
+      `HLS timing stage=spawn session=${session.id} variant=${variantIndex} prepareMs=${spawnStartedAt - preparationStartedAt} spawnCallMs=${Date.now() - spawnStartedAt}`,
+    );
+    this.attachProcessHandlers(process, session, variantIndex, spawnStartedAt);
     return process;
   }
 
@@ -265,7 +297,14 @@ export class TranscodingService extends BaseService {
     return this.onSessionEnd({ sessionId: session.id });
   }
 
-  private attachProcessHandlers(process: ChildProcess, session: Session, variantIndex: number) {
+  /**
+   * 监听当前 FFmpeg 输出的初始化文件、分片和退出事件，并采样产出速度。
+   * @param process 本次启动的 FFmpeg 子进程。
+   * @param session 由当前 Microservices worker 持有的播放会话。
+   * @param variantIndex 当前正在编码的档位。
+   * @param spawnStartedAt 进程 spawn 调用前的时间戳，单位毫秒。
+   */
+  private attachProcessHandlers(process: ChildProcess, session: Session, variantIndex: number, spawnStartedAt: number) {
     let stderr = '';
     const variantDir = StorageCore.getHlsVariantFolder({
       ownerId: session.ownerId,
@@ -282,7 +321,7 @@ export class TranscodingService extends BaseService {
         return;
       }
       if (filename === 'init.mp4') {
-        void this.waitForInitFile(session, process, variantIndex, join(variantDir, filename));
+        void this.waitForInitFile(session, process, variantIndex, join(variantDir, filename), spawnStartedAt);
         return;
       }
       const match = HLS_SEGMENT_FILENAME_REGEX.exec(filename);
@@ -296,6 +335,13 @@ export class TranscodingService extends BaseService {
         return;
       }
       session.lastCompletedSegment = segmentIndex;
+      const producedSegments = segmentIndex - (session.startSegment ?? segmentIndex) + 1;
+      if ([1, 5, 10, 30, 60].includes(producedSegments)) {
+        const wallMs = Date.now() - spawnStartedAt;
+        this.logger.log(
+          `HLS timing stage=media_ready session=${session.id} variant=${variantIndex} segments=${producedSegments} mediaSeconds=${producedSegments * HLS_SEGMENT_DURATION} wallMs=${wallMs}`,
+        );
+      }
       this.websocketRepository.serverSend('HlsSegmentResult', {
         sessionId: session.id,
         variantIndex,
@@ -336,7 +382,21 @@ export class TranscodingService extends BaseService {
     });
   }
 
-  private async waitForInitFile(session: Session, process: ChildProcess, variantIndex: number, path: string) {
+  /**
+   * 等待初始化文件大小稳定后发出就绪通知，避免读取尚未写完的 fMP4 头部。
+   * @param session 正在转码的会话。
+   * @param process 正在输出初始化文件的进程。
+   * @param variantIndex 当前媒体档位。
+   * @param path init.mp4 的绝对路径。
+   * @param spawnStartedAt 进程启动时间戳，用于测量首个可读初始化文件的延迟。
+   */
+  private async waitForInitFile(
+    session: Session,
+    process: ChildProcess,
+    variantIndex: number,
+    path: string,
+    spawnStartedAt: number,
+  ) {
     let previousSize = 0;
     for (let attempt = 0; attempt < 1500; attempt++) {
       if (session.variantIndex !== variantIndex || (session.process !== process && process.exitCode !== 0)) {
@@ -346,6 +406,9 @@ export class TranscodingService extends BaseService {
       try {
         const { size } = await this.storageRepository.stat(path);
         if (size > 0 && size === previousSize) {
+          this.logger.log(
+            `HLS timing stage=init_ready session=${session.id} variant=${variantIndex} wallMs=${Date.now() - spawnStartedAt}`,
+          );
           this.websocketRepository.serverSend('HlsInitResult', { sessionId: session.id, variantIndex });
           return;
         }

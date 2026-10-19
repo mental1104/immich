@@ -160,6 +160,22 @@ describe(TranscodingService.name, () => {
       expect(mocks.storage.stat).toHaveBeenCalledTimes(3);
     });
 
+    it('does not spawn a stale process when seeking during media lookup', async () => {
+      const firstLookup = Promise.withResolvers<typeof eiffelTower>();
+      mocks.videoStream.getForTranscoding
+        .mockImplementationOnce(() => firstLookup.promise)
+        .mockResolvedValue(eiffelTower);
+      mocks.process.spawn.mockReturnValue(mockSpawn(0, '', ''));
+
+      const firstRequest = sut.onSegmentRequest({ sessionId, assetId, variantIndex: 0, segmentIndex: 0 });
+      await vi.waitFor(() => expect(mocks.videoStream.getForTranscoding).toHaveBeenCalledTimes(1));
+      const seekRequest = sut.onSegmentRequest({ sessionId, assetId, variantIndex: 0, segmentIndex: 5 });
+      firstLookup.resolve(eiffelTower);
+
+      await Promise.all([firstRequest, seekRequest]);
+      expect(mocks.process.spawn).toHaveBeenCalledTimes(1);
+    });
+
     it('kills and respawns when the variant changes', async () => {
       const first = mockSpawn(0, '', '');
       const second = mockSpawn(0, '', '');

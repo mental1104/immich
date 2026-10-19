@@ -116,6 +116,7 @@ export class HlsService extends BaseService {
     filename: string,
     initSegment?: number,
   ) {
+    const requestStartedAt = Date.now();
     await this.requireAccess({ auth, permission: Permission.AssetView, ids: [assetId] });
 
     const session = await this.videoStreamRepository.getSession(sessionId);
@@ -136,6 +137,11 @@ export class HlsService extends BaseService {
     this.websocketRepository.serverSend('HlsHeartbeat', { sessionId, variantIndex, segmentIndex });
 
     if (await this.storageRepository.checkFileExists(path, constants.R_OK)) {
+      if (filename === 'init.mp4' || segmentIndex === 0) {
+        this.logger.log(
+          `HLS timing stage=api_file session=${sessionId} variant=${variantIndex} file=${filename} cacheHit=true requestMs=${Date.now() - requestStartedAt}`,
+        );
+      }
       return response;
     }
 
@@ -155,6 +161,11 @@ export class HlsService extends BaseService {
       this.websocketRepository.serverSend('HlsSegmentRequest', { sessionId, assetId, variantIndex, segmentIndex });
     }
     await pending;
+    if (isInit || segmentIndex === 0) {
+      this.logger.log(
+        `HLS timing stage=api_file session=${sessionId} variant=${variantIndex} file=${filename} cacheHit=false requestMs=${Date.now() - requestStartedAt}`,
+      );
+    }
 
     return response;
   }
