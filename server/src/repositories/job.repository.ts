@@ -411,7 +411,7 @@ export class JobRepository {
       const metadataTaskRepository = assetJobRepository!;
       const accepted = new Set<JobItem>();
       for (const force of [false, true]) {
-        const group = metadataItems.filter((item) => item.data.force === force);
+        const group = metadataItems.filter((item) => Boolean(item.data.force) === force);
         if (group.length === 0) {
           continue;
         }
