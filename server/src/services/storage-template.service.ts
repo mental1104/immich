@@ -5,6 +5,7 @@ import path from 'node:path';
 import sanitize from 'sanitize-filename';
 import type { ArgOf } from 'src/repositories/event.repository.js';
 import type { JobOf, StorageAsset } from 'src/types.js';
+import { DISABLED_JOB_QUEUES } from 'src/constants.js';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { OnEvent, OnJob } from 'src/decorators.js';
 import { ConfigTemplateStorageOptionDto } from 'src/dtos/config.dto.js';
@@ -137,6 +138,12 @@ export class StorageTemplateService extends BaseService {
 
   @OnEvent({ name: 'AssetMetadataExtracted' })
   async onAssetMetadataExtracted({ source, assetId }: ArgOf<'AssetMetadataExtracted'>) {
+    if (DISABLED_JOB_QUEUES.has(QueueName.StorageTemplateMigration)) {
+      if (source === 'upload' || source === 'copy') {
+        await this.jobRepository.queue({ name: JobName.AssetGenerateThumbnails, data: { source, id: assetId } });
+      }
+      return;
+    }
     await this.jobRepository.queue({ name: JobName.StorageTemplateMigrationSingle, data: { source, id: assetId } });
   }
 

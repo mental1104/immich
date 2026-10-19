@@ -1,6 +1,6 @@
 import { Stats } from 'node:fs';
 import { SystemConfig, defaults } from 'src/dtos/config.dto.js';
-import { AssetPathType, AssetType, JobStatus } from 'src/enum.js';
+import { AssetPathType, AssetType, JobName, JobStatus } from 'src/enum.js';
 import { StorageTemplateService } from 'src/services/storage-template.service.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
@@ -26,6 +26,21 @@ describe(StorageTemplateService.name, () => {
     mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: true } });
 
     sut.onConfigInit({ newConfig: defaults });
+  });
+
+  describe('metadata completion with storage migration disabled', () => {
+    it.each(['upload', 'copy'] as const)('continues thumbnails for %s without moving files', async (source) => {
+      await sut.onAssetMetadataExtracted({ source, assetId: 'asset-1', userId: 'user-1' });
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.AssetGenerateThumbnails,
+        data: { source, id: 'asset-1' },
+      });
+    });
+
+    it('does not enqueue migration or thumbnails during a metadata rescan', async () => {
+      await sut.onAssetMetadataExtracted({ assetId: 'asset-1', userId: 'user-1' });
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+    });
   });
 
   describe('onConfigValidate', () => {
