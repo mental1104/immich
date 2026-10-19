@@ -4,13 +4,13 @@ These scripts drive the isolated `immich-hls-test` API and Chromium against a te
 
 ## Runtime
 
-Use a Node.js environment with Playwright installed and Chromium available, plus access to the test API and the Immich Web Hls.js bundle. The scripts can run from a checkout mounted into the development Web container. They do not contain credentials; provide a token file outside the repository.
+Use a Node.js environment with Playwright installed and Chromium available, plus access to the test API and the Immich Web Hls.js bundle. The scripts can run from a checkout mounted into the development Web container. They do not contain credentials; provide an API key file outside the repository.
 
 Environment variables:
 
 - `HLS_BENCHMARK_ORIGIN`: API origin (default `http://127.0.0.1:2284`).
 - `HLS_BENCHMARK_ASSET_ID`: required UUID of an asset in the isolated test library.
-- `HLS_BENCHMARK_TOKEN_FILE`: path to a test-user token file (default `/tmp/hls-benchmark-token`).
+- `HLS_BENCHMARK_API_KEY_FILE`: path to an isolated test API key file (default `/tmp/hls-benchmark-api-key`).
 - `HLS_BENCHMARK_HLSJS_PATH`: Immich Web Hls.js bundle (default `/workspace/web/node_modules/hls.js/dist/hls.min.js`).
 - `HLS_BENCHMARK_RUNS`: repeat count, including 3 warmups (default 23).
 - `HLS_BENCHMARK_PROXY_ORIGIN`: shared-rate-limit proxy origin (default `http://127.0.0.1:2285`).
@@ -25,4 +25,4 @@ Run `repeat.mjs` for three warmups plus 20 valid first-frame runs, `continuous.m
 
 ## Interpretation
 
-The browser scripts use a real `<video>` element, Hls.js, and `requestVideoFrameCallback`; this measures Chromium's decoded video frame callback, not the full signed-in Immich UI flow or display photon latency. Keep LAN and rate-limited measurements separate. Record commit, image, sample technical metadata/hash, storage, cache state, and run count alongside output. Never place private media, auth tokens, or identifying media paths in this repository.
+The browser scripts use a real `<video>` element, Hls.js, and `requestVideoFrameCallback`; this measures Chromium's decoded video frame callback, not the full signed-in Immich UI flow or display photon latency. Keep LAN and rate-limited measurements separate. Record commit, image, sample technical metadata/hash, storage, cache state, and run count alongside output. Never place private media, API keys, or identifying media paths in this repository.

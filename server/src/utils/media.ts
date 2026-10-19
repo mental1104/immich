@@ -877,6 +877,11 @@ export class QsvSwDecodeConfig extends BaseHWConfig {
 }
 
 export class QsvHwDecodeConfig extends QsvSwDecodeConfig {
+  private getAsyncDepth() {
+    // HLS 以首帧时延优先；普通转码保留更深队列以提高吞吐。
+    return this.tune.lowLatency ? 1 : 4;
+  }
+
   getBaseInputOptions() {
     return [
       '-hwaccel',
@@ -884,7 +889,7 @@ export class QsvHwDecodeConfig extends QsvSwDecodeConfig {
       '-hwaccel_output_format',
       'qsv',
       '-async_depth',
-      '4',
+      String(this.getAsyncDepth()),
       '-noautorotate',
       '-qsv_device',
       this.device,
@@ -899,11 +904,12 @@ export class QsvHwDecodeConfig extends QsvSwDecodeConfig {
 
   getFilterOptions(videoStream: VideoStreamInfo) {
     const options = [];
+    const asyncDepth = this.getAsyncDepth();
     const tonemapOptions = this.getToneMapping(videoStream);
     if (tonemapOptions.length === 0 && !videoStream.pixelFormat.endsWith('420p')) {
-      options.push(`scale_qsv=${this.getScaling(videoStream)}:async_depth=4:mode=hq:format=nv12`);
+      options.push(`scale_qsv=${this.getScaling(videoStream)}:async_depth=${asyncDepth}:mode=hq:format=nv12`);
     } else if (this.shouldScale(videoStream)) {
-      options.push(`scale_qsv=${this.getScaling(videoStream)}:async_depth=4:mode=hq`);
+      options.push(`scale_qsv=${this.getScaling(videoStream)}:async_depth=${asyncDepth}:mode=hq`);
     }
     options.push(...tonemapOptions);
     return options;

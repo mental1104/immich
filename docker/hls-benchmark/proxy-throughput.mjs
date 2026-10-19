@@ -1,7 +1,7 @@
 import fs from 'node:fs';import {performance} from 'node:perf_hooks';
-const base=process.env.HLS_BENCHMARK_PROXY_ORIGIN||'http://127.0.0.1:2285',asset=process.env.HLS_BENCHMARK_ASSET_ID,token=fs.readFileSync(process.env.HLS_BENCHMARK_TOKEN_FILE||'/tmp/hls-benchmark-token','utf8').trim();
+const base=process.env.HLS_BENCHMARK_PROXY_ORIGIN||'http://127.0.0.1:2285',asset=process.env.HLS_BENCHMARK_ASSET_ID,apiKey=fs.readFileSync(process.env.HLS_BENCHMARK_API_KEY_FILE||'/tmp/hls-benchmark-api-key','utf8').trim();
 if (!asset) throw new Error('Set HLS_BENCHMARK_ASSET_ID to an asset in the isolated test library');
-const headers={'x-immich-user-token':token};
+const headers={'x-api-key':apiKey};
 const main=await fetch(`${base}/api/assets/${asset}/video/stream/main.m3u8`,{headers});const text=await main.text();if(!main.ok)throw Error(`main ${main.status}`);
 const match=text.match(/([0-9a-f-]{36})\/8\/playlist\.m3u8/);if(!match)throw Error('1080p AVC playlist missing');const sid=match[1];
 const pl=await fetch(`${base}/api/assets/${asset}/video/stream/${sid}/8/playlist.m3u8`,{headers});if(!pl.ok)throw Error(`playlist ${pl.status}`);

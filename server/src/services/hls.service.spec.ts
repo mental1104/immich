@@ -166,7 +166,7 @@ describe(HlsService.name, () => {
       });
     });
 
-    it('prewarms from the last requested segment when no hint is given', async () => {
+    it('does not prewarm a new variant before the client requests its actual seek segment', async () => {
       mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([assetId]));
       mocks.videoStream.getSession.mockResolvedValue({ id: sessionId, assetId } as never);
       mocks.storage.checkFileExists.mockResolvedValue(true);
@@ -174,12 +174,7 @@ describe(HlsService.name, () => {
 
       mocks.videoStream.getForMediaPlaylist.mockResolvedValue(eiffelTower);
       await sut.getMediaPlaylist(auth, assetId, sessionId, 1);
-      expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsSegmentRequest', {
-        sessionId,
-        assetId,
-        variantIndex: 1,
-        segmentIndex: 6,
-      });
+      expect(mocks.websocket.serverSend).not.toHaveBeenCalledWith('HlsSegmentRequest', expect.anything());
     });
 
     it('prewarms the first segment when no position hint is provided', async () => {

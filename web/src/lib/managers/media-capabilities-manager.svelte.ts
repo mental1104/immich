@@ -7,6 +7,44 @@ export const DEFAULT_DECODING_INFO: MediaCapabilitiesDecodingInfo = {
   keySystemAccess: null,
 };
 
+const codecPriority = (codec?: string) => {
+  if (codec?.startsWith('hvc1') || codec?.startsWith('hev1')) {
+    return 0;
+  }
+  if (codec?.startsWith('avc1')) {
+    return 1;
+  }
+  return 2;
+};
+
+// 同一分辨率下优先采用 iOS 常用的 HEVC；浏览器未报告支持时保留兼容档位。
+export const selectEfficientLevels = (levels: Level[], decodingInfo: MediaCapabilitiesDecodingInfo[]) => {
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 本地纯计算，不参与 Svelte 状态更新。
+  const selected = new Map<number, number>();
+  for (let i = 0; i < levels.length; i++) {
+    if (!decodingInfo[i]?.supported || !decodingInfo[i]?.powerEfficient) {
+      continue;
+    }
+
+    const { bitrate, height, videoCodec } = levels[i];
+    const currentIndex = selected.get(height);
+    if (currentIndex === undefined) {
+      selected.set(height, i);
+      continue;
+    }
+
+    const current = levels[currentIndex];
+    const priority = codecPriority(videoCodec);
+    const currentPriority = codecPriority(current.videoCodec);
+    if (priority < currentPriority || (priority === currentPriority && bitrate < current.bitrate)) {
+      selected.set(height, i);
+    }
+  }
+
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 返回值只作为筛选结果，不是响应式状态。
+  return new Set(selected.values());
+};
+
 class MediaCapabilitiesManager {
   private cache = new Map<string, Promise<MediaCapabilitiesDecodingInfo>>();
 
@@ -36,21 +74,7 @@ class MediaCapabilitiesManager {
 
   async efficientLevels(levels: Level[]) {
     const decodingInfo = await Promise.all(levels.map((level) => this.decodingInfo(level)));
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const lowestBitrateByHeight = new Map<number, number>();
-    for (let i = 0; i < levels.length; i++) {
-      if (!decodingInfo[i].powerEfficient) {
-        continue;
-      }
-
-      const { bitrate, height } = levels[i];
-      const cur = lowestBitrateByHeight.get(height);
-      if (cur === undefined || bitrate < levels[cur].bitrate) {
-        lowestBitrateByHeight.set(height, i);
-      }
-    }
-
-    return new Set(lowestBitrateByHeight.values());
+    return selectEfficientLevels(levels, decodingInfo);
   }
 
   decodingInfo(level: Level) {
@@ -77,7 +101,7 @@ class MediaCapabilitiesManager {
         },
       });
     } catch {
-      return DEFAULT_DECODING_INFO;
+      return { ...DEFAULT_DECODING_INFO, powerEfficient: false, smooth: false, supported: false };
     }
   }
 

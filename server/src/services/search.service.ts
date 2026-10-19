@@ -166,6 +166,23 @@ export class SearchService extends BaseService {
   }
 
   async searchSmart(auth: AuthDto, dto: SmartSearchDto): Promise<SearchResponseDto> {
+    // CLIP 的中文文本编码效果有限；中文描述优先按资产描述字段做文本匹配。
+    if (dto.query && /\p{Script=Han}/u.test(dto.query) && !dto.queryAssetId) {
+      if (isNewShapeRequest(dto)) {
+        return this.searchMetadataV3(auth, {
+          ...dto,
+          filter: { ...dto.filter, description: { like: dto.query } },
+        });
+      }
+
+      return this.searchMetadata(auth, {
+        ...dto,
+        query: undefined,
+        queryAssetId: undefined,
+        description: dto.query,
+      } as MetadataSearchDto);
+    }
+
     if (isNewShapeRequest(dto)) {
       return this.searchSmartV3(auth, dto);
     }

@@ -255,7 +255,11 @@ export class HlsService extends BaseService {
 
   private prewarmVariant(assetId: string, sessionId: string, variantIndex: number, hintedSegment?: number) {
     const session = this.sessions.get(sessionId);
-    if (session?.lastVariantIndex === variantIndex) {
+    // Initial playback can prewarm before the client asks for its first file.
+    // On a quality switch, wait for the client's init/segment request: its
+    // actual seek position can differ from the playlist hint and restarting a
+    // speculative transcode would discard work before the first segment.
+    if (session && session.lastVariantIndex !== null) {
       return;
     }
 

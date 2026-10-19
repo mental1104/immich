@@ -7,6 +7,7 @@ import {
   HLS_LEASE_DURATION_MS,
   HLS_SEGMENT_DURATION,
 } from 'src/constants.js';
+import { TranscodeHardwareAcceleration } from 'src/enum.js';
 import { TranscodingService } from 'src/services/transcoding.service.js';
 import { VIDEO_STREAM_SESSION_PK_CONSTRAINT } from 'src/utils/database.js';
 import { eiffelTower, train, waterfall } from 'test/fixtures/media.stub.js';
@@ -577,5 +578,24 @@ describe(TranscodingService.name, () => {
         );
       }
     });
+  });
+
+  it('uses a shallow QSV pipeline for low-latency HLS', async () => {
+    Object.assign(sut, { videoInterfaces: { dri: ['renderD128'], mali: false } });
+    mocks.systemMetadata.get.mockResolvedValue({
+      ffmpeg: {
+        realtime: { enabled: true },
+        accel: TranscodeHardwareAcceleration.Qsv,
+        accelDecode: true,
+      },
+    });
+    mocks.process.spawn.mockReturnValue(mockSpawn(0, '', ''));
+
+    await sut.onSessionRequest({ sessionId, assetId, ownerId });
+    await sut.onSegmentRequest({ sessionId, variantIndex: 2, segmentIndex: 0 });
+
+    const args = mocks.process.spawn.mock.calls[0][1] as string[];
+    expect(args).toEqual(expect.arrayContaining(['-async_depth', '1']));
+    expect(args.some((arg) => arg.startsWith('scale_qsv=') && arg.includes('async_depth=1'))).toBe(true);
   });
 });

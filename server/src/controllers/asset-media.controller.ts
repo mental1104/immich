@@ -192,11 +192,38 @@ export class AssetMediaController {
     @Next() next: NextFunction,
   ) {
     if (process.env.IMMICH_EXPERIMENTAL_IOS_HLS === 'true') {
+      const requestStartedAt = Date.now();
+      this.logger.log('HLS request stage=ios_playback_playlist result=start');
+      res.once('finish', () => {
+        const contentLength = res.getHeader('content-length');
+        this.logger.log(
+          `HLS request stage=ios_playback_playlist_response result=sent status=${res.statusCode} bytes=${contentLength ?? 'unknown'} elapsedMs=${Date.now() - requestStartedAt}`,
+        );
+      });
+      res.once('close', () => {
+        if (!res.writableFinished) {
+          this.logger.warn(
+            `HLS request stage=ios_playback_playlist_response result=client_closed status=${res.statusCode} elapsedMs=${Date.now() - requestStartedAt}`,
+          );
+        }
+      });
       // iOS 网络播放器请求原 /video/playback URL；使用 stream/ 相对路径复用已鉴权的 HLS 接口。
-      const playlist = await this.hlsService.getMainPlaylist(auth, id, 'stream/');
-      res.header('Cache-Control', 'private, no-store');
-      res.header('Content-Type', HLS_PLAYLIST_CONTENT_TYPE);
-      res.status(HttpStatus.OK).send(playlist);
+      try {
+        const playlist = await this.hlsService.getMainPlaylist(auth, id, 'stream/');
+        const sessionId = /stream\/([\w-]+)\//.exec(playlist)?.[1] ?? 'unknown';
+        this.logger.log(
+          `HLS request stage=ios_playback_playlist result=ready session=${sessionId} elapsedMs=${Date.now() - requestStartedAt}`,
+        );
+        res.header('Cache-Control', 'private, no-store');
+        res.header('Content-Type', HLS_PLAYLIST_CONTENT_TYPE);
+        res.status(HttpStatus.OK).send(playlist);
+      } catch (error) {
+        const errorName = error instanceof Error ? error.name : 'UnknownError';
+        this.logger.warn(
+          `HLS request stage=ios_playback_playlist result=error error=${errorName} elapsedMs=${Date.now() - requestStartedAt}`,
+        );
+        throw error;
+      }
       return;
     }
 

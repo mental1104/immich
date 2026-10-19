@@ -49,8 +49,22 @@ export class VideoStreamController {
     description: 'Returns an HLS main playlist with all available variants for the asset.',
     history: new HistoryBuilder().added('v3').alpha('v3'),
   })
-  getMainPlaylist(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto) {
-    return this.service.getMainPlaylist(auth, id);
+  async getMainPlaylist(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto) {
+    const requestStartedAt = Date.now();
+    try {
+      const playlist = await this.service.getMainPlaylist(auth, id);
+      const sessionId = /\/([\w-]+)\/\d+\/playlist\.m3u8/.exec(playlist)?.[1] ?? 'unknown';
+      this.logger.log(
+        `HLS request stage=main_playlist result=ready session=${sessionId} elapsedMs=${Date.now() - requestStartedAt}`,
+      );
+      return playlist;
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(
+        `HLS request stage=main_playlist result=error error=${errorName} elapsedMs=${Date.now() - requestStartedAt}`,
+      );
+      throw error;
+    }
   }
 
   @Get(':id/video/stream/:sessionId/:variantIndex/playlist.m3u8')
@@ -63,17 +77,37 @@ export class VideoStreamController {
     description: 'Returns an HLS media playlist for one variant of the streaming session.',
     history: new HistoryBuilder().added('v3').alpha('v3'),
   })
-  getMediaPlaylist(
+  async getMediaPlaylist(
     @Auth() auth: AuthDto,
     @Param() { id, sessionId, variantIndex }: HlsVariantParamDto,
     @Headers() headers: HlsPlaylistHeaderDto,
   ) {
+    const requestStartedAt = Date.now();
     try {
       headers = HlsPlaylistHeaderDto.create(headers);
     } catch (error) {
       throw new ZodValidationException(error);
     }
-    return this.service.getMediaPlaylist(auth, id, sessionId, variantIndex, headers[ImmichHeader.HlsPosition]);
+    try {
+      const playlist = await this.service.getMediaPlaylist(
+        auth,
+        id,
+        sessionId,
+        variantIndex,
+        headers[ImmichHeader.HlsPosition],
+      );
+      const segmentCount = (playlist.match(/#EXTINF:/g) || []).length;
+      this.logger.log(
+        `HLS request stage=media_playlist result=ready session=${sessionId} variant=${variantIndex} position=${headers[ImmichHeader.HlsPosition] ?? 'none'} segments=${segmentCount} elapsedMs=${Date.now() - requestStartedAt}`,
+      );
+      return playlist;
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(
+        `HLS request stage=media_playlist result=error session=${sessionId} variant=${variantIndex} error=${errorName} elapsedMs=${Date.now() - requestStartedAt}`,
+      );
+      throw error;
+    }
   }
 
   @Get(':id/video/stream/:sessionId/:variantIndex/:filename')
@@ -96,6 +130,27 @@ export class VideoStreamController {
     } catch (error) {
       throw new ZodValidationException(error);
     }
+    const requestStartedAt = Date.now();
+    const match = /^seg_(\d+)\.m4s$/.exec(filename);
+    const segmentIndex = match ? Number(match[1]) : undefined;
+    const shouldLogResponse =
+      filename === 'init.mp4' || (segmentIndex !== undefined && (segmentIndex <= 2 || segmentIndex % 10 === 0));
+    if (shouldLogResponse) {
+      this.logger.log(`HLS request stage=segment_start session=${sessionId} variant=${variantIndex} file=${filename}`);
+      res.once('finish', () => {
+        const contentLength = res.getHeader('content-length');
+        this.logger.log(
+          `HLS request stage=segment_response result=sent session=${sessionId} variant=${variantIndex} file=${filename} status=${res.statusCode} bytes=${contentLength ?? 'unknown'} elapsedMs=${Date.now() - requestStartedAt}`,
+        );
+      });
+      res.once('close', () => {
+        if (!res.writableFinished) {
+          this.logger.warn(
+            `HLS request stage=segment_response result=client_closed session=${sessionId} variant=${variantIndex} file=${filename} status=${res.statusCode} elapsedMs=${Date.now() - requestStartedAt}`,
+          );
+        }
+      });
+    }
     let file: Awaited<ReturnType<HlsService['getSegment']>>;
     try {
       file = await this.service.getSegment(
@@ -107,10 +162,20 @@ export class VideoStreamController {
         headers[ImmichHeader.HlsInitSegment],
       );
     } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.warn(
+        `HLS request stage=segment_ready result=error session=${sessionId} variant=${variantIndex} file=${filename} error=${errorName} elapsedMs=${Date.now() - requestStartedAt}`,
+      );
       if (error instanceof Error && error.message === 'Request timed out') {
         throw new GatewayTimeoutException('HLS segment was not ready before the request timed out');
       }
       throw error;
+    }
+
+    if (shouldLogResponse) {
+      this.logger.log(
+        `HLS request stage=segment_ready result=ready session=${sessionId} variant=${variantIndex} file=${filename} waitMs=${Date.now() - requestStartedAt}`,
+      );
     }
 
     await sendFile(res, next, () => file, this.logger);
