@@ -282,7 +282,7 @@ export class TranscodingService extends BaseService {
         return;
       }
       if (filename === 'init.mp4') {
-        this.websocketRepository.serverSend('HlsInitResult', { sessionId: session.id, variantIndex });
+        void this.waitForInitFile(session, process, variantIndex, join(variantDir, filename));
         return;
       }
       const match = HLS_SEGMENT_FILENAME_REGEX.exec(filename);
@@ -333,6 +333,34 @@ export class TranscodingService extends BaseService {
       void this.failSession(session, `Transcoding process exited unexpectedly with code ${code}`).catch((error) =>
         this.logger.error(`Failed to end session ${session.id} after ffmpeg exit: ${error}`),
       );
+    });
+  }
+
+  private async waitForInitFile(session: Session, process: ChildProcess, variantIndex: number, path: string) {
+    let previousSize = 0;
+    for (let attempt = 0; attempt < 1500; attempt++) {
+      if (session.variantIndex !== variantIndex || (session.process !== process && process.exitCode !== 0)) {
+        return;
+      }
+
+      try {
+        const { size } = await this.storageRepository.stat(path);
+        if (size > 0 && size === previousSize) {
+          this.websocketRepository.serverSend('HlsInitResult', { sessionId: session.id, variantIndex });
+          return;
+        }
+        previousSize = size;
+      } catch {
+        // The watcher can report the new path before the file becomes readable.
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    this.websocketRepository.serverSend('HlsInitResult', {
+      sessionId: session.id,
+      variantIndex,
+      error: 'Timed out waiting for HLS initialization file',
     });
   }
 

@@ -145,12 +145,19 @@ describe(TranscodingService.name, () => {
 
     it('signals when the HLS initialization file is ready', async () => {
       mocks.process.spawn.mockReturnValue(mockSpawn(0, '', ''));
+      mocks.storage.stat
+        .mockResolvedValueOnce({ size: 0 } as never)
+        .mockResolvedValueOnce({ size: 1024 } as never)
+        .mockResolvedValueOnce({ size: 1024 } as never);
       await sut.onSessionRequest({ sessionId, assetId, ownerId });
       await sut.onSegmentRequest({ sessionId, assetId, variantIndex: 0, segmentIndex: 0 });
 
       completeInit();
+      await vi.waitFor(() => {
+        expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsInitResult', { sessionId, variantIndex: 0 });
+      });
 
-      expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsInitResult', { sessionId, variantIndex: 0 });
+      expect(mocks.storage.stat).toHaveBeenCalledTimes(3);
     });
 
     it('kills and respawns when the variant changes', async () => {
