@@ -52,8 +52,8 @@ describe('shouldPauseVideoMetadataExtraction', () => {
   });
 });
 
-describe('video metadata queue classification', () => {
-  it('uses a separate queue for video metadata jobs', async () => {
+describe('metadata extraction queue classification', () => {
+  it('uses one queue and prioritizes photos before videos', async () => {
     const { JobRepository } = await import('src/repositories/job.repository.js');
     const repository = Object.create(JobRepository.prototype) as InstanceType<typeof JobRepository>;
     repository['handlers'] = {
@@ -65,10 +65,7 @@ describe('video metadata queue classification', () => {
       },
     };
 
-    expect(repository['getQueueName'](JobName.AssetExtractMetadata, { assetType: AssetType.Video })).toBe(
-      QueueName.VideoMetadataExtraction,
-    );
-    expect(repository['getQueueName'](JobName.AssetExtractMetadata, { assetType: AssetType.Image })).toBe(
+    expect(repository['getQueueName'](JobName.AssetExtractMetadata)).toBe(
       QueueName.MetadataExtraction,
     );
     expect(
@@ -77,5 +74,11 @@ describe('video metadata queue classification', () => {
         data: { id: 'asset-1', assetType: AssetType.Image },
       }),
     ).toEqual({ jobId: 'asset-1', priority: 1 });
+    expect(
+      repository['getJobOptions']({
+        name: JobName.AssetExtractMetadata,
+        data: { id: 'asset-2', assetType: AssetType.Video },
+      }),
+    ).toEqual({ jobId: 'asset-2', priority: 2 });
   });
 });

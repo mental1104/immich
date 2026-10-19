@@ -27,8 +27,6 @@ import {
 } from 'src/utils/database.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 
-const METADATA_EXTRACTION_MAX_ATTEMPTS = 3;
-
 @Injectable()
 export class AssetJobRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
@@ -392,10 +390,8 @@ export class AssetJobRepository {
         qb.where((eb) =>
           eb.or([
             eb.and([eb('task_status.assetId', 'is', null), eb('legacy_status.metadataExtractedAt', 'is', null)]),
-            eb.and([
-              eb('task_status.status', '=', ForkAssetTaskState.Failed),
-              eb('task_status.attempts', '<', METADATA_EXTRACTION_MAX_ATTEMPTS),
-            ]),
+            eb('task_status.status', '=', ForkAssetTaskState.Failed),
+            eb('task_status.status', '=', ForkAssetTaskState.Skipped),
           ]),
         ),
       )
@@ -440,8 +436,7 @@ export class AssetJobRepository {
             force
               ? eb('fork_asset_task_status.assetId', 'is not', null)
               : eb.and([
-                  eb('fork_asset_task_status.status', '=', ForkAssetTaskState.Failed),
-                  eb('fork_asset_task_status.attempts', '<', METADATA_EXTRACTION_MAX_ATTEMPTS),
+                  eb('fork_asset_task_status.status', 'in', [ForkAssetTaskState.Failed, ForkAssetTaskState.Skipped]),
                 ]),
           ),
       )

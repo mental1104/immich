@@ -720,8 +720,7 @@ where
       and "legacy_status"."metadataExtractedAt" is null
     )
     or (
-      "task_status"."status" = 'failed'
-      and "task_status"."attempts" < 3
+      "task_status"."status" in ('failed', 'skipped')
     )
   )
   and "asset"."deletedAt" is null

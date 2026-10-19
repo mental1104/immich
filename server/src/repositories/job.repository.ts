@@ -391,10 +391,7 @@ export class JobRepository {
     ) as unknown as Promise<JobCounts>;
   }
 
-  private getQueueName(name: JobName, data?: any) {
-    if (name === JobName.AssetExtractMetadata && data?.assetType === AssetType.Video) {
-      return QueueName.VideoMetadataExtraction;
-    }
+  private getQueueName(name: JobName) {
     return (this.handlers[name] as JobMapItem).queueName;
   }
 
@@ -455,7 +452,7 @@ export class JobRepository {
     const promises = [];
     const itemsByQueue = {} as Record<string, (JobItem & { data: any; options: JobsOptions | undefined })[]>;
     for (const item of items) {
-      const queueName = this.getQueueName(item.name, item.data);
+      const queueName = this.getQueueName(item.name);
       const job = {
         name: item.name,
         data: item.data || {},
@@ -543,7 +540,7 @@ export class JobRepository {
       case JobName.AssetExtractMetadata: {
         return {
           jobId: item.data.id,
-          ...(item.data.assetType !== AssetType.Video && { priority: 1 }),
+          priority: item.data.assetType === AssetType.Video ? 2 : 1,
         };
       }
       case JobName.FacialRecognitionQueueAll: {

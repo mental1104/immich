@@ -15,7 +15,6 @@
   const queueNames = [
     QueueName.ThumbnailGeneration,
     QueueName.MetadataExtraction,
-    QueueName.VideoMetadataExtraction,
     QueueName.NikonPairing,
     QueueName.Library,
     QueueName.Sidecar,

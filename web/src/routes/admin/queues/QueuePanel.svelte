@@ -42,7 +42,6 @@
       allText: $t('all'),
       missingText: $t('missing'),
     },
-    [QueueName.VideoMetadataExtraction]: { startable: false },
     [QueueName.NikonPairing]: { startable: false },
     [QueueName.Library]: {
       missingText: $t('rescan'),
