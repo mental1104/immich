@@ -112,6 +112,27 @@
         albums,
       }));
     },
+
+    /** Group by the custom name stored on each album. */
+    [AlbumGroupBy.Custom]: (order, albums): AlbumGroup[] => {
+      const groupedByName = groupBy(albums, (album) => album.customGroupName?.trim() || '');
+      const sortSign = order === SortOrder.Desc ? -1 : 1;
+      const sortedGroups = Object.entries(groupedByName).sort(([a], [b]) => {
+        if (!a) {
+          return 1;
+        }
+        if (!b) {
+          return -1;
+        }
+        return a.localeCompare(b, $locale) * sortSign;
+      });
+
+      return sortedGroups.map(([name, albums]) => ({
+        id: `custom:${name || 'ungrouped'}`,
+        name: name || $t('ungrouped'),
+        albums,
+      }));
+    },
   };
 
   let albums = $derived.by(() => {

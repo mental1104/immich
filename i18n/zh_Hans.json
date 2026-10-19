@@ -2467,5 +2467,10 @@
   "search_filter_display_option_all_albums": "全部照片",
   "search_filter_display_option_in_album": "已在相册中",
   "landscape": "横构图",
-  "portrait": "竖构图"
+  "portrait": "竖构图",
+  "custom_group": "自定义分组",
+  "custom_group_description": "使用自定义分组时，分组名称相同的相簿会显示在一起。",
+  "custom_group_placeholder": "例如：游戏",
+  "group_custom": "自定义分组",
+  "ungrouped": "未分组"
 }

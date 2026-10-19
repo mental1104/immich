@@ -39,6 +39,9 @@ export class AlbumTable {
   @Column({ type: 'text', nullable: true })
   description!: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  customGroupName!: string | null;
+
   @DeleteDateColumn()
   deletedAt!: Timestamp | null;
 

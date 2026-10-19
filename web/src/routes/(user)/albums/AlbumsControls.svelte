@@ -109,6 +109,7 @@
     [AlbumGroupBy.None]: $t('group_no'),
     [AlbumGroupBy.Owner]: $t('group_owner'),
     [AlbumGroupBy.Year]: $t('group_year'),
+    [AlbumGroupBy.Custom]: $t('group_custom'),
   });
 </script>
 

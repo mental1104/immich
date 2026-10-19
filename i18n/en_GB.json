@@ -2357,5 +2357,10 @@
   "search_filter_display_option_all_albums": "All photos",
   "search_filter_display_option_in_album": "In an album",
   "landscape": "Landscape",
-  "portrait": "Portrait"
+  "portrait": "Portrait",
+  "custom_group": "Custom group",
+  "custom_group_description": "Albums with the same group name appear together when grouped by custom group.",
+  "custom_group_placeholder": "e.g. Games",
+  "group_custom": "Custom group",
+  "ungrouped": "Ungrouped"
 }

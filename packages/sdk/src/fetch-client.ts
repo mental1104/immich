@@ -859,6 +859,8 @@ export type ContributorCountResponseDto = {
 export type AlbumResponseDto = {
     /** Album name */
     albumName: string;
+    /** Custom album group name */
+    customGroupName?: string | null;
     /** Thumbnail asset ID */
     albumThumbnailAssetId: string | null;
     /** First entry is always the album owner. Second entry is the auth user, if it differs from the owner. The rest are ordered alphabetically. */
@@ -925,6 +927,8 @@ export type AlbumStatisticsResponseDto = {
 export type UpdateAlbumDto = {
     /** Album name */
     albumName?: string;
+    /** Custom album group name */
+    customGroupName?: string | null;
     /** Album thumbnail asset ID */
     albumThumbnailAssetId?: string;
     /** Album description */

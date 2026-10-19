@@ -14,10 +14,15 @@
   let { album, onClose }: Props = $props();
 
   let albumName = $state(album.albumName);
+  let customGroupName = $state(album.customGroupName ?? '');
   let description = $state(album.description);
 
   const onSubmit = async () => {
-    const success = await handleUpdateAlbum(album, { albumName, description: description || null });
+    const success = await handleUpdateAlbum(album, {
+      albumName,
+      customGroupName: customGroupName.trim() || null,
+      description: description || null,
+    });
     if (success) {
       onClose();
     }
@@ -31,6 +36,10 @@
     <div class="flex grow flex-col gap-4">
       <Field label={$t('name')}>
         <Input bind:value={albumName} />
+      </Field>
+
+      <Field label={$t('custom_group')} description={$t('custom_group_description')}>
+        <Input bind:value={customGroupName} placeholder={$t('custom_group_placeholder')} />
       </Field>
 
       <Field label={$t('description')}>

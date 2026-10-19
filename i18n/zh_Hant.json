@@ -2327,5 +2327,10 @@
   "search_filter_display_option_all_albums": "所有相片",
   "search_filter_display_option_in_album": "已在相簿中",
   "landscape": "橫向構圖",
-  "portrait": "直向構圖"
+  "portrait": "直向構圖",
+  "custom_group": "自訂分組",
+  "custom_group_description": "使用自訂分組時，分組名稱相同的相簿會顯示在一起。",
+  "custom_group_placeholder": "例如：遊戲",
+  "group_custom": "自訂分組",
+  "ungrouped": "未分組"
 }

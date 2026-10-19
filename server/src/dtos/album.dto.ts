@@ -72,6 +72,7 @@ const AlbumsAddAssetsResponseSchema = z
 const UpdateAlbumSchema = z
   .object({
     albumName: z.string().optional().describe('Album name'),
+    customGroupName: z.string().trim().nullable().optional().describe('Custom album group name (fork extension)'),
     // TODO: drop the empty-string-to-null transform in v4 (clients should send null)
     description: z
       .string()
@@ -140,6 +141,7 @@ export const AlbumResponseSchema = z
   .object({
     id: z.uuidv4().describe('Album ID'),
     albumName: z.string().describe('Album name'),
+    customGroupName: z.string().nullable().optional().describe('Custom album group name (fork extension)'),
     description: z
       .string()
       .describe('Album description')
@@ -220,6 +222,7 @@ export type MapAlbumDto = {
   assets?: ShallowDehydrateObject<MapAsset>[];
   sharedLinks?: ShallowDehydrateObject<AuthSharedLink>[];
   albumName: string;
+  customGroupName: string | null;
   description: string | null;
   albumThumbnailAssetId: string | null;
   createdAt: Date;
@@ -256,6 +259,7 @@ export const mapAlbum = (entity: MaybeDehydrated<MapAlbumDto>): AlbumResponseDto
 
   return {
     albumName: entity.albumName,
+    customGroupName: entity.customGroupName,
     // TODO: return null instead of '' in v4
     description: entity.description ?? '',
     albumThumbnailAssetId: entity.albumThumbnailAssetId,

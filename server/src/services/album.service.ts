@@ -153,6 +153,7 @@ export class AlbumService extends BaseService {
       {
         id: album.id,
         albumName: dto.albumName,
+        customGroupName: dto.customGroupName,
         description: dto.description,
         albumThumbnailAssetId: dto.albumThumbnailAssetId,
         isActivityEnabled: dto.isActivityEnabled,
