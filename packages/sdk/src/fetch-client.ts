@@ -2394,13 +2394,17 @@ export type SearchFilterBranch = {
     hasPeople?: BoolFilter;
     hasTags?: BoolFilter;
     id?: IdFilter;
+    isDeltaScreenshot?: BoolFilter;
     isEncoded?: BoolFilter;
     isFavorite?: BoolFilter;
     isMotion?: BoolFilter;
+    isNintendo3dsScreenshot?: BoolFilter;
     isOffline?: BoolFilter;
     isPanorama?: BoolFilter;
     isPhoneVideo?: BoolFilter;
     isScreenshot?: BoolFilter;
+    isSteamScreenshot?: BoolFilter;
+    isSwitchScreenshot?: BoolFilter;
     lensModel?: StringFilterNullable;
     libraryId?: IdFilterNullable;
     make?: StringFilterNullable;
@@ -2431,13 +2435,17 @@ export type SearchFilter = {
     hasPeople?: BoolFilter;
     hasTags?: BoolFilter;
     id?: IdFilter;
+    isDeltaScreenshot?: BoolFilter;
     isEncoded?: BoolFilter;
     isFavorite?: BoolFilter;
     isMotion?: BoolFilter;
+    isNintendo3dsScreenshot?: BoolFilter;
     isOffline?: BoolFilter;
     isPanorama?: BoolFilter;
     isPhoneVideo?: BoolFilter;
     isScreenshot?: BoolFilter;
+    isSteamScreenshot?: BoolFilter;
+    isSwitchScreenshot?: BoolFilter;
     lensModel?: StringFilterNullable;
     libraryId?: IdFilterNullable;
     make?: StringFilterNullable;
@@ -2482,6 +2490,8 @@ export type MetadataSearchDto = {
     filter?: SearchFilter;
     /** Filter by asset ID */
     id?: string;
+    /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
+    isDeltaScreenshot?: boolean;
     /** Filter by encoded status */
     isEncoded?: boolean;
     /** Filter by favorite status */
@@ -2490,6 +2500,8 @@ export type MetadataSearchDto = {
     isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
+    /** Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension) */
+    isNintendo3dsScreenshot?: boolean;
     /** Filter assets not in any album */
     isNotInAlbum?: boolean;
     /** Filter by offline status */
@@ -2500,6 +2512,10 @@ export type MetadataSearchDto = {
     isPhoneVideo?: boolean;
     /** Filter portrait 1179x2556 screenshot images (fork extension) */
     isScreenshot?: boolean;
+    /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
+    isSteamScreenshot?: boolean;
+    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    isSwitchScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -2617,6 +2633,8 @@ export type RandomSearchDto = {
     /** Filter by creation date (before) */
     createdBefore?: string;
     filter?: SearchFilter;
+    /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
+    isDeltaScreenshot?: boolean;
     /** Filter by encoded status */
     isEncoded?: boolean;
     /** Filter by favorite status */
@@ -2625,6 +2643,8 @@ export type RandomSearchDto = {
     isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
+    /** Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension) */
+    isNintendo3dsScreenshot?: boolean;
     /** Filter assets not in any album */
     isNotInAlbum?: boolean;
     /** Filter by offline status */
@@ -2635,6 +2655,10 @@ export type RandomSearchDto = {
     isPhoneVideo?: boolean;
     /** Filter portrait 1179x2556 screenshot images (fork extension) */
     isScreenshot?: boolean;
+    /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
+    isSteamScreenshot?: boolean;
+    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    isSwitchScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -2692,6 +2716,8 @@ export type SmartSearchDto = {
     /** Filter by creation date (before) */
     createdBefore?: string;
     filter?: SearchFilter;
+    /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
+    isDeltaScreenshot?: boolean;
     /** Filter by encoded status */
     isEncoded?: boolean;
     /** Filter by favorite status */
@@ -2700,6 +2726,8 @@ export type SmartSearchDto = {
     isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
+    /** Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension) */
+    isNintendo3dsScreenshot?: boolean;
     /** Filter assets not in any album */
     isNotInAlbum?: boolean;
     /** Filter by offline status */
@@ -2710,6 +2738,10 @@ export type SmartSearchDto = {
     isPhoneVideo?: boolean;
     /** Filter portrait 1179x2556 screenshot images (fork extension) */
     isScreenshot?: boolean;
+    /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
+    isSteamScreenshot?: boolean;
+    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    isSwitchScreenshot?: boolean;
     /** Search language code */
     language?: string;
     /** Filter by lens model */
@@ -2773,6 +2805,8 @@ export type StatisticsSearchDto = {
     /** Filter by description text */
     description?: string;
     filter?: SearchFilter;
+    /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
+    isDeltaScreenshot?: boolean;
     /** Filter by encoded status */
     isEncoded?: boolean;
     /** Filter by favorite status */
@@ -2781,6 +2815,8 @@ export type StatisticsSearchDto = {
     isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
+    /** Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension) */
+    isNintendo3dsScreenshot?: boolean;
     /** Filter assets not in any album */
     isNotInAlbum?: boolean;
     /** Filter by offline status */
@@ -2791,6 +2827,10 @@ export type StatisticsSearchDto = {
     isPhoneVideo?: boolean;
     /** Filter portrait 1179x2556 screenshot images (fork extension) */
     isScreenshot?: boolean;
+    /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
+    isSteamScreenshot?: boolean;
+    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    isSwitchScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -6673,21 +6713,25 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isInAlbum, isMotion, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
+export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isDeltaScreenshot, isEncoded, isFavorite, isInAlbum, isMotion, isNintendo3DsScreenshot, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, isSteamScreenshot, isSwitchScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
     albumIds?: string[];
     city?: string | null;
     country?: string | null;
     createdAfter?: string;
     createdBefore?: string;
+    isDeltaScreenshot?: boolean;
     isEncoded?: boolean;
     isFavorite?: boolean;
     isInAlbum?: boolean;
     isMotion?: boolean;
+    isNintendo3DsScreenshot?: boolean;
     isNotInAlbum?: boolean;
     isOffline?: boolean;
     isPanorama?: boolean;
     isPhoneVideo?: boolean;
     isScreenshot?: boolean;
+    isSteamScreenshot?: boolean;
+    isSwitchScreenshot?: boolean;
     lensModel?: string | null;
     libraryId?: string | null;
     make?: string | null;
@@ -6720,15 +6764,19 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         country,
         createdAfter,
         createdBefore,
+        isDeltaScreenshot,
         isEncoded,
         isFavorite,
         isInAlbum,
         isMotion,
+        isNintendo3dsScreenshot: isNintendo3DsScreenshot,
         isNotInAlbum,
         isOffline,
         isPanorama,
         isPhoneVideo,
         isScreenshot,
+        isSteamScreenshot,
+        isSwitchScreenshot,
         lensModel,
         libraryId,
         make,

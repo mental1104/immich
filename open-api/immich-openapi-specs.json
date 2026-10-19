@@ -11791,6 +11791,16 @@
             }
           },
           {
+            "name": "isDeltaScreenshot",
+            "required": false,
+            "in": "query",
+            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "isEncoded",
             "required": false,
             "in": "query",
@@ -11876,6 +11886,16 @@
             }
           },
           {
+            "name": "isNintendo3dsScreenshot",
+            "required": false,
+            "in": "query",
+            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "isNotInAlbum",
             "required": false,
             "in": "query",
@@ -11950,6 +11970,26 @@
             "required": false,
             "in": "query",
             "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "isSteamScreenshot",
+            "required": false,
+            "in": "query",
+            "description": "Filter landscape 2560x1440 Steam screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "isSwitchScreenshot",
+            "required": false,
+            "in": "query",
+            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
             "deprecated": true,
             "schema": {
               "type": "boolean"
@@ -24120,6 +24160,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isDeltaScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isEncoded": {
             "deprecated": true,
             "description": "Filter by encoded status",
@@ -24185,6 +24230,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isNintendo3dsScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isNotInAlbum": {
             "deprecated": true,
             "description": "Filter assets not in any album",
@@ -24238,6 +24288,16 @@
           "isScreenshot": {
             "deprecated": true,
             "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSteamScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 2560x1440 Steam screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSwitchScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
             "type": "boolean"
           },
           "lensModel": {
@@ -26927,6 +26987,11 @@
               }
             ]
           },
+          "isDeltaScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isEncoded": {
             "deprecated": true,
             "description": "Filter by encoded status",
@@ -26992,6 +27057,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isNintendo3dsScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isNotInAlbum": {
             "deprecated": true,
             "description": "Filter assets not in any album",
@@ -27045,6 +27115,16 @@
           "isScreenshot": {
             "deprecated": true,
             "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSteamScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 2560x1440 Steam screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSwitchScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
             "type": "boolean"
           },
           "lensModel": {
@@ -27850,6 +27930,9 @@
           "id": {
             "$ref": "#/components/schemas/IdFilter"
           },
+          "isDeltaScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
           "isEncoded": {
             "$ref": "#/components/schemas/BoolFilter"
           },
@@ -27857,6 +27940,9 @@
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isMotion": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isNintendo3dsScreenshot": {
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isOffline": {
@@ -27869,6 +27955,12 @@
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isSteamScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isSwitchScreenshot": {
             "$ref": "#/components/schemas/BoolFilter"
           },
           "lensModel": {
@@ -27968,6 +28060,9 @@
           "id": {
             "$ref": "#/components/schemas/IdFilter"
           },
+          "isDeltaScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
           "isEncoded": {
             "$ref": "#/components/schemas/BoolFilter"
           },
@@ -27975,6 +28070,9 @@
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isMotion": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isNintendo3dsScreenshot": {
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isOffline": {
@@ -27987,6 +28085,12 @@
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isSteamScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isSwitchScreenshot": {
             "$ref": "#/components/schemas/BoolFilter"
           },
           "lensModel": {
@@ -29176,6 +29280,11 @@
               }
             ]
           },
+          "isDeltaScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isEncoded": {
             "deprecated": true,
             "description": "Filter by encoded status",
@@ -29241,6 +29350,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isNintendo3dsScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isNotInAlbum": {
             "deprecated": true,
             "description": "Filter assets not in any album",
@@ -29294,6 +29408,16 @@
           "isScreenshot": {
             "deprecated": true,
             "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSteamScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 2560x1440 Steam screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSwitchScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
             "type": "boolean"
           },
           "language": {
@@ -29973,6 +30097,11 @@
               }
             ]
           },
+          "isDeltaScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isEncoded": {
             "deprecated": true,
             "description": "Filter by encoded status",
@@ -30038,6 +30167,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isNintendo3dsScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "isNotInAlbum": {
             "deprecated": true,
             "description": "Filter assets not in any album",
@@ -30091,6 +30225,16 @@
           "isScreenshot": {
             "deprecated": true,
             "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSteamScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 2560x1440 Steam screenshot images (fork extension)",
+            "type": "boolean"
+          },
+          "isSwitchScreenshot": {
+            "deprecated": true,
+            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
             "type": "boolean"
           },
           "lensModel": {

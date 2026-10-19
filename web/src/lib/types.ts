@@ -3,6 +3,7 @@ import type { ActionItem } from '@immich/ui';
 import type { DateTime } from 'luxon';
 import type { SvelteSet } from 'svelte/reactivity';
 import { MediaType } from '$lib/constants';
+import type { MediaCategory } from '$lib/utils/media-categories';
 
 export type LatLng = { lng: number; lat: number };
 
@@ -75,7 +76,7 @@ export type SearchFilter = {
   mediaType: MediaType;
   /** 仅筛选全景，可与照片／视频等已有条件组合。 */
   isPanorama?: boolean;
-  mediaCategory?: 'phone-video' | 'screenshot';
+  mediaCategory?: MediaCategory;
   /** 构图方向；缺省时不按方向过滤。 */
   orientation?: 'landscape' | 'portrait';
   rating?: number | null;

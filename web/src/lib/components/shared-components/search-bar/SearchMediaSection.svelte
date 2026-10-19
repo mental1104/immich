@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mediaCategories, type MediaCategory } from '$lib/utils/media-categories';
   import { MediaType } from '$lib/constants';
   import { Text } from '@immich/ui';
   import { t } from 'svelte-i18n';
@@ -12,13 +13,13 @@
     const category = searchManager.filter.mediaCategory;
     if (
       (type === MediaType.Image && category === 'phone-video') ||
-      (type === MediaType.Video && category === 'screenshot')
+      (type === MediaType.Video && category && category !== 'phone-video')
     ) {
       searchManager.filter.mediaCategory = undefined;
     }
   }
 
-  function selectCategory(category: 'phone-video' | 'screenshot' | undefined) {
+  function selectCategory(category: MediaCategory | undefined) {
     searchManager.filter.mediaCategory = category;
     if (category) {
       searchManager.filter.mediaType = category === 'phone-video' ? MediaType.Video : MediaType.Image;
@@ -48,26 +49,19 @@
       <SearchButton checked active={!searchManager.filter.mediaCategory} onclick={() => selectCategory(undefined)}>
         {$t('all')}
       </SearchButton>
-      <SearchButton
-        checked
-        active={searchManager.filter.mediaCategory === 'phone-video'}
-        onclick={() => selectCategory('phone-video')}
-      >
-        {$t('phone_videos')}
-      </SearchButton>
-      <SearchButton
-        checked
-        active={searchManager.filter.mediaCategory === 'screenshot'}
-        onclick={() => selectCategory('screenshot')}
-      >
-        {$t('screenshots')}
-      </SearchButton>
+      {#each mediaCategories as category (category.id)}
+        <SearchButton
+          checked
+          active={searchManager.filter.mediaCategory === category.id}
+          onclick={() => selectCategory(category.id)}
+        >
+          {$t(category.title)}
+        </SearchButton>
+      {/each}
     </div>
     {#if searchManager.filter.mediaCategory}
       <p class="mt-3 text-sm text-neutral-500">
-        {$t(
-          searchManager.filter.mediaCategory === 'phone-video' ? 'phone_videos_description' : 'screenshots_description',
-        )}
+        {$t(mediaCategories.find((category) => category.id === searchManager.filter.mediaCategory)!.description)}
       </p>
     {/if}
   </fieldset>

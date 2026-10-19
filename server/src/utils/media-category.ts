@@ -18,3 +18,26 @@ export const phoneVideoPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coale
 export const screenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
   asset.type = 'IMAGE' and asset.width = 1179 and asset.height = 2556
 ), false)`;
+
+/** 按用户指定的尺寸归类 Delta GBA游戏截图。 */
+export const deltaScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
+  asset.type = 'IMAGE' and (asset.width = 1680 and asset.height = 1120)
+), false)`;
+
+/** 按用户指定的尺寸归类 Steam游戏截图。 */
+export const steamScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
+  asset.type = 'IMAGE' and (asset.width = 2560 and asset.height = 1440)
+), false)`;
+
+/** 按用户指定的两个横向尺寸归类 Switch 游戏机截图。 */
+export const switchScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
+  asset.type = 'IMAGE' and (
+    (asset.width = 1280 and asset.height = 720) or
+    (asset.width = 1920 and asset.height = 1080)
+  )
+), false)`;
+
+/** 按用户指定的尺寸归类 3DS游戏截图。 */
+export const nintendo3dsScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
+  asset.type = 'IMAGE' and (asset.width = 400 and asset.height = 240)
+), false)`;

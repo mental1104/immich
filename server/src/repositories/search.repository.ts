@@ -44,6 +44,10 @@ export interface SearchStatusOptions {
   isPanorama?: boolean;
   isPhoneVideo?: boolean;
   isScreenshot?: boolean;
+  isNintendo3dsScreenshot?: boolean;
+  isSwitchScreenshot?: boolean;
+  isSteamScreenshot?: boolean;
+  isDeltaScreenshot?: boolean;
   isOffline?: boolean;
   isNotInAlbum?: boolean;
   isInAlbum?: boolean;

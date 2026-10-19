@@ -40,6 +40,26 @@ const BaseSearchSchema = z.object({
     .optional()
     .describe('Filter portrait 1179x2556 screenshot images (fork extension)')
     .meta({ deprecated: true }),
+  isDeltaScreenshot: z
+    .boolean()
+    .optional()
+    .describe('Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)')
+    .meta({ deprecated: true }),
+  isSteamScreenshot: z
+    .boolean()
+    .optional()
+    .describe('Filter landscape 2560x1440 Steam screenshot images (fork extension)')
+    .meta({ deprecated: true }),
+  isSwitchScreenshot: z
+    .boolean()
+    .optional()
+    .describe('Filter landscape 720p or 1080p Switch screenshot images (fork extension)')
+    .meta({ deprecated: true }),
+  isNintendo3dsScreenshot: z
+    .boolean()
+    .optional()
+    .describe('Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)')
+    .meta({ deprecated: true }),
   isOffline: z.boolean().optional().describe('Filter by offline status').meta(DEPRECATED_FLAT_FIELD),
   visibility: AssetVisibilitySchema.optional().meta(DEPRECATED_FLAT_FIELD),
   createdBefore: isoDatetimeToDate.optional().describe('Filter by creation date (before)').meta(DEPRECATED_FLAT_FIELD),
@@ -272,6 +292,10 @@ const searchFilterBranchShape = {
   isPanorama: BoolFilterSchema,
   isPhoneVideo: BoolFilterSchema,
   isScreenshot: BoolFilterSchema,
+  isNintendo3dsScreenshot: BoolFilterSchema,
+  isSwitchScreenshot: BoolFilterSchema,
+  isSteamScreenshot: BoolFilterSchema,
+  isDeltaScreenshot: BoolFilterSchema,
   isOffline: BoolFilterSchema,
   isEncoded: BoolFilterSchema,
   hasAlbums: BoolFilterSchema,

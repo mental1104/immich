@@ -47,7 +47,14 @@ import {
 } from 'src/repositories/search.repository.js';
 import { DB } from 'src/schema/index.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
-import { phoneVideoPredicate, screenshotPredicate } from 'src/utils/media-category.js';
+import {
+  deltaScreenshotPredicate,
+  nintendo3dsScreenshotPredicate,
+  phoneVideoPredicate,
+  screenshotPredicate,
+  steamScreenshotPredicate,
+  switchScreenshotPredicate,
+} from 'src/utils/media-category.js';
 import { panoramaPredicate } from 'src/utils/panorama.js';
 import { fromChecksum } from 'src/utils/request.js';
 
@@ -548,6 +555,22 @@ export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearc
     .$if(options.isPhoneVideo !== undefined, (qb) =>
       qb.where((eb) => (options.isPhoneVideo ? phoneVideoPredicate() : eb.not(phoneVideoPredicate()))),
     )
+    .$if(options.isDeltaScreenshot !== undefined, (qb) =>
+      qb.where((eb) => (options.isDeltaScreenshot ? deltaScreenshotPredicate() : eb.not(deltaScreenshotPredicate()))),
+    )
+    .$if(options.isSteamScreenshot !== undefined, (qb) =>
+      qb.where((eb) => (options.isSteamScreenshot ? steamScreenshotPredicate() : eb.not(steamScreenshotPredicate()))),
+    )
+    .$if(options.isSwitchScreenshot !== undefined, (qb) =>
+      qb.where((eb) =>
+        options.isSwitchScreenshot ? switchScreenshotPredicate() : eb.not(switchScreenshotPredicate()),
+      ),
+    )
+    .$if(options.isNintendo3dsScreenshot !== undefined, (qb) =>
+      qb.where((eb) =>
+        options.isNintendo3dsScreenshot ? nintendo3dsScreenshotPredicate() : eb.not(nintendo3dsScreenshotPredicate()),
+      ),
+    )
     .$if(options.isScreenshot !== undefined, (qb) =>
       qb.where((eb) => (options.isScreenshot ? screenshotPredicate() : eb.not(screenshotPredicate()))),
     )
@@ -773,6 +796,22 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
     ...(branch.isMotion ? [eb('asset.livePhotoVideoId', branch.isMotion.eq ? 'is not' : 'is', null)] : []),
     ...(branch.isPanorama ? [branch.isPanorama.eq ? panoramaPredicate() : eb.not(panoramaPredicate())] : []),
     ...(branch.isPhoneVideo ? [branch.isPhoneVideo.eq ? phoneVideoPredicate() : eb.not(phoneVideoPredicate())] : []),
+    ...(branch.isDeltaScreenshot
+      ? [branch.isDeltaScreenshot.eq ? deltaScreenshotPredicate() : eb.not(deltaScreenshotPredicate())]
+      : []),
+    ...(branch.isSteamScreenshot
+      ? [branch.isSteamScreenshot.eq ? steamScreenshotPredicate() : eb.not(steamScreenshotPredicate())]
+      : []),
+    ...(branch.isSwitchScreenshot
+      ? [branch.isSwitchScreenshot.eq ? switchScreenshotPredicate() : eb.not(switchScreenshotPredicate())]
+      : []),
+    ...(branch.isNintendo3dsScreenshot
+      ? [
+          branch.isNintendo3dsScreenshot.eq
+            ? nintendo3dsScreenshotPredicate()
+            : eb.not(nintendo3dsScreenshotPredicate()),
+        ]
+      : []),
     ...(branch.isScreenshot ? [branch.isScreenshot.eq ? screenshotPredicate() : eb.not(screenshotPredicate())] : []),
     ...existsPredicates(eb, branch.isEncoded, () => encodedVideoFiles(eb)),
     ...existsPredicates(eb, branch.hasAlbums, () => albumAssets(eb)),

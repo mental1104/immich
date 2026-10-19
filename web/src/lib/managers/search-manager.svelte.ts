@@ -6,6 +6,7 @@ import { MediaType, QueryType, validQueryTypes } from '$lib/constants';
 import { Route } from '$lib/route';
 import type { SearchFilter } from '$lib/types';
 import { asLocalTimeISO, parseUtcDate } from '$lib/utils/date-time';
+import { mediaCategories } from '$lib/utils/media-categories';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
 const orientations = { landscape: Orientation.Landscape, portrait: Orientation.Portrait };
@@ -105,7 +106,7 @@ class SearchManager {
             : MediaType.All,
       rating: searchQuery.rating,
       isPanorama: searchQuery.isPanorama ?? false,
-      mediaCategory: searchQuery.isPhoneVideo ? 'phone-video' : searchQuery.isScreenshot ? 'screenshot' : undefined,
+      mediaCategory: mediaCategories.find((category) => searchQuery[category.flag])?.id,
       orientation: searchQuery.orientation,
     };
   }
@@ -151,6 +152,10 @@ class SearchManager {
       isPanorama: this.filter.isPanorama || undefined,
       isPhoneVideo: this.filter.mediaCategory === 'phone-video' || undefined,
       isScreenshot: this.filter.mediaCategory === 'screenshot' || undefined,
+      isNintendo3dsScreenshot: this.filter.mediaCategory === '3ds-screenshot' || undefined,
+      isSwitchScreenshot: this.filter.mediaCategory === 'switch-screenshot' || undefined,
+      isSteamScreenshot: this.filter.mediaCategory === 'steam-screenshot' || undefined,
+      isDeltaScreenshot: this.filter.mediaCategory === 'delta-screenshot' || undefined,
       orientation: this.filter.orientation ? orientations[this.filter.orientation] : undefined,
     };
   }
