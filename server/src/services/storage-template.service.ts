@@ -139,9 +139,7 @@ export class StorageTemplateService extends BaseService {
   @OnEvent({ name: 'AssetMetadataExtracted' })
   async onAssetMetadataExtracted({ source, assetId }: ArgOf<'AssetMetadataExtracted'>) {
     if (DISABLED_JOB_QUEUES.has(QueueName.StorageTemplateMigration)) {
-      if (source === 'upload' || source === 'copy') {
-        await this.jobRepository.queue({ name: JobName.AssetGenerateThumbnails, data: { source, id: assetId } });
-      }
+      await this.jobRepository.queue({ name: JobName.AssetGenerateThumbnails, data: { source, id: assetId } });
       return;
     }
     await this.jobRepository.queue({ name: JobName.StorageTemplateMigrationSingle, data: { source, id: assetId } });

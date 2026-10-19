@@ -33,7 +33,7 @@ export const pipelineNodes: PipelineNode[] = [
 export const pipelineEdges: PipelineEdge[] = [
   { from: QueueName.Library, to: QueueName.MetadataExtraction },
   { from: QueueName.MetadataExtraction, to: QueueName.ThumbnailGeneration },
-  { from: QueueName.MetadataExtraction, to: QueueName.NikonPairing, conditional: true },
+  { from: QueueName.MetadataExtraction, to: QueueName.NikonPairing },
   { from: QueueName.ThumbnailGeneration, to: QueueName.SmartSearch },
   { from: QueueName.ThumbnailGeneration, to: QueueName.FaceDetection },
   { from: QueueName.ThumbnailGeneration, to: QueueName.Ocr },

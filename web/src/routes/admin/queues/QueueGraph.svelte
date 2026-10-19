@@ -52,6 +52,8 @@
           ? AssetJobName.RefreshFaces
           : undefined,
   );
+  const pipelineCountFor = (name: QueueName) =>
+    queues.find(({ name: queueName }) => queueName === QueueName.MetadataExtraction)?.metadataProgress?.pipeline[name];
 
   const isDisabled = (name: QueueName) => {
     const features = featureFlagsManager.value;
@@ -69,13 +71,18 @@
     }
     return false;
   };
-  const stateFor = (node: PipelineNode) =>
-    getPipelineState(
+  const stateFor = (node: PipelineNode) => {
+    const progress = pipelineCountFor(node.queue);
+    if (!asset && progress && progress.total > 0 && progress.completed >= progress.total) {
+      return 'completed';
+    }
+    return getPipelineState(
       node,
       queues.find(({ name }) => name === node.queue),
       asset,
       isDisabled(node.queue),
     );
+  };
   const stateKeys = {
     completed: 'asset_task_status.completed',
     queued: 'asset_task_status.queued',
@@ -303,8 +310,7 @@
           </svg>
           {#each pipelineNodes as node (node.queue)}
             {@const queue = queues.find(({ name }) => name === node.queue)}
-            {@const pipelineCount = queues.find(({ name }) => name === QueueName.MetadataExtraction)?.metadataProgress
-              ?.pipeline[node.queue]}
+            {@const pipelineCount = pipelineCountFor(node.queue)}
             {@const item = asQueueItem($t, { name: node.queue })}
             {@const state = stateFor(node)}
             <button

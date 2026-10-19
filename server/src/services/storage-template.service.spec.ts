@@ -37,9 +37,12 @@ describe(StorageTemplateService.name, () => {
       });
     });
 
-    it('does not enqueue migration or thumbnails during a metadata rescan', async () => {
+    it('queues thumbnails after metadata rescans', async () => {
       await sut.onAssetMetadataExtracted({ assetId: 'asset-1', userId: 'user-1' });
-      expect(mocks.job.queue).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.AssetGenerateThumbnails,
+        data: { id: 'asset-1', source: undefined },
+      });
     });
   });
 

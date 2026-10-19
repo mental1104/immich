@@ -131,7 +131,7 @@ export class JobService extends BaseService {
             ? this.assetJobRepository.skipAssetTask(assetId, taskName)
             : this.assetJobRepository.completeAssetTask(assetId, taskName));
         }
-        await this.onDone(job);
+        await this.onDone(job, response);
       }
     } catch (error: Error | any) {
       if (job.name === JobName.AssetExtractMetadata) {
@@ -158,11 +158,12 @@ export class JobService extends BaseService {
   }
 
   /**
-   * 在任务完成后安排必要的后续任务；实时视频模式不再安排离线视频编码。
-   * @param item 已成功完成的任务及其资产上下文。
+   * 在任务成功后安排后续任务；跳过状态只保留必要的兼容处理。
+   * @param item 已完成的任务及其资产上下文。
+   * @param response 当前任务的最终状态。
    * @returns 后续任务安排完成时结束；队列失败将向上抛出。
    */
-  private async onDone(item: JobItem) {
+  private async onDone(item: JobItem, response: JobStatus) {
     switch (item.name) {
       case JobName.SidecarCheck: {
         const asset = await this.assetJobRepository.getAssetType(item.data.id);
@@ -231,7 +232,7 @@ export class JobService extends BaseService {
       }
 
       case JobName.AssetGenerateThumbnails: {
-        if (!item.data.notify && item.data.source !== 'upload') {
+        if (response !== JobStatus.Success) {
           break;
         }
 
@@ -316,7 +317,7 @@ export class JobService extends BaseService {
       }
 
       case JobName.SmartSearch: {
-        if (item.data.source === 'upload') {
+        if (response === JobStatus.Success) {
           await this.jobRepository.queue({ name: JobName.AssetDetectDuplicates, data: item.data });
         }
         break;
