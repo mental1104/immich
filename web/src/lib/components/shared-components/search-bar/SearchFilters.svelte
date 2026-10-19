@@ -85,7 +85,13 @@
     ),
   );
   let tagsTitle = $state<string>();
-  let mediaTitle = $derived(getSearchMediaTitle(searchManager.filter.mediaType));
+  let mediaTitle = $derived(
+    searchManager.filter.mediaCategory === 'phone-video'
+      ? $t('phone_videos')
+      : searchManager.filter.mediaCategory === 'screenshot'
+        ? $t('screenshots')
+        : getSearchMediaTitle(searchManager.filter.mediaType),
+  );
 
   let filters = [
     {

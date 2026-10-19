@@ -240,6 +240,8 @@
       visibility: $t('in_archive'),
       isFavorite: $t('favorite'),
       isPanorama: $t('panorama'),
+      isPhoneVideo: $t('phone_videos'),
+      isScreenshot: $t('screenshots'),
       isNotInAlbum: $t('not_in_any_album'),
       isInAlbum: $t('search_filter_display_option_in_album'),
       orientation: $t('orientation'),

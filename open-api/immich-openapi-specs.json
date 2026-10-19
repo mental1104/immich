@@ -11936,6 +11936,26 @@
             }
           },
           {
+            "name": "isPhoneVideo",
+            "required": false,
+            "in": "query",
+            "description": "Filter Apple phone videos by device metadata and frame ratio (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "isScreenshot",
+            "required": false,
+            "in": "query",
+            "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "lensModel",
             "required": false,
             "in": "query",
@@ -24210,6 +24230,16 @@
             "description": "Filter by panorama status (fork extension)",
             "type": "boolean"
           },
+          "isPhoneVideo": {
+            "deprecated": true,
+            "description": "Filter Apple phone videos by device metadata and frame ratio (fork extension)",
+            "type": "boolean"
+          },
+          "isScreenshot": {
+            "deprecated": true,
+            "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "lensModel": {
             "deprecated": true,
             "description": "Filter by lens model",
@@ -27007,6 +27037,16 @@
             "description": "Filter by panorama status (fork extension)",
             "type": "boolean"
           },
+          "isPhoneVideo": {
+            "deprecated": true,
+            "description": "Filter Apple phone videos by device metadata and frame ratio (fork extension)",
+            "type": "boolean"
+          },
+          "isScreenshot": {
+            "deprecated": true,
+            "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "lensModel": {
             "deprecated": true,
             "description": "Filter by lens model",
@@ -27825,6 +27865,12 @@
           "isPanorama": {
             "$ref": "#/components/schemas/BoolFilter"
           },
+          "isPhoneVideo": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isScreenshot": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
           "lensModel": {
             "$ref": "#/components/schemas/StringFilterNullable"
           },
@@ -27935,6 +27981,12 @@
             "$ref": "#/components/schemas/BoolFilter"
           },
           "isPanorama": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isPhoneVideo": {
+            "$ref": "#/components/schemas/BoolFilter"
+          },
+          "isScreenshot": {
             "$ref": "#/components/schemas/BoolFilter"
           },
           "lensModel": {
@@ -29234,6 +29286,16 @@
             "description": "Filter by panorama status (fork extension)",
             "type": "boolean"
           },
+          "isPhoneVideo": {
+            "deprecated": true,
+            "description": "Filter Apple phone videos by device metadata and frame ratio (fork extension)",
+            "type": "boolean"
+          },
+          "isScreenshot": {
+            "deprecated": true,
+            "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
+            "type": "boolean"
+          },
           "language": {
             "description": "Search language code",
             "type": "string"
@@ -30019,6 +30081,16 @@
           "isPanorama": {
             "deprecated": true,
             "description": "Filter by panorama status (fork extension)",
+            "type": "boolean"
+          },
+          "isPhoneVideo": {
+            "deprecated": true,
+            "description": "Filter Apple phone videos by device metadata and frame ratio (fork extension)",
+            "type": "boolean"
+          },
+          "isScreenshot": {
+            "deprecated": true,
+            "description": "Filter portrait 1179x2556 screenshot images (fork extension)",
             "type": "boolean"
           },
           "lensModel": {

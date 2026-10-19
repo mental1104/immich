@@ -1,9 +1,15 @@
+import { AssetTypeEnum } from '@immich/sdk';
+import { goto } from '$app/navigation';
+import { MediaType } from '$lib/constants';
 import { searchManager } from '$lib/managers/search-manager.svelte';
+
+vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
 describe('SearchManager', () => {
   beforeEach(() => {
     localStorage.clear();
     searchManager.reset();
+    vi.mocked(goto).mockClear();
   });
 
   it('defaults to smart search', () => {
@@ -40,5 +46,25 @@ describe('SearchManager', () => {
     expect(searchManager.filter.isPanorama).toBe(true);
     searchManager.reset();
     expect(searchManager.filter.isPanorama).toBe(false);
+  });
+
+  it('restores category shortcuts and clears them when filters reset', () => {
+    searchManager.setQuery({ isPhoneVideo: true, type: AssetTypeEnum.Video });
+    expect(searchManager.filter.mediaCategory).toBe('phone-video');
+    expect(searchManager.filter.mediaType).toBe(MediaType.Video);
+    searchManager.setQuery({ isScreenshot: true, type: AssetTypeEnum.Image });
+    expect(searchManager.filter.mediaCategory).toBe('screenshot');
+    expect(searchManager.filter.mediaType).toBe(MediaType.Image);
+    searchManager.reset();
+    expect(searchManager.filter.mediaCategory).toBeUndefined();
+  });
+
+  it.each(['phone-video', 'screenshot'] as const)('submits %s with its matching search flag', async (category) => {
+    searchManager.filter.mediaCategory = category;
+    await searchManager.submit();
+    const target = String(vi.mocked(goto).mock.calls[0][0]);
+    const query = JSON.parse(new URL(target, 'https://test.invalid').searchParams.get('query')!);
+    expect(query.isPhoneVideo).toBe(category === 'phone-video' ? true : undefined);
+    expect(query.isScreenshot).toBe(category === 'screenshot' ? true : undefined);
   });
 });

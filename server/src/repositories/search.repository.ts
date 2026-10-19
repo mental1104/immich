@@ -42,6 +42,8 @@ export interface SearchStatusOptions {
   isMotion?: boolean;
   /** Fork 全景搜索条件；未提供时保持原有查询行为。 */
   isPanorama?: boolean;
+  isPhoneVideo?: boolean;
+  isScreenshot?: boolean;
   isOffline?: boolean;
   isNotInAlbum?: boolean;
   isInAlbum?: boolean;

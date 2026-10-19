@@ -9,10 +9,11 @@
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { Route } from '$lib/route';
   import { getAssetMediaUrl, getPeopleThumbnailUrl, memoryLaneTitle } from '$lib/utils';
-  import { getAssetInfo, AssetMediaSize, type SearchExploreResponseDto } from '@immich/sdk';
+  import { getAssetInfo, AssetMediaSize, AssetTypeEnum, type SearchExploreResponseDto } from '@immich/sdk';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import MemoryCard from '$lib/components/memories/MemoryCard.svelte';
-  import { ImageCarousel } from '@immich/ui';
+  import { ImageCarousel, Icon } from '@immich/ui';
+  import { mdiCellphonePlay, mdiCellphoneScreenshot } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
@@ -69,6 +70,31 @@
 <OnEvents {onPersonThumbnailReady} />
 
 <UserPageLayout title={data.meta.title}>
+  <section class="mt-2 mb-6" aria-label={$t('media_categories')}>
+    <p class="mb-4 font-medium dark:text-immich-dark-fg">{$t('media_categories')}</p>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <a
+        href={Route.search({ type: AssetTypeEnum.Video, isPhoneVideo: true })}
+        class="flex items-center gap-4 rounded-xl bg-immich-gray p-5 transition-colors hover:bg-gray-200 dark:bg-immich-dark-gray dark:hover:bg-gray-700"
+      >
+        <Icon icon={mdiCellphonePlay} size="32" class="shrink-0 text-primary" />
+        <div>
+          <p class="font-medium">{$t('phone_videos')}</p>
+          <p class="mt-1 text-sm text-neutral-500">{$t('phone_videos_description')}</p>
+        </div>
+      </a>
+      <a
+        href={Route.search({ type: AssetTypeEnum.Image, isScreenshot: true })}
+        class="flex items-center gap-4 rounded-xl bg-immich-gray p-5 transition-colors hover:bg-gray-200 dark:bg-immich-dark-gray dark:hover:bg-gray-700"
+      >
+        <Icon icon={mdiCellphoneScreenshot} size="32" class="shrink-0 text-primary" />
+        <div>
+          <p class="font-medium">{$t('screenshots')}</p>
+          <p class="mt-1 text-sm text-neutral-500">{$t('screenshots_description')}</p>
+        </div>
+      </a>
+    </div>
+  </section>
   {#if hasPeople}
     <div class="mt-2 mb-6">
       <div class="flex justify-between">

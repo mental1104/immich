@@ -30,6 +30,16 @@ const BaseSearchSchema = z.object({
   isMotion: z.boolean().optional().describe('Filter by motion photo status').meta(DEPRECATED_FLAT_FIELD),
   // Fork 扩展：兼容现有 Web 的平铺查询；结构化请求使用 filter.isPanorama。
   isPanorama: z.boolean().optional().describe('Filter by panorama status (fork extension)').meta({ deprecated: true }),
+  isPhoneVideo: z
+    .boolean()
+    .optional()
+    .describe('Filter Apple phone videos by device metadata and frame ratio (fork extension)')
+    .meta({ deprecated: true }),
+  isScreenshot: z
+    .boolean()
+    .optional()
+    .describe('Filter portrait 1179x2556 screenshot images (fork extension)')
+    .meta({ deprecated: true }),
   isOffline: z.boolean().optional().describe('Filter by offline status').meta(DEPRECATED_FLAT_FIELD),
   visibility: AssetVisibilitySchema.optional().meta(DEPRECATED_FLAT_FIELD),
   createdBefore: isoDatetimeToDate.optional().describe('Filter by creation date (before)').meta(DEPRECATED_FLAT_FIELD),
@@ -260,6 +270,8 @@ const searchFilterBranchShape = {
   isFavorite: BoolFilterSchema,
   isMotion: BoolFilterSchema,
   isPanorama: BoolFilterSchema,
+  isPhoneVideo: BoolFilterSchema,
+  isScreenshot: BoolFilterSchema,
   isOffline: BoolFilterSchema,
   isEncoded: BoolFilterSchema,
   hasAlbums: BoolFilterSchema,

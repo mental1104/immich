@@ -105,6 +105,7 @@ class SearchManager {
             : MediaType.All,
       rating: searchQuery.rating,
       isPanorama: searchQuery.isPanorama ?? false,
+      mediaCategory: searchQuery.isPhoneVideo ? 'phone-video' : searchQuery.isScreenshot ? 'screenshot' : undefined,
       orientation: searchQuery.orientation,
     };
   }
@@ -148,6 +149,8 @@ class SearchManager {
       type,
       rating: this.filter.rating,
       isPanorama: this.filter.isPanorama || undefined,
+      isPhoneVideo: this.filter.mediaCategory === 'phone-video' || undefined,
+      isScreenshot: this.filter.mediaCategory === 'screenshot' || undefined,
       orientation: this.filter.orientation ? orientations[this.filter.orientation] : undefined,
     };
   }

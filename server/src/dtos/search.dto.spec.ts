@@ -17,3 +17,14 @@ describe('panorama search request validation', () => {
     );
   });
 });
+
+describe('media category request validation', () => {
+  it.each(['isPhoneVideo', 'isScreenshot'] as const)('accepts optional %s in either search shape', (field) => {
+    expect(MetadataSearchDto.schema.parse({ [field]: false })[field]).toBe(false);
+    expect(MetadataSearchDto.schema.safeParse({ [field]: 'true' }).success).toBe(false);
+    expect(MetadataSearchDto.schema.safeParse({ filter: { [field]: { eq: true } } }).success).toBe(true);
+    expect(MetadataSearchDto.schema.safeParse({ [field]: true, filter: { type: { eq: 'IMAGE' } } }).success).toBe(
+      false,
+    );
+  });
+});

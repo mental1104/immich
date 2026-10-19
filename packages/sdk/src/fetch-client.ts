@@ -2399,6 +2399,8 @@ export type SearchFilterBranch = {
     isMotion?: BoolFilter;
     isOffline?: BoolFilter;
     isPanorama?: BoolFilter;
+    isPhoneVideo?: BoolFilter;
+    isScreenshot?: BoolFilter;
     lensModel?: StringFilterNullable;
     libraryId?: IdFilterNullable;
     make?: StringFilterNullable;
@@ -2434,6 +2436,8 @@ export type SearchFilter = {
     isMotion?: BoolFilter;
     isOffline?: BoolFilter;
     isPanorama?: BoolFilter;
+    isPhoneVideo?: BoolFilter;
+    isScreenshot?: BoolFilter;
     lensModel?: StringFilterNullable;
     libraryId?: IdFilterNullable;
     make?: StringFilterNullable;
@@ -2492,6 +2496,10 @@ export type MetadataSearchDto = {
     isOffline?: boolean;
     /** Filter by panorama status (fork extension) */
     isPanorama?: boolean;
+    /** Filter Apple phone videos by device metadata and frame ratio (fork extension) */
+    isPhoneVideo?: boolean;
+    /** Filter portrait 1179x2556 screenshot images (fork extension) */
+    isScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -2623,6 +2631,10 @@ export type RandomSearchDto = {
     isOffline?: boolean;
     /** Filter by panorama status (fork extension) */
     isPanorama?: boolean;
+    /** Filter Apple phone videos by device metadata and frame ratio (fork extension) */
+    isPhoneVideo?: boolean;
+    /** Filter portrait 1179x2556 screenshot images (fork extension) */
+    isScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -2694,6 +2706,10 @@ export type SmartSearchDto = {
     isOffline?: boolean;
     /** Filter by panorama status (fork extension) */
     isPanorama?: boolean;
+    /** Filter Apple phone videos by device metadata and frame ratio (fork extension) */
+    isPhoneVideo?: boolean;
+    /** Filter portrait 1179x2556 screenshot images (fork extension) */
+    isScreenshot?: boolean;
     /** Search language code */
     language?: string;
     /** Filter by lens model */
@@ -2771,6 +2787,10 @@ export type StatisticsSearchDto = {
     isOffline?: boolean;
     /** Filter by panorama status (fork extension) */
     isPanorama?: boolean;
+    /** Filter Apple phone videos by device metadata and frame ratio (fork extension) */
+    isPhoneVideo?: boolean;
+    /** Filter portrait 1179x2556 screenshot images (fork extension) */
+    isScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
     /** Library ID to filter by */
@@ -6653,7 +6673,7 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isInAlbum, isMotion, isNotInAlbum, isOffline, isPanorama, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
+export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isInAlbum, isMotion, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
     albumIds?: string[];
     city?: string | null;
     country?: string | null;
@@ -6666,6 +6686,8 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
     isNotInAlbum?: boolean;
     isOffline?: boolean;
     isPanorama?: boolean;
+    isPhoneVideo?: boolean;
+    isScreenshot?: boolean;
     lensModel?: string | null;
     libraryId?: string | null;
     make?: string | null;
@@ -6705,6 +6727,8 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         isNotInAlbum,
         isOffline,
         isPanorama,
+        isPhoneVideo,
+        isScreenshot,
         lensModel,
         libraryId,
         make,
