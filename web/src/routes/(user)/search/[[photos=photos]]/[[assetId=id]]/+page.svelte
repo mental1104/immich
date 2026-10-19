@@ -16,8 +16,10 @@
   import FavoriteAction from '$lib/components/timeline/actions/FavoriteAction.svelte';
   import SetVisibilityAction from '$lib/components/timeline/actions/SetVisibilityAction.svelte';
   import AssetSelectControlBar from '$lib/components/timeline/AssetSelectControlBar.svelte';
+  import SearchResultAlbumModal from '$lib/modals/SearchResultAlbumModal.svelte';
   import { QueryParameter } from '$lib/constants';
   import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
+  import { eventManager } from '$lib/managers/event-manager.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { searchManager } from '$lib/managers/search-manager.svelte';
   import type { Viewport } from '$lib/managers/timeline-manager/types';
@@ -33,6 +35,7 @@
     type AlbumResponseDto,
     type AssetResponseDto,
     AssetVisibility,
+    createAlbum,
     getPerson,
     getTagById,
     type MetadataSearchDto,
@@ -40,8 +43,23 @@
     searchSmart,
     type SmartSearchDto,
   } from '@immich/sdk';
-  import { ActionButton, CommandPaletteDefaultProvider, Icon, IconButton, LoadingSpinner } from '@immich/ui';
-  import { mdiArrowLeft, mdiClose, mdiDotsVertical, mdiImageOffOutline, mdiSelectAll } from '@mdi/js';
+  import {
+    ActionButton,
+    CommandPaletteDefaultProvider,
+    Icon,
+    IconButton,
+    LoadingSpinner,
+    modalManager,
+    toastManager,
+  } from '@immich/ui';
+  import {
+    mdiArrowLeft,
+    mdiClose,
+    mdiDotsVertical,
+    mdiImageOffOutline,
+    mdiPlusBoxOutline,
+    mdiSelectAll,
+  } from '@mdi/js';
   import { onMount, tick, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
 
@@ -116,6 +134,52 @@
   const handleSelectAll = () => {
     assetMultiSelectManager.selectAssets(searchResultAssets.map((asset) => toTimelineAsset(asset)));
   };
+
+  const createAlbumFromSearchResults = async (albumName: string): Promise<boolean> => {
+    const searchTerms = { ...terms };
+    const smartSearch = ('query' in searchTerms || 'queryAssetId' in searchTerms) && smartSearchEnabled;
+    const assetIds: string[] = [];
+    const seenAssetIds: Record<string, true> = Object.create(null);
+    let pageNumber = 1;
+
+    try {
+      while (pageNumber > 0) {
+        const searchDto: SearchTerms = { ...searchTerms, page: pageNumber, withExif: false };
+        const { assets } = smartSearch
+          ? await searchSmart({
+              smartSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto, language: $lang },
+            })
+          : await searchAssets({ metadataSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto } });
+
+        for (const asset of assets.items) {
+          if (seenAssetIds[asset.id]) {
+            continue;
+          }
+
+          seenAssetIds[asset.id] = true;
+          assetIds.push(asset.id);
+        }
+
+        pageNumber = Number(assets.nextPage) || 0;
+      }
+
+      if (assetIds.length === 0) {
+        toastManager.info($t('no_results'));
+        return false;
+      }
+
+      const album = await createAlbum({ createAlbumDto: { albumName, assetIds } });
+      eventManager.emit('AlbumCreate', album);
+      await goto(Route.viewAlbum(album));
+      return true;
+    } catch (error) {
+      handleError(error, $t('errors.failed_to_create_album'));
+      return false;
+    }
+  };
+
+  const openCreateAlbumFromSearch = () =>
+    modalManager.show(SearchResultAlbumModal, { onCreate: createAlbumFromSearchResults });
 
   async function onSearchQueryUpdate() {
     nextPage = 1;
@@ -395,6 +459,17 @@
           <div class="mx-auto w-full max-w-2xl pe-2">
             <SearchBar grayTheme={false} />
           </div>
+          {#if searchResultAssets.length > 0 && !isLoading}
+            <IconButton
+              shape="round"
+              color="secondary"
+              variant="ghost"
+              aria-label={$t('create_album_from_search_results')}
+              title={$t('create_album_from_search_results')}
+              icon={mdiPlusBoxOutline}
+              onclick={openCreateAlbumFromSearch}
+            />
+          {/if}
         </ControlAppBar>
       </div>
     {/if}

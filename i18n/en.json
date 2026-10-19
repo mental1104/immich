@@ -824,6 +824,8 @@
   "covers": "Covers",
   "create": "Create",
   "create_album": "Create album",
+  "create_album_from_search_results": "Create album from search results",
+  "create_album_from_search_results_description": "All matching assets will be added, including results not yet loaded in the gallery.",
   "create_album_page_untitled": "Untitled",
   "create_api_key": "Create API key",
   "create_first_workflow": "Create first workflow",

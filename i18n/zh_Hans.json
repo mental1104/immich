@@ -822,6 +822,8 @@
   "covers": "封面",
   "create": "创建",
   "create_album": "创建相册",
+  "create_album_from_search_results": "将搜索结果创建为相册",
+  "create_album_from_search_results_description": "所有匹配的资源都会加入相册，包括图库中尚未加载的结果。",
   "create_album_page_untitled": "未命名",
   "create_api_key": "创建 API 密钥",
   "create_first_workflow": "创建首个工作流",

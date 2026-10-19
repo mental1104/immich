@@ -784,6 +784,8 @@
   "covers": "封面",
   "create": "建立",
   "create_album": "建立相簿",
+  "create_album_from_search_results": "將搜尋結果建立為相簿",
+  "create_album_from_search_results_description": "所有符合條件的資產都會加入相簿，包括圖庫中尚未載入的結果。",
   "create_album_page_untitled": "未命名",
   "create_api_key": "建立 API 金鑰",
   "create_first_workflow": "建立第一個工作流程",
