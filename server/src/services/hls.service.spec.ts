@@ -242,6 +242,22 @@ describe(HlsService.name, () => {
       await expect(pending).resolves.toBeDefined();
     });
 
+    it('does not wait after a media segment appears between existence checks', async () => {
+      mocks.storage.checkFileExists.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+      await expect(sut.getSegment(auth, assetId, sessionId, variantIndex, 'seg_0.m4s')).resolves.toBeDefined();
+      expect(mocks.websocket.serverSend).not.toHaveBeenCalledWith('HlsSegmentRequest', expect.anything());
+      expect(mocks.storage.checkFileExists).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not wait after init.mp4 appears between existence checks', async () => {
+      mocks.storage.checkFileExists.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+      await expect(sut.getSegment(auth, assetId, sessionId, variantIndex, 'init.mp4')).resolves.toBeDefined();
+      expect(mocks.websocket.serverSend).not.toHaveBeenCalledWith('HlsSegmentRequest', expect.anything());
+      expect(mocks.storage.checkFileExists).toHaveBeenCalledTimes(2);
+    });
+
     it('emits HlsHeartbeat with the parsed segment number for seg_K.m4s', async () => {
       await sut.getSegment(auth, assetId, sessionId, variantIndex, 'seg_5.m4s');
       expect(mocks.websocket.serverSend).toHaveBeenCalledWith('HlsHeartbeat', {
@@ -293,7 +309,7 @@ describe(HlsService.name, () => {
     });
 
     it('rejects pending waiters for the previous variant on variant change', async () => {
-      mocks.storage.checkFileExists.mockResolvedValueOnce(false);
+      mocks.storage.checkFileExists.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
 
       const pending = sut.getSegment(auth, assetId, sessionId, 0, 'seg_1.m4s');
       await new Promise((resolve) => setImmediate(resolve));

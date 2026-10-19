@@ -98,6 +98,16 @@ export class HlsService extends BaseService {
     return this.generateMediaPlaylist(asset, segmentation);
   }
 
+  /**
+   * 返回 HLS 初始化文件或媒体分片；先注册就绪监听再复查文件，避免错过完成事件。
+   * @param auth 已认证的资源访问上下文。
+   * @param assetId 原始视频 ID。
+   * @param sessionId 当前 HLS 播放会话 ID。
+   * @param variantIndex 播放档位索引。
+   * @param filename init.mp4 或 seg_N.m4s 文件名。
+   * @param initSegment 可选的初始化目标片段索引，供 Seek 使用。
+   * @returns 可供 HTTP 控制器发送的文件响应；分片超时或会话失效时拒绝。
+   */
   async getSegment(
     auth: AuthDto,
     assetId: string,
@@ -134,8 +144,13 @@ export class HlsService extends BaseService {
       ? this.getInitKey({ sessionId, variantIndex })
       : this.getSegmentKey({ sessionId, variantIndex, segmentIndex });
     const pending = isInit ? this.pendingInits.wait(key) : this.pendingSegments.wait(key);
-    if (isInit && (await this.storageRepository.checkFileExists(path, constants.R_OK))) {
-      this.pendingInits.complete(key, { sessionId, variantIndex });
+    // 首次检查与注册监听之间可能恰好完成文件重命名；监听已注册后复查两种分片。
+    if (await this.storageRepository.checkFileExists(path, constants.R_OK)) {
+      if (isInit) {
+        this.pendingInits.complete(key, { sessionId, variantIndex });
+      } else {
+        this.pendingSegments.complete(key, { sessionId, variantIndex, segmentIndex });
+      }
     } else {
       this.websocketRepository.serverSend('HlsSegmentRequest', { sessionId, assetId, variantIndex, segmentIndex });
     }

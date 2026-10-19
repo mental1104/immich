@@ -1,4 +1,4 @@
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { VideoInterfaces } from 'src/types.js';
 import { StorageAsset } from 'src/database.js';
 import {
@@ -133,8 +133,24 @@ export class StorageCore {
     return StorageCore.getNestedPath(StorageFolder.EncodedVideo, asset.ownerId, `${asset.id}.mp4`);
   }
 
+  /**
+   * 解析单次 HLS 转码会话的临时文件目录；未配置时沿用 encoded-video 以保持兼容。
+   * @param ownerId 资源所有者 UUID，用于隔离不同用户。
+   * @param sessionId HLS 会话 UUID，用于分片目录散列。
+   * @returns HLS 会话目录；环境变量非绝对路径时抛错，避免误写工作目录。
+   */
   static getHlsSessionFolder({ ownerId, sessionId }: HlsSessionFolder) {
-    return StorageCore.getNestedPath(StorageFolder.EncodedVideo, ownerId, sessionId);
+    const tempDir = process.env.IMMICH_HLS_TEMP_DIR;
+    if (!tempDir) {
+      return StorageCore.getNestedPath(StorageFolder.EncodedVideo, ownerId, sessionId);
+    }
+
+    if (!isAbsolute(tempDir)) {
+      throw new Error('IMMICH_HLS_TEMP_DIR must be an absolute path');
+    }
+
+    // 仅 HLS 会话文件使用独立挂载；长期 encoded-video 和 Live Photo 不受影响。
+    return join(tempDir, ownerId, sessionId.slice(0, 2), sessionId.slice(2, 4), sessionId);
   }
 
   static getHlsVariantFolder({ ownerId, sessionId, variantIndex }: HlsVariantFolder) {
