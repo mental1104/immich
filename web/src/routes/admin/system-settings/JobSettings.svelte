@@ -21,9 +21,6 @@
     QueueName.SmartSearch,
     QueueName.FaceDetection,
     QueueName.FacialRecognition,
-    QueueName.VideoConversion,
-    QueueName.StorageTemplateMigration,
-    QueueName.Migration,
     QueueName.Ocr,
   ];
 

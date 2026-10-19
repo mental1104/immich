@@ -50,7 +50,14 @@ type QueueItem = {
 };
 
 export const getQueuesActions = ($t: MessageFormatter, queues: QueueResponseDto[] | undefined) => {
-  const pausedQueues = (queues ?? []).filter(({ isPaused }) => isPaused).map(({ name }) => name);
+  const disabledQueues: QueueName[] = [
+    QueueName.VideoConversion,
+    QueueName.StorageTemplateMigration,
+    QueueName.Migration,
+  ];
+  const pausedQueues = (queues ?? [])
+    .filter(({ name, isPaused }) => isPaused && !disabledQueues.includes(name))
+    .map(({ name }) => name);
 
   const ResumePaused: HeaderButtonActionItem = {
     title: $t('resume_paused_jobs', { values: { count: pausedQueues.length } }),

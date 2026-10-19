@@ -13,6 +13,15 @@ describe(QueueService.name, () => {
     ({ sut, mocks } = newTestService(QueueService));
 
     mocks.config.getWorker.mockReturnValue(ImmichWorker.Microservices);
+    mocks.assetJob.getMetadataExtractionProgress.mockResolvedValue({
+      total: 0,
+      completed: 0,
+      queued: 0,
+      running: 0,
+      failed: 0,
+      skipped: 0,
+      notStarted: 0,
+    });
   });
 
   it('should work', () => {
@@ -116,30 +125,24 @@ describe(QueueService.name, () => {
       mocks.job.isActive.mockResolvedValue(true);
 
       await expect(
-        sut.runCommandLegacy(QueueName.VideoConversion, { command: QueueCommand.Start, force: false }),
+        sut.runCommandLegacy(QueueName.MetadataExtraction, { command: QueueCommand.Start, force: false }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(mocks.job.queue).not.toHaveBeenCalled();
       expect(mocks.job.queueAll).not.toHaveBeenCalled();
     });
 
-    it('should handle a start video conversion command', async () => {
-      mocks.job.isActive.mockResolvedValue(false);
-      mocks.job.getJobCounts.mockResolvedValue(factory.queueStatistics());
-
-      await sut.runCommandLegacy(QueueName.VideoConversion, { command: QueueCommand.Start, force: false });
-
-      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.AssetEncodeVideoQueueAll, data: { force: false } });
-    });
-
-    it('should handle a start storage template migration command', async () => {
-      mocks.job.isActive.mockResolvedValue(false);
-      mocks.job.getJobCounts.mockResolvedValue(factory.queueStatistics());
-
-      await sut.runCommandLegacy(QueueName.StorageTemplateMigration, { command: QueueCommand.Start, force: false });
-
-      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.StorageTemplateMigration });
-    });
+    it.each([QueueName.VideoConversion, QueueName.StorageTemplateMigration, QueueName.Migration])(
+      'rejects starting or resuming disabled queue %s',
+      async (name) => {
+        for (const command of [QueueCommand.Start, QueueCommand.Resume]) {
+          await expect(sut.runCommandLegacy(name, { command, force: false })).rejects.toThrow('Queue is disabled');
+        }
+        await expect(sut.update(factory.auth(), name, { isPaused: false })).rejects.toThrow('Queue is disabled');
+        expect(mocks.job.queue).not.toHaveBeenCalled();
+        expect(mocks.job.resume).not.toHaveBeenCalled();
+      },
+    );
 
     it('should handle a start smart search command', async () => {
       mocks.job.isActive.mockResolvedValue(false);

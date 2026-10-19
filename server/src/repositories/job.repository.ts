@@ -5,6 +5,7 @@ import { JobsOptions, Queue, Worker } from 'bullmq';
 import { readFile } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
 import type { JobCounts, JobItem, JobOf } from 'src/types.js';
+import { DISABLED_JOB_QUEUES } from 'src/constants.js';
 import { JobConfig } from 'src/decorators.js';
 import { QueueJobResponseDto, QueueJobSearchDto } from 'src/dtos/queue.dto.js';
 import {
@@ -159,6 +160,12 @@ export class JobRepository {
   startWorkers() {
     const { bull } = this.configRepository.getEnv();
     for (const queueName of Object.values(QueueName)) {
+      if (DISABLED_JOB_QUEUES.has(queueName)) {
+        void this.getQueue(queueName)
+          .pause()
+          .catch((error) => this.logger.error(`Failed to pause disabled queue ${queueName}: ${error}`));
+        continue;
+      }
       this.logger.debug(`Starting worker for queue: ${queueName}`);
       this.workers[queueName] = new Worker(
         queueName,
@@ -341,10 +348,17 @@ export class JobRepository {
       return JobStatus.Skipped;
     }
 
+    if (DISABLED_JOB_QUEUES.has(item.queueName)) {
+      return JobStatus.Skipped;
+    }
+
     return item.handler(data);
   }
 
   setConcurrency(queueName: QueueName, concurrency: number) {
+    if (DISABLED_JOB_QUEUES.has(queueName)) {
+      return;
+    }
     const worker = this.workers[queueName];
     if (!worker) {
       this.logger.warn(`Unable to set queue concurrency, worker not found: '${queueName}'`);
@@ -396,6 +410,7 @@ export class JobRepository {
   }
 
   async queueAll(items: JobItem[]): Promise<void> {
+    items = items.filter((item) => !DISABLED_JOB_QUEUES.has(this.getQueueName(item.name)));
     if (items.length === 0) {
       return;
     }

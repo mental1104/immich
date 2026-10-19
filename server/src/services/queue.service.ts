@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { ArgOf } from 'src/repositories/event.repository.js';
 import type { ConcurrentQueueName, JobItem } from 'src/types.js';
+import { DISABLED_JOB_QUEUES } from 'src/constants.js';
 import { OnEvent } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { SystemConfig } from 'src/dtos/config.dto.js';
@@ -108,6 +109,9 @@ export class QueueService extends BaseService {
   }
 
   async runCommandLegacy(name: QueueName, dto: QueueCommandDto): Promise<QueueResponseLegacyDto> {
+    if (DISABLED_JOB_QUEUES.has(name) && [QueueCommand.Start, QueueCommand.Resume].includes(dto.command)) {
+      throw new BadRequestException(`Queue is disabled: ${name}`);
+    }
     this.logger.debug(`Handling command: queue=${name},command=${dto.command},force=${dto.force}`);
 
     switch (dto.command) {
@@ -157,6 +161,9 @@ export class QueueService extends BaseService {
   }
 
   async update(auth: AuthDto, name: QueueName, dto: QueueUpdateDto): Promise<QueueResponseDto> {
+    if (DISABLED_JOB_QUEUES.has(name) && dto.isPaused === false) {
+      throw new BadRequestException(`Queue is disabled: ${name}`);
+    }
     if (dto.isPaused === true) {
       if (name === QueueName.BackgroundTask) {
         throw new BadRequestException(`The BackgroundTask queue cannot be paused`);

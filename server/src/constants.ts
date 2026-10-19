@@ -6,10 +6,17 @@ import {
   AudioCodec,
   DatabaseExtension,
   ExifOrientation,
+  QueueName,
   TranscodeHardwareAcceleration,
   VectorIndex,
   VideoCodec,
 } from 'src/enum.js';
+
+export const DISABLED_JOB_QUEUES = new Set<QueueName>([
+  QueueName.VideoConversion,
+  QueueName.StorageTemplateMigration,
+  QueueName.Migration,
+]);
 
 export const IMMICH_SERVER_START = 'Immich Server is listening';
 

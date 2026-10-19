@@ -1,4 +1,4 @@
-import { AssetType, JobName, QueueName } from 'src/enum.js';
+import { AssetType, JobName, JobStatus, QueueName } from 'src/enum.js';
 import { shouldPauseVideoMetadataExtraction } from 'src/repositories/job.repository.js';
 
 describe('shouldPauseVideoMetadataExtraction', () => {
@@ -65,9 +65,7 @@ describe('metadata extraction queue classification', () => {
       },
     };
 
-    expect(repository['getQueueName'](JobName.AssetExtractMetadata)).toBe(
-      QueueName.MetadataExtraction,
-    );
+    expect(repository['getQueueName'](JobName.AssetExtractMetadata)).toBe(QueueName.MetadataExtraction);
     expect(
       repository['getJobOptions']({
         name: JobName.AssetExtractMetadata,
@@ -80,5 +78,34 @@ describe('metadata extraction queue classification', () => {
         data: { id: 'asset-2', assetType: AssetType.Video },
       }),
     ).toEqual({ jobId: 'asset-2', priority: 2 });
+  });
+});
+
+describe('disabled job queues', () => {
+  it('drops automatic disabled jobs before tracking or enqueueing and skips their handlers', async () => {
+    const { JobRepository } = await import('src/repositories/job.repository.js');
+    const repository = Object.create(JobRepository.prototype) as InstanceType<typeof JobRepository>;
+    const handler = vi.fn().mockResolvedValue(JobStatus.Success);
+    repository['handlers'] = Object.fromEntries(
+      [
+        [JobName.AssetEncodeVideo, QueueName.VideoConversion],
+        [JobName.StorageTemplateMigrationSingle, QueueName.StorageTemplateMigration],
+        [JobName.AssetFileMigration, QueueName.Migration],
+      ].map(([jobName, queueName]) => [jobName, { jobName, queueName, handler, label: 'disabled' }]),
+    );
+    repository['moduleRef'] = {
+      get: vi.fn(() => {
+        throw new Error('must not persist disabled tasks');
+      }),
+    } as never;
+    const items = [JobName.AssetEncodeVideo, JobName.StorageTemplateMigrationSingle, JobName.AssetFileMigration].map(
+      (name) => ({ name, data: { id: 'asset-1' } }) as never,
+    );
+    await repository.queueAll(items);
+    for (const item of items) {
+      await expect(repository.run(item)).resolves.toBe(JobStatus.Skipped);
+    }
+    expect(handler).not.toHaveBeenCalled();
+    expect(repository['moduleRef'].get).not.toHaveBeenCalled();
   });
 });

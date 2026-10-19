@@ -1,6 +1,5 @@
 <script lang="ts">
   import QueueCard from './QueueCard.svelte';
-  import QueueStorageMigrationDescription from './QueueStorageMigrationDescription.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { queueManager } from '$lib/managers/queue-manager.svelte';
   import { asQueueItem } from '$lib/services/queue.service';
@@ -76,17 +75,6 @@
       allText: $t('all'),
       missingText: $t('missing'),
       disabled: !featureFlags.ocr,
-    },
-    [QueueName.VideoConversion]: {
-      allText: $t('all'),
-      missingText: $t('missing'),
-    },
-    [QueueName.StorageTemplateMigration]: {
-      missingText: $t('start'),
-      description: QueueStorageMigrationDescription,
-    },
-    [QueueName.Migration]: {
-      missingText: $t('start'),
     },
   };
 
