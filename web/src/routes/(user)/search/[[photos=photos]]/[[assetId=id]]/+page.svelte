@@ -78,7 +78,8 @@
   let scrollY = $state(0);
   let scrollYHistory = 0;
 
-  type SearchTerms = MetadataSearchDto & Pick<SmartSearchDto, 'query' | 'queryAssetId'> & { isInAlbum?: boolean };
+  type SearchTerms = MetadataSearchDto &
+    Pick<SmartSearchDto, 'query' | 'queryAssetId'> & { isInAlbum?: boolean; orientation?: 'landscape' | 'portrait' };
   let searchQuery = $derived(page.url.searchParams.get(QueryParameter.QUERY));
   let smartSearchEnabled = $derived(featureFlagsManager.value.smartSearch);
   let terms = $derived<SearchTerms>(searchQuery ? JSON.parse(searchQuery) : {});
@@ -242,6 +243,7 @@
       isPanorama: $t('panorama'),
       isNotInAlbum: $t('not_in_any_album'),
       isInAlbum: $t('search_filter_display_option_in_album'),
+      orientation: $t('orientation'),
       type: $t('media_type'),
       query: $t('context'),
       city: $t('city'),
@@ -337,6 +339,8 @@
             <span class="max-w-[min(36rem,55vw)] min-w-0 truncate px-3 py-1.5 text-immich-fg dark:text-immich-dark-fg">
               {#if (searchKey === 'takenAfter' || searchKey === 'takenBefore') && typeof value === 'string'}
                 {getHumanReadableDate(value)}
+              {:else if searchKey === 'orientation' && (value === 'landscape' || value === 'portrait')}
+                {$t(value)}
               {:else if searchKey === 'personIds' && Array.isArray(value)}
                 {#await getPersonName(value) then personName}
                   {personName}

@@ -8,7 +8,7 @@ import type { SearchFilter } from '$lib/types';
 import { asLocalTimeISO, parseUtcDate } from '$lib/utils/date-time';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
-type SearchQuery = (MetadataSearchDto | SmartSearchDto) & { isInAlbum?: boolean };
+type SearchQuery = (MetadataSearchDto | SmartSearchDto) & { isInAlbum?: boolean; orientation?: 'landscape' | 'portrait' };
 
 /** 管理搜索面板状态与 URL 参数转换，包含可与媒体类型组合的全景开关。 */
 class SearchManager {
@@ -104,6 +104,7 @@ class SearchManager {
             : MediaType.All,
       rating: searchQuery.rating,
       isPanorama: searchQuery.isPanorama ?? false,
+      orientation: searchQuery.orientation,
     };
   }
 
@@ -146,6 +147,7 @@ class SearchManager {
       type,
       rating: this.filter.rating,
       isPanorama: this.filter.isPanorama || undefined,
+      orientation: this.filter.orientation,
     };
   }
 

@@ -134,6 +134,7 @@
     searchManager.filter.display.isArchive ||
       searchManager.filter.display.isFavorite ||
       searchManager.filter.display.albumStatus !== 'all' ||
+      searchManager.filter.orientation ||
       searchManager.filter.rating,
   );
 

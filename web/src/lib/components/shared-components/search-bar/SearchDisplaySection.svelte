@@ -5,9 +5,27 @@
   import { t } from 'svelte-i18n';
 
   let filters = $derived(searchManager.filter.display);
+  let orientation = $derived(searchManager.filter.orientation);
 </script>
 
 <div id="display-options-selection">
+  <fieldset>
+    <Text class="py-5" fontWeight="medium">{$t('orientation')}</Text>
+    <div class="flex flex-wrap gap-2">
+      <SearchButton
+        checked
+        active={orientation === 'landscape'}
+        onclick={() => (searchManager.filter.orientation = orientation === 'landscape' ? undefined : 'landscape')}
+        >{$t('landscape')}</SearchButton
+      >
+      <SearchButton
+        checked
+        active={orientation === 'portrait'}
+        onclick={() => (searchManager.filter.orientation = orientation === 'portrait' ? undefined : 'portrait')}
+        >{$t('portrait')}</SearchButton
+      >
+    </div>
+  </fieldset>
   <fieldset>
     <Text class="py-5" fontWeight="medium">{$t('library')}</Text>
     <div class="flex flex-wrap gap-2">

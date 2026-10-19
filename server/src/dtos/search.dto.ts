@@ -48,6 +48,11 @@ const BaseSearchSchema = z.object({
   lensModel: z.string().nullable().optional().describe('Filter by lens model').meta(DEPRECATED_FLAT_FIELD),
   isNotInAlbum: z.boolean().optional().describe('Filter assets not in any album').meta(DEPRECATED_FLAT_FIELD),
   isInAlbum: z.boolean().optional().describe('Filter assets in any album (fork extension)').meta({ deprecated: true }),
+  orientation: z
+    .enum(['landscape', 'portrait'])
+    .optional()
+    .describe('Filter by asset orientation (fork extension)')
+    .meta({ deprecated: true }),
   personIds: z.array(z.uuidv4()).optional().describe('Filter by person IDs').meta(DEPRECATED_FLAT_FIELD),
   tagIds: z.array(z.uuidv4()).nullish().describe('Filter by tag IDs').meta(DEPRECATED_FLAT_FIELD),
   albumIds: z.array(z.uuidv4()).optional().describe('Filter by album IDs').meta(DEPRECATED_FLAT_FIELD),

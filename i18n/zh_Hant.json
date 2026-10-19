@@ -2325,5 +2325,7 @@
   "your_wifi_name": "您的 Wi-Fi 名稱",
   "zoom_image": "縮放圖片",
   "search_filter_display_option_all_albums": "所有相片",
-  "search_filter_display_option_in_album": "已在相簿中"
+  "search_filter_display_option_in_album": "已在相簿中",
+  "landscape": "橫向構圖",
+  "portrait": "直向構圖"
 }

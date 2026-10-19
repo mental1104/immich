@@ -2355,5 +2355,7 @@
   "your_wifi_name": "Your Wi-Fi name",
   "zoom_image": "Zoom Image",
   "search_filter_display_option_all_albums": "All photos",
-  "search_filter_display_option_in_album": "In an album"
+  "search_filter_display_option_in_album": "In an album",
+  "landscape": "Landscape",
+  "portrait": "Portrait"
 }

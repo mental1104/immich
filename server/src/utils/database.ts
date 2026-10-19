@@ -550,6 +550,8 @@ export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearc
     .$if(!!options.isInAlbum, (qb) =>
       qb.where((eb) => eb.exists((eb) => eb.selectFrom('album_asset').whereRef('assetId', '=', 'asset.id'))),
     )
+    .$if(options.orientation === 'landscape', (qb) => qb.whereRef('asset.width', '>', 'asset.height'))
+    .$if(options.orientation === 'portrait', (qb) => qb.whereRef('asset.width', '<', 'asset.height'))
     .$if(options.withStacked === false, (qb) => qb.where('asset.stackId', 'is', null))
     .$if(!!options.withExif, withExifInner)
     .$if(!!(options.withFaces || options.withPeople), (qb) =>

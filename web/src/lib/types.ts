@@ -75,6 +75,8 @@ export type SearchFilter = {
   mediaType: MediaType;
   /** 仅筛选全景，可与照片／视频等已有条件组合。 */
   isPanorama?: boolean;
+  /** 构图方向；缺省时不按方向过滤。 */
+  orientation?: 'landscape' | 'portrait';
   rating?: number | null;
 };
 

@@ -45,6 +45,7 @@ export interface SearchStatusOptions {
   isOffline?: boolean;
   isNotInAlbum?: boolean;
   isInAlbum?: boolean;
+  orientation?: 'landscape' | 'portrait';
   type?: AssetType;
   status?: AssetStatus;
   withArchived?: boolean;
