@@ -396,6 +396,7 @@ export class AssetJobRepository {
         ),
       )
       .where('asset.deletedAt', 'is', null)
+      .where('asset.originalPath', 'not ilike', '%.insv')
       .stream();
   }
 

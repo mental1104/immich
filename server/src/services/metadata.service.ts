@@ -29,6 +29,7 @@ import { ImmichTags } from 'src/repositories/metadata.repository.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
 import { AssetFaceTable } from 'src/schema/tables/asset-face.table.js';
 import { BaseService } from 'src/services/base.service.js';
+import { ForkAssetTask } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { getAssetFiles } from 'src/utils/asset.util.js';
 import { isAssetChecksumConstraint } from 'src/utils/database.js';
 import { mergeTimeZone } from 'src/utils/date.js';
@@ -237,6 +238,12 @@ export class MetadataService extends BaseService {
 
     if (!asset) {
       return;
+    }
+
+    // 暂停 INSV 提取，避免对大文件执行全片扫描；强制重扫同样跳过。
+    if (asset.originalPath.toLowerCase().endsWith('.insv')) {
+      await this.assetJobRepository.skipAssetTask(asset.id, ForkAssetTask.MetadataExtraction);
+      return JobStatus.Skipped;
     }
 
     // Redirect unclassified legacy jobs before running ExifTool or ffprobe.

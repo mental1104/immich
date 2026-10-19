@@ -724,6 +724,7 @@ where
     )
   )
   and "asset"."deletedAt" is null
+  and "asset"."originalPath" not ilike $1
 
 -- AssetJobRepository.getForStorageTemplateJob
 select
