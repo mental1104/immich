@@ -1,0 +1,13 @@
+# 单独覆盖 immich-hls-test 开发项目；仅此测试 Server 使用 QSV、NVMe 临时目录和只读样本。
+services:
+  server:
+    image: ${HLS_BENCHMARK_SERVER_IMAGE:?set HLS_BENCHMARK_SERVER_IMAGE}
+    environment:
+      IMMICH_HLS_TEMP_DIR: /data/hls-temp
+    volumes:
+      - ${HLS_BENCHMARK_TEMP_DIR:-/volume2/workflow/immich-nas-dev-data/hls-temp}:/data/hls-temp
+      - ${HLS_BENCHMARK_MEDIA:?set HLS_BENCHMARK_MEDIA}:/mnt/hls-benchmark/source.mp4:ro
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - '2284:2283'

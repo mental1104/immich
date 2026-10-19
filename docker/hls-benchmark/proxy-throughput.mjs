@@ -1,0 +1,11 @@
+import fs from 'node:fs';import {performance} from 'node:perf_hooks';
+const base=process.env.HLS_BENCHMARK_PROXY_ORIGIN||'http://127.0.0.1:2285',asset=process.env.HLS_BENCHMARK_ASSET_ID,token=fs.readFileSync(process.env.HLS_BENCHMARK_TOKEN_FILE||'/tmp/hls-benchmark-token','utf8').trim();
+if (!asset) throw new Error('Set HLS_BENCHMARK_ASSET_ID to an asset in the isolated test library');
+const headers={'x-immich-user-token':token};
+const main=await fetch(`${base}/api/assets/${asset}/video/stream/main.m3u8`,{headers});const text=await main.text();if(!main.ok)throw Error(`main ${main.status}`);
+const match=text.match(/([0-9a-f-]{36})\/8\/playlist\.m3u8/);if(!match)throw Error('1080p AVC playlist missing');const sid=match[1];
+const pl=await fetch(`${base}/api/assets/${asset}/video/stream/${sid}/8/playlist.m3u8`,{headers});if(!pl.ok)throw Error(`playlist ${pl.status}`);
+const url=`${base}/api/assets/${asset}/video/stream/${sid}/8/seg_0.m4s`;
+let t=performance.now();let res=await fetch(url,{headers});let b=await res.arrayBuffer();console.log(JSON.stringify({phase:'warm_segment',status:res.status,bytes:b.byteLength,ms:performance.now()-t}));
+const n=20;t=performance.now();const out=await Promise.all(Array.from({length:n},()=>fetch(url,{headers}).then(async r=>({status:r.status,bytes:(await r.arrayBuffer()).byteLength}))));const elapsed=performance.now()-t;const bytes=out.reduce((s,x)=>s+x.bytes,0);console.log(JSON.stringify({phase:'parallel_aggregate_cap',requests:n,success:out.every(x=>x.status===200),bytes,elapsedMs:elapsed,aggregateMBps:bytes/(elapsed/1000)/1e6,configuredMBps:3}));
+await fetch(`${base}/api/assets/${asset}/video/stream/${sid}`,{method:'DELETE',headers});
