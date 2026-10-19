@@ -6,6 +6,11 @@ export type LocalizedGeodataName = Omit<ForkGeodataNameResponseDto, 'kind' | 'sc
   scope: `${ForkGeodataNameResponseDto['scope']}`;
 };
 export type LocationContext = { country?: string | null; state?: string | null; city?: string | null };
+export type LocationFormatter = (
+  kind: LocationKind,
+  name: string | null | undefined,
+  context?: LocationContext,
+) => string;
 
 const key = (name: string) => name.normalize('NFKC').trim().toLowerCase();
 

@@ -17,6 +17,7 @@
   import MapSettingsModal from '$lib/modals/MapSettingsModal.svelte';
   import { mapSettings } from '$lib/stores/preferences.store';
   import { getAssetMediaUrl, handlePromiseError } from '$lib/utils';
+  import type { LocationFormatter } from '$lib/utils/localized-location';
   import { getMapMarkers, type MapMarkerResponseDto } from '@immich/sdk';
   import { Alert, Container, Icon, modalManager, Text, Theme, themeManager } from '@immich/ui';
   import { mdiCog, mdiImageMultiple, mdiMap, mdiMapMarker } from '@mdi/js';
@@ -187,18 +188,27 @@
 
   type FeaturePoint = Feature<Point, { id: string; city: string | null; state: string | null; country: string | null }>;
 
-  const asFeature = (marker: MapMarkerResponseDto): FeaturePoint => {
+  const asFeature = (marker: MapMarkerResponseDto, format: LocationFormatter): FeaturePoint => {
     return {
       type: 'Feature',
+      id: marker.id,
       geometry: { type: 'Point', coordinates: [marker.lon, marker.lat] },
       properties: {
         id: marker.id,
-        city: marker.city ? localizedLocationManager.display('city', marker.city, marker) : null,
-        state: marker.state ? localizedLocationManager.display('state', marker.state, marker) : null,
-        country: marker.country ? localizedLocationManager.display('country', marker.country) : null,
+        city: marker.city ? format('city', marker.city, marker) : null,
+        state: marker.state ? format('state', marker.state, marker) : null,
+        country: marker.country ? format('country', marker.country) : null,
       },
     };
   };
+
+  const geojson = $derived.by(() => {
+    const format = localizedLocationManager.formatter();
+    return {
+      type: 'FeatureCollection' as const,
+      features: mapMarkers?.map((marker) => asFeature(marker, format)) ?? [],
+    };
+  });
 
   const asMarker = (feature: Feature<Geometry, GeoJsonProperties>): MapMarkerResponseDto => {
     const featurePoint = feature as FeaturePoint;
@@ -431,14 +441,7 @@
         </Control>
       {/if}
 
-      <GeoJSON
-        data={{
-          type: 'FeatureCollection',
-          features: mapMarkers?.map((marker) => asFeature(marker)) ?? [],
-        }}
-        id="geojson"
-        cluster={{ radius: 35, maxZoom: 18 }}
-      >
+      <GeoJSON data={geojson} id="geojson" cluster={{ radius: 35, maxZoom: 18 }}>
         <MarkerLayer
           applyToClusters
           asButton

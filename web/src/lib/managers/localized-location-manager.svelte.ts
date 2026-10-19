@@ -2,7 +2,12 @@ import { getForkLocalizedNames } from '@immich/sdk';
 import { fromStore } from 'svelte/store';
 import { browser } from '$app/environment';
 import { lang } from '$lib/stores/preferences.store';
-import { LocalizedLocationIndex, type LocationContext, type LocationKind } from '$lib/utils/localized-location';
+import {
+  LocalizedLocationIndex,
+  type LocationContext,
+  type LocationFormatter,
+  type LocationKind,
+} from '$lib/utils/localized-location';
 
 const language = fromStore(lang);
 
@@ -30,6 +35,13 @@ class LocalizedLocationManager {
 
   display(kind: LocationKind, name: string | null | undefined, context: LocationContext = {}) {
     return language.current.startsWith('zh') ? this.index.display(kind, name, context) : (name ?? '');
+  }
+
+  formatter(): LocationFormatter {
+    // 大批点位循环前只读取一次响应式状态，避免每个字段创建语言订阅。
+    const chinese = language.current.startsWith('zh');
+    const index = this.index;
+    return (kind, name, context) => (chinese ? index.display(kind, name, context) : (name ?? ''));
   }
 
   searchTerms(kind: LocationKind, name: string, context: LocationContext = {}) {
