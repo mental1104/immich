@@ -27,8 +27,15 @@ services:
       DB_DATABASE_NAME: immich
       REDIS_HOSTNAME: redis
       IMMICH_MACHINE_LEARNING_ENABLED: 'false'
+      # HLS 会话分片写入开发专用 SSD 目录，绝不复用生产缓存。
+      IMMICH_HLS_TEMP_DIR: /data/hls-temp
+    # 开发容器独立映射 Intel 核显，便于验证 QSV 视频硬件转码。
+    devices:
+      - /dev/dri:/dev/dri
     volumes:
       - library:/data
+      # 源码工作区与测试分片分离；原片和生产 encoded-video 不挂载。
+      - /volume2/workflow/immich-nas-dev-data/hls-temp:/data/hls-temp
     depends_on:
       database:
         condition: service_healthy
