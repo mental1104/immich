@@ -1,5 +1,7 @@
 <script lang="ts">
-  import Combobox, { asComboboxOptions, asSelectedOption } from '$lib/components/shared-components/Combobox.svelte';
+  import Combobox, { asComboboxOptions } from '$lib/components/shared-components/Combobox.svelte';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
+  import type { LocationKind } from '$lib/utils/localized-location';
   import { searchManager } from '$lib/managers/search-manager.svelte';
   import { handlePromiseError } from '$lib/utils';
   import { getSearchSuggestions, SearchSuggestionType } from '@immich/sdk';
@@ -11,6 +13,20 @@
   let countries: string[] = $state([]);
   let states: string[] = $state([]);
   let cities: string[] = $state([]);
+
+  function options(kind: LocationKind, values: string[]) {
+    const context = { country: filters.country, state: filters.state };
+    return asComboboxOptions(values).map((option) => ({
+      ...option,
+      id: option.value,
+      label: option.value ? localizedLocationManager.display(kind, option.value, context) : option.label,
+      searchTerms: localizedLocationManager.searchTerms(kind, option.value, context),
+    }));
+  }
+
+  let countryOptions = $derived(options('country', countries));
+  let stateOptions = $derived(options('state', states));
+  let cityOptions = $derived(options('city', cities));
 
   async function updateCountries() {
     const results: Array<string | null> = await getSearchSuggestions({
@@ -59,7 +75,10 @@
   $effect(() => handlePromiseError(updateStates(countryFilter)));
   $effect(() => handlePromiseError(updateCities(countryFilter, stateFilter)));
 
-  onMount(() => updateCountries());
+  onMount(() => {
+    void localizedLocationManager.load();
+    handlePromiseError(updateCountries());
+  });
 </script>
 
 <div id="location-selection">
@@ -70,9 +89,9 @@
       <Combobox
         label={$t('country')}
         onSelect={(option) => (filters.country = option?.value)}
-        options={asComboboxOptions(countries)}
+        options={countryOptions}
         placeholder={$t('search_country')}
-        selectedOption={asSelectedOption(filters.country)}
+        selectedOption={countryOptions.find((option) => option.value === filters.country)}
       />
     </div>
 
@@ -80,9 +99,9 @@
       <Combobox
         label={$t('state')}
         onSelect={(option) => (filters.state = option?.value)}
-        options={asComboboxOptions(states)}
+        options={stateOptions}
         placeholder={$t('search_state')}
-        selectedOption={asSelectedOption(filters.state)}
+        selectedOption={stateOptions.find((option) => option.value === filters.state)}
       />
     </div>
 
@@ -90,9 +109,9 @@
       <Combobox
         label={$t('city')}
         onSelect={(option) => (filters.city = option?.value)}
-        options={asComboboxOptions(cities)}
+        options={cityOptions}
         placeholder={$t('search_city')}
-        selectedOption={asSelectedOption(filters.city)}
+        selectedOption={cityOptions.find((option) => option.value === filters.city)}
       />
     </div>
   </div>

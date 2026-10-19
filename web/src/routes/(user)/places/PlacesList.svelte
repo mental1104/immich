@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PlacesGroupBy, type PlacesViewSettings } from '$lib/stores/preferences.store';
   import { normalizeSearchString } from '$lib/utils/string-utils';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import { type AssetResponseDto } from '@immich/sdk';
   import { mdiMapMarkerOff } from '@mdi/js';
   import { groupBy } from 'lodash-es';
@@ -57,12 +58,16 @@
         if (a === unknownCountry) {
           return 1;
         }
-        return b === unknownCountry ? -1 : a.localeCompare(b);
+        return b === unknownCountry
+          ? -1
+          : localizedLocationManager
+              .display('country', a)
+              .localeCompare(localizedLocationManager.display('country', b));
       });
 
       return sortedByCountryName.map(([country, places]) => ({
         id: country,
-        name: country,
+        name: localizedLocationManager.display('country', country),
         places,
       }));
     },
@@ -71,7 +76,11 @@
   const filteredPlaces = $derived.by(() => {
     const searchQueryNormalized = normalizeSearchString(searchQuery);
     return searchQueryNormalized
-      ? places.filter((place) => normalizeSearchString(place.exifInfo?.city ?? '').includes(searchQueryNormalized))
+      ? places.filter((place) =>
+          localizedLocationManager
+            .searchTerms('city', place.exifInfo?.city ?? '', place.exifInfo)
+            .some((term) => normalizeSearchString(term).includes(searchQueryNormalized)),
+        )
       : places;
   });
 

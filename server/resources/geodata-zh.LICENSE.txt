@@ -1,0 +1,10 @@
+Chinese place names and aliases are derived from GeoNames.
+Source: https://www.geonames.org/ and https://download.geonames.org/export/dump/
+License: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+
+Snapshot: 2026-10-19
+Modifications: filtered to Chinese language variants and Immich's country,
+first-level administrative division and cities500 identifiers; historical and
+expired names excluded; preferred names and ambiguity scopes derived locally.
+GeoNames does not guarantee accuracy or completeness.

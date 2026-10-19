@@ -99,7 +99,7 @@ const SearchPeopleSchema = z
   })
   .meta({ id: 'SearchPeopleDto' });
 
-const PlacesResponseSchema = z
+export const PlacesResponseSchema = z
   .object({
     name: z.string().describe('Place name'),
     latitude: z.number().meta({ format: 'double' }).describe('Latitude coordinate'),

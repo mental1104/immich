@@ -5,6 +5,7 @@
     id?: string;
     label: string;
     value: string;
+    searchTerms?: string[];
   };
 
   export const asComboboxOptions = (values: string[]) =>
@@ -255,7 +256,10 @@
   const getInputPosition = () => input?.getBoundingClientRect();
 
   let filteredOptions = $derived.by(() => {
-    const _options = options.filter((option) => option.label.toLowerCase().includes(searchQuery.toLowerCase()));
+    const query = searchQuery.toLowerCase();
+    const _options = options.filter((option) =>
+      [option.label, option.value, ...(option.searchTerms ?? [])].some((term) => term.toLowerCase().includes(query)),
+    );
 
     if (allowCreate && searchQuery !== '' && _options.filter((option) => option.label === searchQuery).length === 0) {
       _options.unshift({ label: searchQuery, value: searchQuery });

@@ -373,6 +373,7 @@ export const StorageFolderSchema = z.enum(StorageFolder).describe('Storage folde
 export enum SystemMetadataKey {
   MediaLocation = 'MediaLocation',
   ReverseGeocodingState = 'reverse-geocoding-state',
+  ForkGeodataNames = 'fork-geodata-names',
   FacialRecognitionState = 'facial-recognition-state',
   MemoriesState = 'memories-state',
   AdminOnboarding = 'admin-onboarding',

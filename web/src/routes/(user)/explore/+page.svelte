@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import ImageThumbnail from '$lib/components/assets/thumbnail/ImageThumbnail.svelte';
   import PersonIndicator from '$lib/components/faces-page/PersonIndicator.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
@@ -124,7 +125,7 @@
               <span
                 class="absolute bottom-2 w-full px-1 text-center text-sm font-medium text-ellipsis text-white capitalize backdrop-blur-[1px] hover:cursor-pointer"
               >
-                {item.value}
+                {localizedLocationManager.display('city', item.value, item.data.exifInfo)}
               </span>
             </a>
           {/each}

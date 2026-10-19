@@ -96,6 +96,8 @@ ENV NODE_ENV=production \
 
 COPY --from=server /output/server-pruned ./server
 COPY --from=web /usr/src/app/web/build /build/www
+COPY ./server/resources/geodata-zh.json.gz /build/geodata/localized-zh.json.gz
+COPY ./server/resources/geodata-zh.LICENSE.txt /licenses/geodata-zh.txt
 COPY --from=cli /output/cli-pruned ./cli
 COPY --from=plugins /usr/src/app/packages/plugin-core/dist /build/plugins/immich-plugin-core/dist
 COPY --from=plugins /usr/src/app/packages/plugin-core/manifest.json /build/plugins/immich-plugin-core/manifest.json

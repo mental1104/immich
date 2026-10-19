@@ -859,8 +859,6 @@ export type ContributorCountResponseDto = {
 export type AlbumResponseDto = {
     /** Album name */
     albumName: string;
-    /** Custom album group name */
-    customGroupName?: string | null;
     /** Thumbnail asset ID */
     albumThumbnailAssetId: string | null;
     /** First entry is always the album owner. Second entry is the auth user, if it differs from the owner. The rest are ordered alphabetically. */
@@ -870,6 +868,8 @@ export type AlbumResponseDto = {
     contributorCounts?: ContributorCountResponseDto[];
     /** Creation date */
     createdAt: string;
+    /** Custom album group name (fork extension) */
+    customGroupName?: string | null;
     /** Album description */
     description: string;
     /** UTC representation of (local) end date (latest asset) */
@@ -927,10 +927,10 @@ export type AlbumStatisticsResponseDto = {
 export type UpdateAlbumDto = {
     /** Album name */
     albumName?: string;
-    /** Custom album group name */
-    customGroupName?: string | null;
     /** Album thumbnail asset ID */
     albumThumbnailAssetId?: string;
+    /** Custom album group name (fork extension) */
+    customGroupName?: string | null;
     /** Album description */
     description?: string | null;
     /** Enable activity feed */
@@ -1883,6 +1883,30 @@ export type ValidateLibraryResponseDto = {
     /** Validation results for import paths */
     importPaths?: ValidateLibraryImportPathResponseDto[];
 };
+export type ForkGeodataNameResponseDto = {
+    aliases: string[];
+    country: string;
+    geonameId: number;
+    kind: ForkGeodataNameKind;
+    localizedName: string;
+    name: string;
+    scope: ForkGeodataNameScope;
+    state: string | null;
+};
+export type ForkPlaceResponseDto = {
+    /** Administrative level 1 name (state/province) */
+    admin1name?: string;
+    /** Administrative level 2 name (county/district) */
+    admin2name?: string;
+    country?: string;
+    /** Latitude coordinate */
+    latitude: number;
+    localizedName?: string;
+    /** Longitude coordinate */
+    longitude: number;
+    /** Place name */
+    name: string;
+};
 export type MapReverseGeocodeResponseDto = {
     /** City name */
     city: string | null;
@@ -2218,18 +2242,24 @@ export type PublicConfigDto = {
     theme: PublicConfigThemeDto;
 };
 export type QueueResponseDto = {
+    /** Whether the queue is paused */
+    isPaused: boolean;
+    /** PostgreSQL-backed global metadata and asset pipeline progress */
     metadataProgress?: {
         completed: number;
         failed: number;
         notStarted: number;
+        pipeline: {
+            [key: string]: {
+                completed: number;
+                total: number;
+            };
+        };
         queued: number;
         running: number;
         skipped: number;
         total: number;
-        pipeline: Record<string, { completed: number; total: number }>;
     };
-    /** Whether the queue is paused */
-    isPaused: boolean;
     name: QueueName;
     statistics: QueueStatisticsDto;
 };
@@ -2452,6 +2482,8 @@ export type MetadataSearchDto = {
     isEncoded?: boolean;
     /** Filter by favorite status */
     isFavorite?: boolean;
+    /** Filter assets in any album (fork extension) */
+    isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
     /** Filter assets not in any album */
@@ -2473,6 +2505,8 @@ export type MetadataSearchDto = {
     /** Sort order */
     order?: AssetOrder;
     orderBy?: SearchOrder;
+    /** Filter by asset orientation (fork extension) */
+    orientation?: Orientation;
     /** Filter by original file name */
     originalFileName?: string;
     /** Filter by original file path */
@@ -2579,6 +2613,8 @@ export type RandomSearchDto = {
     isEncoded?: boolean;
     /** Filter by favorite status */
     isFavorite?: boolean;
+    /** Filter assets in any album (fork extension) */
+    isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
     /** Filter assets not in any album */
@@ -2597,6 +2633,8 @@ export type RandomSearchDto = {
     model?: string | null;
     /** Filter by OCR text content */
     ocr?: string;
+    /** Filter by asset orientation (fork extension) */
+    orientation?: Orientation;
     /** Filter by person IDs */
     personIds?: string[];
     /** Filter by rating [1-5], or null for unrated */
@@ -2646,6 +2684,8 @@ export type SmartSearchDto = {
     isEncoded?: boolean;
     /** Filter by favorite status */
     isFavorite?: boolean;
+    /** Filter assets in any album (fork extension) */
+    isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
     /** Filter assets not in any album */
@@ -2666,6 +2706,8 @@ export type SmartSearchDto = {
     model?: string | null;
     /** Filter by OCR text content */
     ocr?: string;
+    /** Filter by asset orientation (fork extension) */
+    orientation?: Orientation;
     /** Page number */
     page?: number;
     /** Filter by person IDs */
@@ -2719,6 +2761,8 @@ export type StatisticsSearchDto = {
     isEncoded?: boolean;
     /** Filter by favorite status */
     isFavorite?: boolean;
+    /** Filter assets in any album (fork extension) */
+    isInAlbum?: boolean;
     /** Filter by motion photo status */
     isMotion?: boolean;
     /** Filter assets not in any album */
@@ -2737,6 +2781,8 @@ export type StatisticsSearchDto = {
     model?: string | null;
     /** Filter by OCR text content */
     ocr?: string;
+    /** Filter by asset orientation (fork extension) */
+    orientation?: Orientation;
     /** Filter by person IDs */
     personIds?: string[];
     /** Filter by rating [1-5], or null for unrated */
@@ -5725,6 +5771,32 @@ export function validate({ id, validateLibraryDto }: {
     })));
 }
 /**
+ * Retrieve offline Chinese place names and search aliases
+ */
+export function getForkLocalizedNames(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ForkGeodataNameResponseDto[];
+    }>("/map/fork/localized-names", {
+        ...opts
+    }));
+}
+/**
+ * Search places using offline Chinese aliases
+ */
+export function getForkSearchPlaces({ name }: {
+    name: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ForkPlaceResponseDto[];
+    }>(`/map/fork/search-places${QS.query(QS.explode({
+        name
+    }))}`, {
+        ...opts
+    }));
+}
+/**
  * Retrieve map markers
  */
 export function getMapMarkers({ fileCreatedAfter, fileCreatedBefore, isArchived, isFavorite, withPartners, withSharedAlbums }: {
@@ -6581,7 +6653,7 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isMotion, isNotInAlbum, isOffline, isPanorama, lensModel, libraryId, make, minFileSize, model, ocr, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
+export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isEncoded, isFavorite, isInAlbum, isMotion, isNotInAlbum, isOffline, isPanorama, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
     albumIds?: string[];
     city?: string | null;
     country?: string | null;
@@ -6589,6 +6661,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
     createdBefore?: string;
     isEncoded?: boolean;
     isFavorite?: boolean;
+    isInAlbum?: boolean;
     isMotion?: boolean;
     isNotInAlbum?: boolean;
     isOffline?: boolean;
@@ -6599,6 +6672,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
     minFileSize?: number;
     model?: string | null;
     ocr?: string;
+    orientation?: "landscape" | "portrait";
     personIds?: string[];
     rating?: number | null;
     size?: number;
@@ -6626,6 +6700,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         createdBefore,
         isEncoded,
         isFavorite,
+        isInAlbum,
         isMotion,
         isNotInAlbum,
         isOffline,
@@ -6636,6 +6711,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         minFileSize,
         model,
         ocr,
+        orientation,
         personIds,
         rating,
         size,
@@ -8429,6 +8505,17 @@ export enum QueueCommand {
     Empty = "empty",
     ClearFailed = "clear-failed"
 }
+export enum ForkGeodataNameKind {
+    Country = "country",
+    State = "state",
+    City = "city"
+}
+export enum ForkGeodataNameScope {
+    Global = "global",
+    Country = "country",
+    State = "state",
+    None = "none"
+}
 export enum MemorySearchOrder {
     Asc = "asc",
     Desc = "desc",
@@ -8539,6 +8626,10 @@ export enum SearchOrderField {
     LocalDateTime = "localDateTime",
     FileSizeInBytes = "fileSizeInBytes",
     Rating = "rating"
+}
+export enum Orientation {
+    Landscape = "landscape",
+    Portrait = "portrait"
 }
 export enum SearchSuggestionType {
     Country = "country",

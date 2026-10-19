@@ -9,6 +9,7 @@
   import UploadPanel from './UploadPanel.svelte';
   import VersionAnnouncement from './VersionAnnouncement.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import { eventManager } from '$lib/managers/event-manager.svelte';
   import { serverConfigManager } from '$lib/managers/server-config-manager.svelte';
   import ServerRestartingModal from '$lib/modals/ServerRestartingModal.svelte';
@@ -41,6 +42,12 @@
   import { t } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import '../app.css';
+
+  $effect(() => {
+    if (authManager.authenticated) {
+      void localizedLocationManager.load();
+    }
+  });
 
   interface Props {
     children?: Snippet;

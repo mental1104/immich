@@ -7,10 +7,12 @@
   import { timeDebounceOnSearch, timeToLoadTheMap } from '$lib/constants';
   import SearchBar from '$lib/elements/SearchBar.svelte';
   import { geolocationManager } from '$lib/managers/geolocation.manager.svelte';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
+  import { lang } from '$lib/stores/preferences.store';
   import type { LatLng } from '$lib/types';
   import { delay } from '$lib/utils/asset-utils';
   import { handleError } from '$lib/utils/handle-error';
-  import { searchPlaces, type AssetResponseDto, type PlacesResponseDto } from '@immich/sdk';
+  import { getForkSearchPlaces, type AssetResponseDto, type ForkPlaceResponseDto } from '@immich/sdk';
   import { ConfirmModal, LoadingSpinner } from '@immich/ui';
   import { mdiMapMarkerMultipleOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -23,8 +25,8 @@
 
   let { asset, point: initialPoint, onClose }: Props = $props();
 
-  let places: PlacesResponseDto[] = $state([]);
-  let suggestedPlaces: PlacesResponseDto[] = $derived(places.slice(0, 5));
+  let places: ForkPlaceResponseDto[] = $state([]);
+  let suggestedPlaces: ForkPlaceResponseDto[] = $derived(places.slice(0, 5));
   let searchWord: string = $state('');
   let latestSearchTimeout: number;
   let showLoadingSpinner = $state(false);
@@ -64,8 +66,20 @@
     }
   };
 
-  const getLocation = (name: string, admin1Name?: string, admin2Name?: string): string => {
-    return [name, admin1Name, admin2Name].filter(Boolean).join(', ');
+  const getLocation = (place: ForkPlaceResponseDto): string => {
+    const context = { country: place.country, state: place.admin1name };
+    const name =
+      $lang.startsWith('zh') && place.localizedName
+        ? place.localizedName
+        : localizedLocationManager.display('city', place.name, context);
+    return [
+      name,
+      localizedLocationManager.display('state', place.admin1name, context),
+      place.admin2name,
+      localizedLocationManager.display('country', place.country),
+    ]
+      .filter(Boolean)
+      .join(', ');
   };
 
   const handleSearchPlaces = () => {
@@ -103,7 +117,7 @@
         }
       }
 
-      searchPlaces({ name: searchWord })
+      getForkSearchPlaces({ name: searchWord })
         .then((searchResult) => {
           // skip result when a newer search is happening
           if (latestSearchTimeout !== searchTimeout) {
@@ -177,7 +191,7 @@
                 onclick={() => handleUseSuggested(place.latitude, place.longitude)}
               >
                 <p class="truncate text-sm text-gray-700 dark:text-gray-100">
-                  {getLocation(place.name, place.admin1name, place.admin2name)}
+                  {getLocation(place)}
                 </p>
               </button>
             {/each}

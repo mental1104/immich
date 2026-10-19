@@ -60,6 +60,12 @@ PostgreSQL 规则测试位于 `server/test/medium/specs/utils/panorama.spec.ts`�
 
 私人样本、浏览器截图、开发账号凭据与验证记录存放于仓库外 `/volume2/workflow/immich-nas-dev-data`，不提交 Git。
 
+## 地理信息中文显示与搜索
+
+GeoNames 中文别名裁剪成约 1 MB 的离线数据，随镜像导入新增辅助表 `fork_geodata_name`。Web 详情、地点页、幻灯片与地点筛选使用中文展示；地点下拉框支持原文和中文/繁体别名检索，提交的筛选值仍为原文。上下文不足的同名地点及缺少中文名称的地点保留原文。照片 EXIF、既有 API 和移动端代码均不改写。
+
+新增鉴权接口位于 `/map/fork/`，由生成的 TypeScript SDK 供 Web 调用。地点编辑搜索合并离线中文别名匹配与原有搜索结果。数据更新、来源与回退见 [离线地名数据说明](docker/geodata/README.md)。
+
 手工复核：登录独立开发账号，在图库打开 X5 样本，拖拽改变视角、滚轮缩放（高倍率会切换原图）；退出后打开普通 2:1 测试图，确认保持平面查看。回退功能只需撤销本次 Web 改动并由 HMR 刷新；停止开发 Compose 不影响生产。
 
 ## RAW 与成片自动配对

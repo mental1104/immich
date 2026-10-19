@@ -54,6 +54,7 @@ import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-reques
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
 import { ForkAssetTaskStatusTable } from 'src/schema/tables/fork-asset-task-status.table.js';
+import { ForkGeodataNameTable } from 'src/schema/tables/fork-geodata-name.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -120,6 +121,7 @@ export class ImmichDatabase {
     AssetMetadataAuditTable,
     AssetJobStatusTable,
     ForkAssetTaskStatusTable,
+    ForkGeodataNameTable,
     AssetOcrTable,
     AssetOcrAuditTable,
     AssetTable,
@@ -245,6 +247,7 @@ export interface DB {
   face_search: FaceSearchTable;
 
   geodata_places: GeodataPlacesTable;
+  fork_geodata_name: ForkGeodataNameTable;
 
   integrity_report: IntegrityReportTable;
 

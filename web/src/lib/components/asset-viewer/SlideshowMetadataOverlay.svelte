@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import { SlideshowMetadataOverlayMode, slideshowStore } from '$lib/stores/slideshow.store';
   import { fromISODateTime, fromISODateTimeUTC } from '$lib/utils/timeline-util';
   import type { AssetResponseDto } from '@immich/sdk';
@@ -24,9 +25,7 @@
   );
   const dateString = $derived(dateTime.toLocaleString(DateTime.DATE_MED_WITH_WEEKDAY));
 
-  const locationString = $derived(
-    [asset.exifInfo?.city, asset.exifInfo?.state, asset.exifInfo?.country].filter(Boolean).join(', '),
-  );
+  const locationString = $derived(localizedLocationManager.location(asset.exifInfo ?? {}));
 
   const shouldShow = $derived.by(() => {
     if (!$slideshowShowMetadataOverlay) {

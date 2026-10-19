@@ -1,4 +1,4 @@
-import { AssetTypeEnum, AssetVisibility, type MetadataSearchDto, type SmartSearchDto } from '@immich/sdk';
+import { AssetTypeEnum, AssetVisibility, Orientation, type MetadataSearchDto, type SmartSearchDto } from '@immich/sdk';
 import type { DateTime } from 'luxon';
 import { SvelteSet } from 'svelte/reactivity';
 import { goto } from '$app/navigation';
@@ -8,7 +8,8 @@ import type { SearchFilter } from '$lib/types';
 import { asLocalTimeISO, parseUtcDate } from '$lib/utils/date-time';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
-type SearchQuery = (MetadataSearchDto | SmartSearchDto) & { isInAlbum?: boolean; orientation?: 'landscape' | 'portrait' };
+const orientations = { landscape: Orientation.Landscape, portrait: Orientation.Portrait };
+type SearchQuery = MetadataSearchDto | SmartSearchDto;
 
 /** 管理搜索面板状态与 URL 参数转换，包含可与媒体类型组合的全景开关。 */
 class SearchManager {
@@ -147,7 +148,7 @@ class SearchManager {
       type,
       rating: this.filter.rating,
       isPanorama: this.filter.isPanorama || undefined,
-      orientation: this.filter.orientation,
+      orientation: this.filter.orientation ? orientations[this.filter.orientation] : undefined,
     };
   }
 

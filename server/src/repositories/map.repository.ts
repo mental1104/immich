@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Expression, Insertable, Kysely, NotNull, SqlBool, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import readLine from 'node:readline';
+import { gunzipSync } from 'node:zlib';
+import z from 'zod';
 import { citiesFile, reverseGeocodeMaxDistance } from 'src/constants.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
+import { ForkGeodataNameSchema } from 'src/dtos/map.dto.js';
 import { AssetVisibility, SystemMetadataKey } from 'src/enum.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -59,6 +64,16 @@ export class MapRepository {
     this.logger.log('Initializing metadata repository');
     const { resourcePaths } = this.configRepository.getEnv();
     const geodataDate = await readFile(resourcePaths.geodata.dateFile, 'utf8');
+    try {
+      await this.importLocalizedNames();
+    } catch (error) {
+      this.logger.error(
+        'Unable to import offline Chinese names; using original place names',
+        error instanceof Error ? error.stack : undefined,
+      );
+      await this.db.deleteFrom('fork_geodata_name').execute();
+      await this.metadataRepository.delete(SystemMetadataKey.ForkGeodataNames);
+    }
 
     // TODO move to service init
     const geocodingMetadata = await this.metadataRepository.get(SystemMetadataKey.ReverseGeocodingState);
@@ -74,6 +89,87 @@ export class MapRepository {
     });
 
     this.logger.log('Geodata import completed');
+  }
+
+  getLocalizedNames() {
+    return this.db.selectFrom('fork_geodata_name').selectAll().orderBy('kind').orderBy('geonameId').execute();
+  }
+
+  searchLocalizedPlaces(name: string) {
+    return this.db
+      .selectFrom('fork_geodata_name as localized')
+      .innerJoin('geodata_places', 'geodata_places.id', 'localized.geonameId')
+      .where('localized.kind', '=', 'city')
+      .where(
+        sql<boolean>`EXISTS (
+        SELECT 1 FROM unnest(localized.aliases) AS alias
+        WHERE strpos(lower(alias), lower(${name})) > 0
+      )`,
+      )
+      .selectAll('geodata_places')
+      .select(['localized.localizedName', 'localized.country'])
+      .orderBy(sql`CASE WHEN ${name} = ANY(localized.aliases) THEN 0 ELSE 1 END`)
+      .orderBy('geodata_places.id')
+      .limit(20)
+      .execute();
+  }
+
+  private async importLocalizedNames() {
+    const folder = dirname(this.configRepository.getEnv().resourcePaths.geodata.cities500);
+    const filename = join(folder, 'localized-zh.json.gz');
+    if (!existsSync(filename)) {
+      this.logger.warn('Offline Chinese geodata catalog is unavailable; using original place names');
+      await this.db.deleteFrom('fork_geodata_name').execute();
+      await this.metadataRepository.delete(SystemMetadataKey.ForkGeodataNames);
+      return;
+    }
+
+    const content = await readFile(filename);
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const previous = await this.metadataRepository.get(SystemMetadataKey.ForkGeodataNames);
+    const catalog = z
+      .object({
+        format: z.literal(1),
+        baseFiles: z.record(z.string(), z.string()),
+        rows: z.array(ForkGeodataNameSchema).min(1),
+      })
+      .parse(JSON.parse(gunzipSync(content).toString('utf8')));
+
+    for (const filename of ['countryInfo.txt', 'admin1CodesASCII.txt', 'cities500.txt']) {
+      const hash = createHash('sha256')
+        .update(await readFile(join(folder, filename)))
+        .digest('hex');
+      if (catalog.baseFiles[filename] !== hash) {
+        this.logger.warn(`Offline Chinese geodata snapshot mismatch: ${filename}; using original place names`);
+        await this.db.deleteFrom('fork_geodata_name').execute();
+        await this.metadataRepository.delete(SystemMetadataKey.ForkGeodataNames);
+        return;
+      }
+    }
+
+    if (previous?.sha256 === sha256) {
+      return;
+    }
+
+    // 辅助索引原子替换，不更新照片元数据或原有 GeoNames 表。
+    await this.db.transaction().execute(async (tx) => {
+      await tx.deleteFrom('fork_geodata_name').execute();
+      for (let offset = 0; offset < catalog.rows.length; offset += 1000) {
+        await tx
+          .insertInto('fork_geodata_name')
+          .values(catalog.rows.slice(offset, offset + 1000))
+          .execute();
+      }
+      await tx
+        .insertInto('system_metadata')
+        .values({
+          key: SystemMetadataKey.ForkGeodataNames,
+          value: { sha256, count: catalog.rows.length },
+        })
+        .onConflict((oc) => oc.column('key').doUpdateSet({ value: { sha256, count: catalog.rows.length } }))
+        .execute();
+    });
+    this.logger.log(`Imported ${catalog.rows.length} offline Chinese geodata names`);
   }
 
   @GenerateSql({ params: [DummyValue.UUID] })

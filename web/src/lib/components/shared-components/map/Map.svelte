@@ -12,6 +12,7 @@
   import { afterNavigate } from '$app/navigation';
   import OnEvents from '$lib/components/OnEvents.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import { serverConfigManager } from '$lib/managers/server-config-manager.svelte';
   import MapSettingsModal from '$lib/modals/MapSettingsModal.svelte';
   import { mapSettings } from '$lib/stores/preferences.store';
@@ -192,9 +193,9 @@
       geometry: { type: 'Point', coordinates: [marker.lon, marker.lat] },
       properties: {
         id: marker.id,
-        city: marker.city,
-        state: marker.state,
-        country: marker.country,
+        city: marker.city ? localizedLocationManager.display('city', marker.city, marker) : null,
+        state: marker.state ? localizedLocationManager.display('state', marker.state, marker) : null,
+        country: marker.country ? localizedLocationManager.display('country', marker.country) : null,
       },
     };
   };

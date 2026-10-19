@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Route } from '$lib/route';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import { placesViewSettings } from '$lib/stores/preferences.store';
   import { getAssetMediaUrl } from '$lib/utils';
   import { type PlacesGroup, isPlacesGroupCollapsed, togglePlacesGroupCollapsing } from '$lib/utils/places-utils';
@@ -54,7 +55,7 @@
           <span
             class="absolute bottom-2 w-full px-1 text-center text-sm font-medium text-ellipsis text-white capitalize backdrop-blur-[1px] hover:cursor-pointer"
           >
-            {city}
+            {localizedLocationManager.display('city', city, item.exifInfo)}
           </span>
         </a>
       {/each}

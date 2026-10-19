@@ -15,6 +15,38 @@ describe(MapService.name, () => {
     ({ sut, mocks } = newTestService(MapService));
   });
 
+  describe('getForkSearchPlaces', () => {
+    it('puts Chinese alias matches first and deduplicates the original results by GeoNames ID', async () => {
+      const place = {
+        id: 1_815_286,
+        name: 'Chengdu',
+        latitude: 30.66,
+        longitude: 104.06,
+        countryCode: 'CN',
+        admin1Code: '32',
+        admin2Code: null,
+        modificationDate: new Date('2026-01-01'),
+        admin1Name: 'Sichuan',
+        admin2Name: null,
+        alternateNames: '成都',
+      };
+      mocks.map.searchLocalizedPlaces.mockResolvedValueOnce([{ ...place, localizedName: '成都', country: 'China' }]);
+      mocks.search.searchPlaces.mockResolvedValueOnce([place, { ...place, id: 2, name: 'Other' }]);
+      const results = await sut.getForkSearchPlaces({ name: '成都' });
+      expect(results).toHaveLength(2);
+      expect(results[0]).toEqual({
+        name: 'Chengdu',
+        latitude: 30.66,
+        longitude: 104.06,
+        admin1name: 'Sichuan',
+        admin2name: undefined,
+        localizedName: '成都',
+        country: 'China',
+      });
+      expect(results[1].name).toBe('Other');
+    });
+  });
+
   describe('getMapMarkers', () => {
     it('should get geo information of assets', async () => {
       const auth = AuthFactory.create();

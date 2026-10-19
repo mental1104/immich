@@ -1,9 +1,11 @@
 <script lang="ts">
   import GeolocationPointPickerModal from '$lib/modals/GeolocationPointPickerModal.svelte';
+  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
   import { handleError } from '$lib/utils/handle-error';
   import { updateAsset, type AssetResponseDto } from '@immich/sdk';
   import { Icon, modalManager } from '@immich/ui';
   import { mdiMapMarkerOutline, mdiPencil } from '@mdi/js';
+  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -12,6 +14,10 @@
   };
 
   let { isOwner, asset = $bindable() }: Props = $props();
+
+  onMount(() => {
+    void localizedLocationManager.load();
+  });
 
   const onAction = async () => {
     const point = await modalManager.show(GeolocationPointPickerModal, { asset });
@@ -43,16 +49,16 @@
 
       <div>
         {#if asset.exifInfo?.city}
-          <p>{asset.exifInfo.city}</p>
+          <p>{localizedLocationManager.display('city', asset.exifInfo.city, asset.exifInfo)}</p>
         {/if}
         {#if asset.exifInfo?.state}
           <div class="flex gap-2 text-sm">
-            <p>{asset.exifInfo.state}</p>
+            <p>{localizedLocationManager.display('state', asset.exifInfo.state, asset.exifInfo)}</p>
           </div>
         {/if}
         {#if asset.exifInfo?.country}
           <div class="flex gap-2 text-sm">
-            <p>{asset.exifInfo.country}</p>
+            <p>{localizedLocationManager.display('country', asset.exifInfo.country)}</p>
           </div>
         {/if}
       </div>

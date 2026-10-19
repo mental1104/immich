@@ -7904,6 +7904,102 @@
         "x-immich-state": "Stable"
       }
     },
+    "/map/fork/localized-names": {
+      "get": {
+        "operationId": "getForkLocalizedNames",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ForkGeodataNameResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve offline Chinese place names and search aliases",
+        "tags": [
+          "Map"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.3",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "map.search"
+      }
+    },
+    "/map/fork/search-places": {
+      "get": {
+        "operationId": "getForkSearchPlaces",
+        "parameters": [
+          {
+            "name": "name",
+            "required": true,
+            "in": "query",
+            "description": "Place name to search for",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ForkPlaceResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Search places using offline Chinese aliases",
+        "tags": [
+          "Map"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.3",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "map.search"
+      }
+    },
     "/map/markers": {
       "get": {
         "description": "Retrieve a list of latitude and longitude coordinates for every asset with location data.",
@@ -11745,6 +11841,16 @@
             }
           },
           {
+            "name": "isInAlbum",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets in any album (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "isMotion",
             "required": false,
             "in": "query",
@@ -11969,6 +12075,20 @@
             "deprecated": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "orientation",
+            "required": false,
+            "in": "query",
+            "description": "Filter by asset orientation (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "landscape",
+                "portrait"
+              ]
             }
           },
           {
@@ -19792,6 +19912,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "customGroupName": {
+            "description": "Custom album group name (fork extension)",
+            "nullable": true,
+            "type": "string"
+          },
           "description": {
             "description": "Album description",
             "type": "string",
@@ -22683,6 +22808,107 @@
         },
         "type": "object"
       },
+      "ForkGeodataNameKind": {
+        "enum": [
+          "country",
+          "state",
+          "city"
+        ],
+        "type": "string"
+      },
+      "ForkGeodataNameResponseDto": {
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "country": {
+            "type": "string"
+          },
+          "geonameId": {
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ForkGeodataNameKind"
+          },
+          "localizedName": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ForkGeodataNameScope"
+          },
+          "state": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "aliases",
+          "country",
+          "geonameId",
+          "kind",
+          "localizedName",
+          "name",
+          "scope",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ForkGeodataNameScope": {
+        "enum": [
+          "global",
+          "country",
+          "state",
+          "none"
+        ],
+        "type": "string"
+      },
+      "ForkPlaceResponseDto": {
+        "properties": {
+          "admin1name": {
+            "description": "Administrative level 1 name (state/province)",
+            "type": "string"
+          },
+          "admin2name": {
+            "description": "Administrative level 2 name (county/district)",
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "latitude": {
+            "description": "Latitude coordinate",
+            "format": "double",
+            "type": "number"
+          },
+          "localizedName": {
+            "type": "string"
+          },
+          "longitude": {
+            "description": "Longitude coordinate",
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "description": "Place name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "name"
+        ],
+        "type": "object"
+      },
       "HlsVideoResolution": {
         "description": "HLS video resolution",
         "enum": [
@@ -23914,6 +24140,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isInAlbum": {
+            "deprecated": true,
+            "description": "Filter assets in any album (fork extension)",
+            "type": "boolean"
+          },
           "isMotion": {
             "deprecated": true,
             "description": "Filter by motion photo status",
@@ -24113,6 +24344,15 @@
                 "state": "Added"
               }
             ]
+          },
+          "orientation": {
+            "deprecated": true,
+            "description": "Filter by asset orientation (fork extension)",
+            "enum": [
+              "landscape",
+              "portrait"
+            ],
+            "type": "string"
           },
           "originalFileName": {
             "deprecated": true,
@@ -26261,23 +26501,82 @@
       },
       "QueueResponseDto": {
         "properties": {
-          "metadataProgress": {
-            "description": "PostgreSQL-backed global metadata extraction progress",
-            "properties": {
-              "completed": { "minimum": 0, "type": "integer" },
-              "failed": { "minimum": 0, "type": "integer" },
-              "notStarted": { "minimum": 0, "type": "integer" },
-              "queued": { "minimum": 0, "type": "integer" },
-              "running": { "minimum": 0, "type": "integer" },
-              "skipped": { "minimum": 0, "type": "integer" },
-              "total": { "minimum": 0, "type": "integer" }
-            },
-            "required": ["total", "completed", "queued", "running", "failed", "skipped", "notStarted"],
-            "type": "object"
-          },
           "isPaused": {
             "description": "Whether the queue is paused",
             "type": "boolean"
+          },
+          "metadataProgress": {
+            "description": "PostgreSQL-backed global metadata and asset pipeline progress",
+            "properties": {
+              "completed": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "notStarted": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "pipeline": {
+                "additionalProperties": {
+                  "properties": {
+                    "completed": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "total": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "completed"
+                  ],
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              "queued": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "running": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "skipped": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "completed",
+              "queued",
+              "running",
+              "failed",
+              "skipped",
+              "notStarted",
+              "pipeline"
+            ],
+            "type": "object"
           },
           "name": {
             "$ref": "#/components/schemas/QueueName"
@@ -26638,6 +26937,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isInAlbum": {
+            "deprecated": true,
+            "description": "Filter assets in any album (fork extension)",
+            "type": "boolean"
+          },
           "isMotion": {
             "deprecated": true,
             "description": "Filter by motion photo status",
@@ -26808,6 +27112,15 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "orientation": {
+            "deprecated": true,
+            "description": "Filter by asset orientation (fork extension)",
+            "enum": [
+              "landscape",
+              "portrait"
+            ],
+            "type": "string"
           },
           "personIds": {
             "deprecated": true,
@@ -28851,6 +29164,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isInAlbum": {
+            "deprecated": true,
+            "description": "Filter assets in any album (fork extension)",
+            "type": "boolean"
+          },
           "isMotion": {
             "deprecated": true,
             "description": "Filter by motion photo status",
@@ -29025,6 +29343,15 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "orientation": {
+            "deprecated": true,
+            "description": "Filter by asset orientation (fork extension)",
+            "enum": [
+              "landscape",
+              "portrait"
+            ],
+            "type": "string"
           },
           "page": {
             "deprecated": true,
@@ -29624,6 +29951,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "isInAlbum": {
+            "deprecated": true,
+            "description": "Filter assets in any album (fork extension)",
+            "type": "boolean"
+          },
           "isMotion": {
             "deprecated": true,
             "description": "Filter by motion photo status",
@@ -29794,6 +30126,15 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "orientation": {
+            "deprecated": true,
+            "description": "Filter by asset orientation (fork extension)",
+            "enum": [
+              "landscape",
+              "portrait"
+            ],
+            "type": "string"
           },
           "personIds": {
             "deprecated": true,
@@ -32729,6 +33070,11 @@
             "description": "Album thumbnail asset ID",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "customGroupName": {
+            "description": "Custom album group name (fork extension)",
+            "nullable": true,
             "type": "string"
           },
           "description": {
