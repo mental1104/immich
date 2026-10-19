@@ -72,6 +72,8 @@ GeoNames 中文别名裁剪成约 1 MB 的离线数据，随镜像导入新增�
 
 另有四个横向图片分类：Delta GBA 游戏截图（1680 × 1120）、Steam 游戏截图（2560 × 1440）、Switch 游戏机截图（1280 × 720 或 1920 × 1080）、3DS 游戏截图（400 × 240）。均按图片类型与精确尺寸匹配；Switch 另要求厂商或型号去空格后忽略大小写匹配 `Nintendo co., ltd`，不限制镜头字段。其余尺寸规则可能包含同尺寸的其他来源图片。
 
+独立分辨率筛选 `resolution` 支持 `720p`（1280 × 720）、`1080p`（1920 × 1080）、`2k` / QHD（2560 × 1440）、`4k`（3840 × 2160 或 4096 × 2160）。图片与视频均按精确尺寸筛选，兼容横竖方向，不要求厂商、型号或镜头；可与媒体类型和上述分类叠加。探索页提供四个分辨率入口，搜索面板可切换或清空。结构化 API 采用 `filter.resolution.eq`。
+
 分类直接在 PostgreSQL 搜索条件中计算，不新增数据列、不回写原片，也不需要重跑任务。新增可选 `isPhoneVideo`、`isScreenshot`、`isDeltaScreenshot`、`isSteamScreenshot`、`isSwitchScreenshot`、`isNintendo3dsScreenshot`，支持兼容版布尔字段和结构化 `filter` 的 `{eq: boolean}`，沿用归属、权限、可见性、分页、统计及保存为相簿的现有搜索路径。未传新字段时行为不变。SQL 边界及归属隔离测试位于 `server/test/medium/specs/utils/media-category.spec.ts`。
 
 手工复核：登录独立开发账号，在图库打开 X5 样本，拖拽改变视角、滚轮缩放（高倍率会切换原图）；退出后打开普通 2:1 测试图，确认保持平面查看。回退功能只需撤销本次 Web 改动并由 HMR 刷新；停止开发 Compose 不影响生产。

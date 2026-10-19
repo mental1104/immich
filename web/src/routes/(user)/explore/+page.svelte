@@ -13,7 +13,7 @@
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import MemoryCard from '$lib/components/memories/MemoryCard.svelte';
   import { ImageCarousel, Icon } from '@immich/ui';
-  import { mediaCategories } from '$lib/utils/media-categories';
+  import { mediaCategories, resolutionPresets } from '$lib/utils/media-categories';
   import { mdiCellphonePlay, mdiCellphoneScreenshot } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
@@ -91,6 +91,21 @@
         </a>
       {/each}
     </div>
+  </section>
+  <section class="mb-6" aria-label={$t('resolution')}>
+    <p class="mb-4 font-medium dark:text-immich-dark-fg">{$t('resolution')}</p>
+    <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {#each resolutionPresets as preset (preset.value)}
+        <a
+          href={Route.search({ resolution: preset.value })}
+          class="rounded-xl bg-immich-gray p-5 transition-colors hover:bg-gray-200 dark:bg-immich-dark-gray dark:hover:bg-gray-700"
+        >
+          <p class="font-medium">{preset.label}</p>
+          <p class="mt-1 text-sm text-neutral-500">{preset.dimensions}</p>
+        </a>
+      {/each}
+    </div>
+    <p class="mt-3 text-sm text-neutral-500">{$t('resolution_filter_description')}</p>
   </section>
   {#if hasPeople}
     <div class="mt-2 mb-6">

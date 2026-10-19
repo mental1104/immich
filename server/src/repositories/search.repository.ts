@@ -5,7 +5,7 @@ import z from 'zod';
 import { columns } from 'src/database.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { MapAsset } from 'src/dtos/asset-response.dto.js';
-import { SearchFilter, SearchOrder } from 'src/dtos/search.dto.js';
+import { MediaResolution, SearchFilter, SearchOrder } from 'src/dtos/search.dto.js';
 import { AssetStatus, AssetType, AssetVisibility, VectorIndex } from 'src/enum.js';
 import { probes } from 'src/repositories/database.repository.js';
 import { DB } from 'src/schema/index.js';
@@ -42,6 +42,7 @@ export interface SearchStatusOptions {
   isMotion?: boolean;
   /** Fork 全景搜索条件；未提供时保持原有查询行为。 */
   isPanorama?: boolean;
+  resolution?: MediaResolution;
   isPhoneVideo?: boolean;
   isScreenshot?: boolean;
   isNintendo3dsScreenshot?: boolean;

@@ -1,4 +1,4 @@
-import { AssetTypeEnum } from '@immich/sdk';
+import { AssetTypeEnum, MediaResolution } from '@immich/sdk';
 
 export const mediaCategories = [
   {
@@ -46,3 +46,10 @@ export const mediaCategories = [
 ] as const;
 
 export type MediaCategory = (typeof mediaCategories)[number]['id'];
+
+export const resolutionPresets = [
+  { value: MediaResolution.$720P, label: '720P', dimensions: '1280 × 720' },
+  { value: MediaResolution.$1080P, label: '1080P', dimensions: '1920 × 1080' },
+  { value: MediaResolution.$2K, label: '2K / QHD', dimensions: '2560 × 1440' },
+  { value: MediaResolution.$4K, label: '4K', dimensions: '3840 × 2160 / 4096 × 2160' },
+] as const;

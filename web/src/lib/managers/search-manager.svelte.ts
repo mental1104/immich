@@ -107,6 +107,7 @@ class SearchManager {
       rating: searchQuery.rating,
       isPanorama: searchQuery.isPanorama ?? false,
       mediaCategory: mediaCategories.find((category) => searchQuery[category.flag])?.id,
+      resolution: searchQuery.resolution,
       orientation: searchQuery.orientation,
     };
   }
@@ -152,6 +153,7 @@ class SearchManager {
       isPanorama: this.filter.isPanorama || undefined,
       isPhoneVideo: this.filter.mediaCategory === 'phone-video' || undefined,
       isScreenshot: this.filter.mediaCategory === 'screenshot' || undefined,
+      resolution: this.filter.resolution,
       isNintendo3dsScreenshot: this.filter.mediaCategory === '3ds-screenshot' || undefined,
       isSwitchScreenshot: this.filter.mediaCategory === 'switch-screenshot' || undefined,
       isSteamScreenshot: this.filter.mediaCategory === 'steam-screenshot' || undefined,

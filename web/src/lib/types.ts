@@ -1,4 +1,4 @@
-import type { QueueResponseDto } from '@immich/sdk';
+import type { MetadataSearchDto, QueueResponseDto } from '@immich/sdk';
 import type { ActionItem } from '@immich/ui';
 import type { DateTime } from 'luxon';
 import type { SvelteSet } from 'svelte/reactivity';
@@ -77,6 +77,7 @@ export type SearchFilter = {
   /** 仅筛选全景，可与照片／视频等已有条件组合。 */
   isPanorama?: boolean;
   mediaCategory?: MediaCategory;
+  resolution?: MetadataSearchDto['resolution'];
   /** 构图方向；缺省时不按方向过滤。 */
   orientation?: 'landscape' | 'portrait';
   rating?: number | null;

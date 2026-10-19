@@ -22,9 +22,15 @@ const DEPRECATED_FLAT_FIELD = {
   deprecated: true,
 };
 
+const MediaResolutionSchema = z.enum(['720p', '1080p', '2k', '4k']).meta({ id: 'MediaResolution' });
+export type MediaResolution = z.infer<typeof MediaResolutionSchema>;
+
 const BaseSearchSchema = z.object({
   libraryId: z.uuidv4().nullish().describe('Library ID to filter by').meta(DEPRECATED_FLAT_FIELD),
   type: AssetTypeSchema.optional().meta(DEPRECATED_FLAT_FIELD),
+  resolution: MediaResolutionSchema.optional()
+    .describe('Filter exact standard frame sizes in either orientation (fork extension)')
+    .meta({ deprecated: true }),
   isEncoded: z.boolean().optional().describe('Filter by encoded status').meta(DEPRECATED_FLAT_FIELD),
   isFavorite: z.boolean().optional().describe('Filter by favorite status').meta(DEPRECATED_FLAT_FIELD),
   isMotion: z.boolean().optional().describe('Filter by motion photo status').meta(DEPRECATED_FLAT_FIELD),
@@ -289,6 +295,7 @@ const searchFilterBranchShape = {
   visibility: EnumFilterAssetVisibilitySchema,
   isFavorite: BoolFilterSchema,
   isMotion: BoolFilterSchema,
+  resolution: z.object({ eq: MediaResolutionSchema }).optional().meta({ id: 'MediaResolutionFilter' }),
   isPanorama: BoolFilterSchema,
   isPhoneVideo: BoolFilterSchema,
   isScreenshot: BoolFilterSchema,

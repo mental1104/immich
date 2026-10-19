@@ -37,7 +37,7 @@
   } from './search-bar-utils';
   import { onMount } from 'svelte';
   import { searchManager } from '$lib/managers/search-manager.svelte';
-  import { mediaCategories } from '$lib/utils/media-categories';
+  import { mediaCategories, resolutionPresets } from '$lib/utils/media-categories';
   import SearchButton from './SearchButton.svelte';
 
   interface Props {
@@ -90,7 +90,12 @@
     mediaCategories.find((category) => category.id === searchManager.filter.mediaCategory),
   );
   let mediaTitle = $derived(
-    selectedCategory ? $t(selectedCategory.title) : getSearchMediaTitle(searchManager.filter.mediaType),
+    [
+      selectedCategory ? $t(selectedCategory.title) : getSearchMediaTitle(searchManager.filter.mediaType),
+      resolutionPresets.find((preset) => preset.value === searchManager.filter.resolution)?.label,
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined,
   );
 
   let filters = [

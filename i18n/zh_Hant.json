@@ -1812,6 +1812,7 @@
   "reset_sqlite_success": "已成功重設 SQLite 資料庫",
   "reset_to_default": "重設為預設值",
   "resolution": "解析度",
+  "resolution_filter_description": "按精確尺寸匹配，支援橫豎方向；適用於照片和影片，不限制裝置或鏡頭。",
   "resolve_duplicates": "解決重複項",
   "resolved_all_duplicates": "已解決所有重複項目",
   "restore": "還原",

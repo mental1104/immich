@@ -51,6 +51,7 @@ import {
   deltaScreenshotPredicate,
   nintendo3dsScreenshotPredicate,
   phoneVideoPredicate,
+  resolutionPredicate,
   screenshotPredicate,
   steamScreenshotPredicate,
   switchScreenshotPredicate,
@@ -571,6 +572,7 @@ export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearc
         options.isNintendo3dsScreenshot ? nintendo3dsScreenshotPredicate() : eb.not(nintendo3dsScreenshotPredicate()),
       ),
     )
+    .$if(options.resolution !== undefined, (qb) => qb.where(resolutionPredicate(options.resolution!)))
     .$if(options.isScreenshot !== undefined, (qb) =>
       qb.where((eb) => (options.isScreenshot ? screenshotPredicate() : eb.not(screenshotPredicate()))),
     )
@@ -812,6 +814,7 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
             : eb.not(nintendo3dsScreenshotPredicate()),
         ]
       : []),
+    ...(branch.resolution ? [resolutionPredicate(branch.resolution.eq)] : []),
     ...(branch.isScreenshot ? [branch.isScreenshot.eq ? screenshotPredicate() : eb.not(screenshotPredicate())] : []),
     ...existsPredicates(eb, branch.isEncoded, () => encodedVideoFiles(eb)),
     ...existsPredicates(eb, branch.hasAlbums, () => albumAssets(eb)),

@@ -242,6 +242,7 @@
       isPanorama: $t('panorama'),
       isPhoneVideo: $t('phone_videos'),
       isScreenshot: $t('screenshots'),
+      resolution: $t('resolution'),
       isNintendo3dsScreenshot: $t('3ds_screenshots'),
       isSwitchScreenshot: $t('switch_screenshots'),
       isSteamScreenshot: $t('steam_screenshots'),

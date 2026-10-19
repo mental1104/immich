@@ -1878,6 +1878,7 @@
   "reset_sqlite_success": "Successfully reset the SQLite database",
   "reset_to_default": "Reset to default",
   "resolution": "Resolution",
+  "resolution_filter_description": "Exact dimensions in either orientation; applies to both photos and videos without camera or lens requirements.",
   "resolve_duplicates": "Resolve duplicates",
   "resolved_all_duplicates": "Resolved all duplicates",
   "restore": "Restore",

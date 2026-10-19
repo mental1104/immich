@@ -1,4 +1,5 @@
 import { type RawBuilder, type SqlBool, sql } from 'kysely';
+import type { MediaResolution } from 'src/dtos/search.dto.js';
 
 /** 按 Apple 设备信息和常见 16:9 / 4:3 规格归类视频，兼容横竖方向及缩放后的同画幅视频。 */
 export const phoneVideoPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
@@ -45,3 +46,24 @@ export const switchScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>
 export const nintendo3dsScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
   asset.type = 'IMAGE' and (asset.width = 400 and asset.height = 240)
 ), false)`;
+
+const resolutionDimensions: Record<MediaResolution, readonly (readonly [number, number])[]> = {
+  '720p': [[1280, 720]],
+  '1080p': [[1920, 1080]],
+  '2k': [[2560, 1440]],
+  '4k': [
+    [3840, 2160],
+    [4096, 2160],
+  ],
+};
+
+/** 分辨率独立于来源分类，照片和视频均按精确尺寸匹配，兼容横竖方向。 */
+export const resolutionPredicate = (resolution: MediaResolution): RawBuilder<SqlBool> => {
+  const sizes = resolutionDimensions[resolution].map(
+    ([width, height]) => sql<SqlBool>`(
+    (asset.width = ${width} and asset.height = ${height}) or
+    (asset.width = ${height} and asset.height = ${width})
+  )`,
+  );
+  return sql<SqlBool>`coalesce((asset.type in ('IMAGE', 'VIDEO') and (${sql.join(sizes, sql` or `)})), false)`;
+};

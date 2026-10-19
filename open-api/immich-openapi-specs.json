@@ -12220,6 +12220,16 @@
             }
           },
           {
+            "name": "resolution",
+            "required": false,
+            "in": "query",
+            "description": "Filter exact standard frame sizes in either orientation (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "$ref": "#/components/schemas/MediaResolution"
+            }
+          },
+          {
             "name": "size",
             "required": false,
             "in": "query",
@@ -23627,6 +23637,26 @@
         ],
         "type": "object"
       },
+      "MediaResolution": {
+        "enum": [
+          "720p",
+          "1080p",
+          "2k",
+          "4k"
+        ],
+        "type": "string"
+      },
+      "MediaResolutionFilter": {
+        "properties": {
+          "eq": {
+            "$ref": "#/components/schemas/MediaResolution"
+          }
+        },
+        "required": [
+          "eq"
+        ],
+        "type": "object"
+      },
       "MemoriesResponse": {
         "properties": {
           "duration": {
@@ -24583,6 +24613,11 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/MediaResolution",
+            "deprecated": true,
+            "description": "Filter exact standard frame sizes in either orientation (fork extension)"
           },
           "size": {
             "default": 250,
@@ -27300,6 +27335,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "resolution": {
+            "$ref": "#/components/schemas/MediaResolution",
+            "deprecated": true,
+            "description": "Filter exact standard frame sizes in either orientation (fork extension)"
+          },
           "size": {
             "default": 250,
             "description": "Number of results to return",
@@ -27997,6 +28037,9 @@
           "rating": {
             "$ref": "#/components/schemas/NumberFilterNullable"
           },
+          "resolution": {
+            "$ref": "#/components/schemas/MediaResolutionFilter"
+          },
           "state": {
             "$ref": "#/components/schemas/StringFilterNullable"
           },
@@ -28119,6 +28162,9 @@
           },
           "rating": {
             "$ref": "#/components/schemas/NumberFilterNullable"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/MediaResolutionFilter"
           },
           "state": {
             "$ref": "#/components/schemas/StringFilterNullable"
@@ -29629,6 +29675,11 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "resolution": {
+            "$ref": "#/components/schemas/MediaResolution",
+            "deprecated": true,
+            "description": "Filter exact standard frame sizes in either orientation (fork extension)"
+          },
           "size": {
             "default": 100,
             "description": "Number of results to return",
@@ -30409,6 +30460,11 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/MediaResolution",
+            "deprecated": true,
+            "description": "Filter exact standard frame sizes in either orientation (fork extension)"
           },
           "state": {
             "deprecated": true,

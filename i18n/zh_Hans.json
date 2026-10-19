@@ -1875,6 +1875,7 @@
   "reset_sqlite_success": "已成功重置 SQLite 数据库",
   "reset_to_default": "恢复默认值",
   "resolution": "分辨率",
+  "resolution_filter_description": "按精确尺寸匹配，支持横竖方向；适用于照片和视频，不限制设备或镜头。",
   "resolve_duplicates": "处理重复项",
   "resolved_all_duplicates": "处理所有重复项",
   "restore": "恢复",

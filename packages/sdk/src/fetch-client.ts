@@ -2361,6 +2361,9 @@ export type NumberFilterNullable = {
     ne?: number | null;
     notIn?: number[];
 };
+export type MediaResolutionFilter = {
+    eq: MediaResolution;
+};
 export type DateFilterNullable = {
     eq?: string | null;
     gt?: string;
@@ -2414,6 +2417,7 @@ export type SearchFilterBranch = {
     originalPath?: StringPatternFilter;
     personIds?: IdsFilter;
     rating?: NumberFilterNullable;
+    resolution?: MediaResolutionFilter;
     state?: StringFilterNullable;
     tagIds?: IdsFilter;
     takenAt?: DateFilter;
@@ -2456,6 +2460,7 @@ export type SearchFilter = {
     originalPath?: StringPatternFilter;
     personIds?: IdsFilter;
     rating?: NumberFilterNullable;
+    resolution?: MediaResolutionFilter;
     state?: StringFilterNullable;
     tagIds?: IdsFilter;
     takenAt?: DateFilter;
@@ -2543,6 +2548,8 @@ export type MetadataSearchDto = {
     previewPath?: string;
     /** Filter by rating [1-5], or null for unrated */
     rating?: number | null;
+    /** Filter exact standard frame sizes in either orientation (fork extension) */
+    resolution?: MediaResolution;
     /** Number of results to return */
     size?: number;
     /** Filter by state/province name */
@@ -2675,6 +2682,8 @@ export type RandomSearchDto = {
     personIds?: string[];
     /** Filter by rating [1-5], or null for unrated */
     rating?: number | null;
+    /** Filter exact standard frame sizes in either orientation (fork extension) */
+    resolution?: MediaResolution;
     /** Number of results to return */
     size?: number;
     /** Filter by state/province name */
@@ -2766,6 +2775,8 @@ export type SmartSearchDto = {
     queryAssetId?: string;
     /** Filter by rating [1-5], or null for unrated */
     rating?: number | null;
+    /** Filter exact standard frame sizes in either orientation (fork extension) */
+    resolution?: MediaResolution;
     /** Number of results to return */
     size?: number;
     /** Filter by state/province name */
@@ -2847,6 +2858,8 @@ export type StatisticsSearchDto = {
     personIds?: string[];
     /** Filter by rating [1-5], or null for unrated */
     rating?: number | null;
+    /** Filter exact standard frame sizes in either orientation (fork extension) */
+    resolution?: MediaResolution;
     /** Filter by state/province name */
     state?: string | null;
     /** Filter by tag IDs */
@@ -6713,7 +6726,7 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isDeltaScreenshot, isEncoded, isFavorite, isInAlbum, isMotion, isNintendo3DsScreenshot, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, isSteamScreenshot, isSwitchScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
+export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isDeltaScreenshot, isEncoded, isFavorite, isInAlbum, isMotion, isNintendo3DsScreenshot, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, isSteamScreenshot, isSwitchScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, resolution, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
     albumIds?: string[];
     city?: string | null;
     country?: string | null;
@@ -6741,6 +6754,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
     orientation?: "landscape" | "portrait";
     personIds?: string[];
     rating?: number | null;
+    resolution?: MediaResolution;
     size?: number;
     state?: string | null;
     tagIds?: string[] | null;
@@ -6786,6 +6800,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         orientation,
         personIds,
         rating,
+        resolution,
         size,
         state,
         tagIds,
@@ -8692,6 +8707,12 @@ export enum JobName {
     IntegrityChecksumFilesRefresh = "IntegrityChecksumFilesRefresh",
     IntegrityDeleteReportType = "IntegrityDeleteReportType",
     IntegrityDeleteReports = "IntegrityDeleteReports"
+}
+export enum MediaResolution {
+    $720P = "720p",
+    $1080P = "1080p",
+    $2K = "2k",
+    $4K = "4k"
 }
 export enum SearchOrderField {
     FileCreatedAt = "fileCreatedAt",
