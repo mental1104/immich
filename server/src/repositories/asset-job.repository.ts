@@ -475,6 +475,21 @@ export class AssetJobRepository {
           .onRef('task_status.assetId', '=', 'asset.id')
           .on('task_status.taskName', '=', ForkAssetTask.MetadataExtraction),
       )
+      .leftJoin('smart_search', 'smart_search.assetId', 'asset.id')
+      .leftJoin('asset_file as thumbnail_file', (join) =>
+        join
+          .onRef('thumbnail_file.assetId', '=', 'asset.id')
+          .on('thumbnail_file.type', '=', AssetFileType.Thumbnail)
+          .on('thumbnail_file.isEdited', '=', false),
+      )
+      .leftJoin('fork_asset_task_status as thumbnail_task', (join) =>
+        join
+          .onRef('thumbnail_task.assetId', '=', 'asset.id')
+          .on('thumbnail_task.taskName', '=', ForkAssetTask.ThumbnailGeneration),
+      )
+      .leftJoin('fork_asset_task_status as face_task', (join) =>
+        join.onRef('face_task.assetId', '=', 'asset.id').on('face_task.taskName', '=', ForkAssetTask.FaceDetection),
+      )
       .where('asset.deletedAt', 'is', null)
       .select([
         sql<number>`count(*)`.as('total'),
@@ -488,10 +503,46 @@ export class AssetJobRepository {
         sql<number>`count(*) filter (where task_status."assetId" is null and legacy_status."metadataExtractedAt" is null)`.as(
           'notStarted',
         ),
+        sql<number>`count(*) filter (where thumbnail_task.status = ${ForkAssetTaskState.Completed} or thumbnail_file.id is not null)`.as(
+          'thumbnailCompleted',
+        ),
+        sql<number>`count(*) filter (where face_task.status = ${ForkAssetTaskState.Completed} or legacy_status."facesRecognizedAt" is not null)`.as(
+          'faceDetectionCompleted',
+        ),
+        sql<number>`count(*) filter (where smart_search."assetId" is not null)`.as('smartSearchCompleted'),
+        sql<number>`count(*) filter (where legacy_status."ocrAt" is not null)`.as('ocrCompleted'),
+        sql<number>`count(*) filter (where legacy_status."duplicatesDetectedAt" is not null)`.as(
+          'duplicateDetectionCompleted',
+        ),
+        sql<number>`count(*) filter (where legacy_status."facesRecognizedAt" is not null)`.as(
+          'facialRecognitionCompleted',
+        ),
       ])
       .executeTakeFirstOrThrow();
 
-    return Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, Number(value)])) as {
+    const total = Number(counts.total);
+    const progress = Object.fromEntries(
+      Object.entries({
+        library: counts.total,
+        thumbnailGeneration: counts.thumbnailCompleted,
+        faceDetection: counts.faceDetectionCompleted,
+        smartSearch: counts.smartSearchCompleted,
+        ocr: counts.ocrCompleted,
+        duplicateDetection: counts.duplicateDetectionCompleted,
+        facialRecognition: counts.facialRecognitionCompleted,
+      }).map(([name, completed]) => [name, { total, completed: Number(completed) }]),
+    ) as Record<string, { total: number; completed: number }>;
+
+    return {
+      total,
+      completed: Number(counts.completed),
+      queued: Number(counts.queued),
+      running: Number(counts.running),
+      failed: Number(counts.failed),
+      skipped: Number(counts.skipped),
+      notStarted: Number(counts.notStarted),
+      pipeline: progress,
+    } satisfies {
       total: number;
       completed: number;
       queued: number;
@@ -499,6 +550,7 @@ export class AssetJobRepository {
       failed: number;
       skipped: number;
       notStarted: number;
+      pipeline: Record<string, { total: number; completed: number }>;
     };
   }
 

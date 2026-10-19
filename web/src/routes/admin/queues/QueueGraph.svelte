@@ -306,6 +306,8 @@
           </svg>
           {#each pipelineNodes as node (node.queue)}
             {@const queue = queues.find(({ name }) => name === node.queue)}
+            {@const pipelineCount = queues.find(({ name }) => name === QueueName.MetadataExtraction)?.metadataProgress
+              ?.pipeline[node.queue]}
             {@const item = asQueueItem($t, { name: node.queue })}
             {@const state = stateFor(node)}
             <button
@@ -331,6 +333,20 @@
                     values: {
                       completed: queue.metadataProgress.completed.toLocaleString($locale),
                       total: queue.metadataProgress.total.toLocaleString($locale),
+                    },
+                  })}
+                {:else if node.queue === QueueName.Library && pipelineCount}
+                  {$t('pipeline.assets_count', {
+                    values: {
+                      completed: pipelineCount.completed.toLocaleString($locale),
+                      total: pipelineCount.total.toLocaleString($locale),
+                    },
+                  })}
+                {:else if pipelineCount}
+                  {$t('pipeline.assets_count', {
+                    values: {
+                      completed: pipelineCount.completed.toLocaleString($locale),
+                      total: pipelineCount.total.toLocaleString($locale),
                     },
                   })}
                 {:else if queue}

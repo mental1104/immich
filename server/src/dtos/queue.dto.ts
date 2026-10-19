@@ -72,9 +72,16 @@ const QueueResponseSchema = z
         failed: z.int().nonnegative(),
         skipped: z.int().nonnegative(),
         notStarted: z.int().nonnegative(),
+        pipeline: z.record(
+          z.string(),
+          z.object({
+            total: z.int().nonnegative(),
+            completed: z.int().nonnegative(),
+          }),
+        ),
       })
       .optional()
-      .describe('PostgreSQL-backed global metadata extraction progress'),
+      .describe('PostgreSQL-backed global metadata and asset pipeline progress'),
   })
   .meta({ id: 'QueueResponseDto' });
 

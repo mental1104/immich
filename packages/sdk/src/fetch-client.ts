@@ -2222,6 +2222,7 @@ export type QueueResponseDto = {
         running: number;
         skipped: number;
         total: number;
+        pipeline: Record<string, { completed: number; total: number }>;
     };
     /** Whether the queue is paused */
     isPaused: boolean;

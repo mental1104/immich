@@ -21,6 +21,7 @@ describe(QueueService.name, () => {
       failed: 0,
       skipped: 0,
       notStarted: 0,
+      pipeline: {},
     });
   });
 
