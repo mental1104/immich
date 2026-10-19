@@ -2514,7 +2514,7 @@ export type MetadataSearchDto = {
     isScreenshot?: boolean;
     /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
     isSteamScreenshot?: boolean;
-    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    /** Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension) */
     isSwitchScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
@@ -2657,7 +2657,7 @@ export type RandomSearchDto = {
     isScreenshot?: boolean;
     /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
     isSteamScreenshot?: boolean;
-    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    /** Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension) */
     isSwitchScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;
@@ -2740,7 +2740,7 @@ export type SmartSearchDto = {
     isScreenshot?: boolean;
     /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
     isSteamScreenshot?: boolean;
-    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    /** Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension) */
     isSwitchScreenshot?: boolean;
     /** Search language code */
     language?: string;
@@ -2829,7 +2829,7 @@ export type StatisticsSearchDto = {
     isScreenshot?: boolean;
     /** Filter landscape 2560x1440 Steam screenshot images (fork extension) */
     isSteamScreenshot?: boolean;
-    /** Filter landscape 720p or 1080p Switch screenshot images (fork extension) */
+    /** Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension) */
     isSwitchScreenshot?: boolean;
     /** Filter by lens model */
     lensModel?: string | null;

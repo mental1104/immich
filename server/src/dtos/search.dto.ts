@@ -53,7 +53,7 @@ const BaseSearchSchema = z.object({
   isSwitchScreenshot: z
     .boolean()
     .optional()
-    .describe('Filter landscape 720p or 1080p Switch screenshot images (fork extension)')
+    .describe('Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension)')
     .meta({ deprecated: true }),
   isNintendo3dsScreenshot: z
     .boolean()

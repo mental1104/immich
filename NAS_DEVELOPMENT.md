@@ -70,7 +70,7 @@ GeoNames 中文别名裁剪成约 1 MB 的离线数据，随镜像导入新增�
 
 探索页和搜索面板增加“手机拍摄的视频”“截图”。视频按 `make` 或 `model` 去空格后忽略大小写的 Apple 前缀，以及正尺寸的 16:9、4:3 画幅识别（兼容横竖、4K/1080p/720p 和同比例缩放规格）；截图仅按图片 `width=1179, height=2556` 归类，不推断其他尺寸或横向图片。这是用户指定的元数据规则，不代表对拍摄来源或具体手机型号的鉴定。
 
-另有四个横向图片分类：Delta GBA 游戏截图（1680 × 1120）、Steam 游戏截图（2560 × 1440）、Switch 游戏机截图（1280 × 720 或 1920 × 1080）、3DS 游戏截图（400 × 240）。均仅按类型与精确尺寸匹配；Switch 按用户后续要求不限制设备或镜头信息。尺寸规则可能包含同尺寸的其他来源图片。
+另有四个横向图片分类：Delta GBA 游戏截图（1680 × 1120）、Steam 游戏截图（2560 × 1440）、Switch 游戏机截图（1280 × 720 或 1920 × 1080）、3DS 游戏截图（400 × 240）。均按图片类型与精确尺寸匹配；Switch 另要求厂商或型号去空格后忽略大小写匹配 `Nintendo co., ltd`，不限制镜头字段。其余尺寸规则可能包含同尺寸的其他来源图片。
 
 分类直接在 PostgreSQL 搜索条件中计算，不新增数据列、不回写原片，也不需要重跑任务。新增可选 `isPhoneVideo`、`isScreenshot`、`isDeltaScreenshot`、`isSteamScreenshot`、`isSwitchScreenshot`、`isNintendo3dsScreenshot`，支持兼容版布尔字段和结构化 `filter` 的 `{eq: boolean}`，沿用归属、权限、可见性、分页、统计及保存为相簿的现有搜索路径。未传新字段时行为不变。SQL 边界及归属隔离测试位于 `server/test/medium/specs/utils/media-category.spec.ts`。
 

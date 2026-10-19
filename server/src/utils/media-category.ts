@@ -29,11 +29,15 @@ export const steamScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`
   asset.type = 'IMAGE' and (asset.width = 2560 and asset.height = 1440)
 ), false)`;
 
-/** 按用户指定的两个横向尺寸归类 Switch 游戏机截图。 */
+/** 按用户指定的两个横向尺寸和 Nintendo 设备信息归类 Switch 游戏机截图，不限制镜头。 */
 export const switchScreenshotPredicate = (): RawBuilder<SqlBool> => sql<SqlBool>`coalesce((
   asset.type = 'IMAGE' and (
     (asset.width = 1280 and asset.height = 720) or
     (asset.width = 1920 and asset.height = 1080)
+  ) and exists (
+    select 1 from asset_exif as switch_exif where switch_exif."assetId" = asset.id and (
+      btrim(switch_exif.make) ilike 'Nintendo co., ltd' or btrim(switch_exif.model) ilike 'Nintendo co., ltd'
+    )
   )
 ), false)`;
 

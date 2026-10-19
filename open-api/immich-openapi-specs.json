@@ -11989,7 +11989,7 @@
             "name": "isSwitchScreenshot",
             "required": false,
             "in": "query",
-            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
+            "description": "Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension)",
             "deprecated": true,
             "schema": {
               "type": "boolean"
@@ -24297,7 +24297,7 @@
           },
           "isSwitchScreenshot": {
             "deprecated": true,
-            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
+            "description": "Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension)",
             "type": "boolean"
           },
           "lensModel": {
@@ -27124,7 +27124,7 @@
           },
           "isSwitchScreenshot": {
             "deprecated": true,
-            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
+            "description": "Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension)",
             "type": "boolean"
           },
           "lensModel": {
@@ -29417,7 +29417,7 @@
           },
           "isSwitchScreenshot": {
             "deprecated": true,
-            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
+            "description": "Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension)",
             "type": "boolean"
           },
           "language": {
@@ -30234,7 +30234,7 @@
           },
           "isSwitchScreenshot": {
             "deprecated": true,
-            "description": "Filter landscape 720p or 1080p Switch screenshot images (fork extension)",
+            "description": "Filter landscape 720p or 1080p Nintendo Switch screenshot images by device metadata (fork extension)",
             "type": "boolean"
           },
           "lensModel": {
