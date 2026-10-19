@@ -105,6 +105,16 @@ describe(JobService.name, () => {
       expect(mocks.assetJob.failAssetTask).toHaveBeenCalledWith('asset-1', 'face-detection', error);
     });
 
+    it('tracks RAW pairing attempts in the per-asset task table', async () => {
+      const job: JobItem = { name: JobName.AssetStackRawPair, data: { assetId: 'raw-1', ownerId: 'owner-1' } };
+      mocks.job.run.mockResolvedValue(JobStatus.Success);
+
+      await sut.onJobRun(QueueName.RawPairing, job);
+
+      expect(mocks.assetJob.startAssetTask).toHaveBeenCalledWith('raw-1', 'raw-pairing');
+      expect(mocks.assetJob.completeAssetTask).toHaveBeenCalledWith('raw-1', 'raw-pairing');
+    });
+
     const tests: Array<{ item: JobItem; jobs: JobName[]; stub?: any }> = [
       {
         item: { name: JobName.SidecarCheck, data: { id: 'asset-1' } },

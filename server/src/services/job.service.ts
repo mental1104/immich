@@ -17,6 +17,9 @@ const getAssetTaskName = (item: JobItem): ForkAssetTaskName | undefined => {
     case JobName.AssetDetectFaces: {
       return ForkAssetTask.FaceDetection;
     }
+    case JobName.AssetStackRawPair: {
+      return ForkAssetTask.RawPairing;
+    }
     case JobName.AssetEncodeVideo: {
       return ForkAssetTask.VideoEncoding;
     }

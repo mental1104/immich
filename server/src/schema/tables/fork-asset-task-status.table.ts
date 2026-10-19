@@ -15,6 +15,7 @@ export const ForkAssetTask = {
   MetadataExtraction: 'metadata-extraction',
   ThumbnailGeneration: 'thumbnail-generation',
   FaceDetection: 'face-detection',
+  RawPairing: 'raw-pairing',
   VideoEncoding: 'video-encoding',
 } as const;
 export type ForkAssetTaskName = (typeof ForkAssetTask)[keyof typeof ForkAssetTask];

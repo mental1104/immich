@@ -28,8 +28,8 @@ import { ReverseGeocodeResult } from 'src/repositories/map.repository.js';
 import { ImmichTags } from 'src/repositories/metadata.repository.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
 import { AssetFaceTable } from 'src/schema/tables/asset-face.table.js';
-import { BaseService } from 'src/services/base.service.js';
 import { ForkAssetTask } from 'src/schema/tables/fork-asset-task-status.table.js';
+import { BaseService } from 'src/services/base.service.js';
 import { getAssetFiles } from 'src/utils/asset.util.js';
 import { isAssetChecksumConstraint } from 'src/utils/database.js';
 import { mergeTimeZone } from 'src/utils/date.js';
@@ -434,6 +434,7 @@ export class MetadataService extends BaseService {
       assetId: asset.id,
       userId: asset.ownerId,
       source: data.source,
+      isRaw: asset.isRaw,
     });
   }
 

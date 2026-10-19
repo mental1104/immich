@@ -153,6 +153,7 @@ export const getForMetadataExtraction = (
   livePhotoVideoId: asset.livePhotoVideoId,
   localDateTime: asset.localDateTime,
   originalFileName: asset.originalFileName,
+  isRaw: /[.](dng|nef)$/i.test(asset.originalFileName),
   originalPath: asset.originalPath,
   ownerId: asset.ownerId,
   type: asset.type,

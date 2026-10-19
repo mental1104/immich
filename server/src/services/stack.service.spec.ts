@@ -15,6 +15,7 @@ describe(StackService.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(StackService));
+    mocks.assetJob.isRawAsset.mockResolvedValue(true);
   });
 
   it('should be defined', () => {
@@ -23,15 +24,26 @@ describe(StackService.name, () => {
 
   /** 配对由独立任务队列处理；侧写任务不重建用户拆开的堆叠。 */
   it('queues RAW pairing and skips sidecar writes', async () => {
-    await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'upload' });
+    await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'upload', isRaw: true });
     expect(mocks.job.queue).toHaveBeenCalledWith({
       name: JobName.AssetStackRawPair,
       data: { assetId: 'raw-id', ownerId: 'owner-id' },
     });
     mocks.stack.autoStackRawPair.mockClear();
     mocks.job.queue.mockClear();
-    await sut.onAssetMetadataExtracted({ assetId: 'raw-id', userId: 'owner-id', source: 'sidecar-write' });
+    await sut.onAssetMetadataExtracted({
+      assetId: 'raw-id',
+      userId: 'owner-id',
+      source: 'sidecar-write',
+      isRaw: true,
+    });
     expect(mocks.stack.autoStackRawPair).not.toHaveBeenCalled();
+    expect(mocks.job.queue).not.toHaveBeenCalled();
+  });
+
+  it('does not queue RAW pairing for non-RAW assets', async () => {
+    mocks.assetJob.isRawAsset.mockResolvedValue(false);
+    await sut.onAssetMetadataExtracted({ assetId: 'jpeg-id', userId: 'owner-id', source: 'upload', isRaw: false });
     expect(mocks.job.queue).not.toHaveBeenCalled();
   });
 
@@ -47,7 +59,7 @@ describe(StackService.name, () => {
   it('skips when no unique RAW pair is found', async () => {
     mocks.stack.autoStackRawPair.mockResolvedValue(undefined);
     await expect(sut.handleAutoStackRawPair({ assetId: 'raw-id', ownerId: 'owner-id' })).resolves.toBe(
-      JobStatus.Skipped,
+      JobStatus.Success,
     );
     expect(mocks.event.emit).not.toHaveBeenCalled();
   });

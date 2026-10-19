@@ -2,7 +2,6 @@ import { QueueName, type AssetResponseDto, type QueueResponseDto } from '@immich
 
 export type PipelineQueue =
   | QueueName.Library
-  | QueueName.Sidecar
   | QueueName.MetadataExtraction
   | QueueName.ThumbnailGeneration
   | QueueName.NikonPairing
@@ -21,20 +20,18 @@ export const PIPELINE_HEIGHT = 610;
 // 表示新资源的自动触发关系；单项重扫不要求重新经过前置节点。
 export const pipelineNodes: PipelineNode[] = [
   { queue: QueueName.Library, x: 24, y: 220 },
-  { queue: QueueName.Sidecar, x: 234, y: 220 },
-  { queue: QueueName.MetadataExtraction, x: 444, y: 220, taskName: 'metadata-extraction' },
-  { queue: QueueName.ThumbnailGeneration, x: 654, y: 220, taskName: 'thumbnail-generation' },
-  { queue: QueueName.NikonPairing, x: 654, y: 430 },
-  { queue: QueueName.SmartSearch, x: 864, y: 40 },
-  { queue: QueueName.FaceDetection, x: 864, y: 220, taskName: 'face-detection' },
-  { queue: QueueName.Ocr, x: 864, y: 400 },
-  { queue: QueueName.DuplicateDetection, x: 1074, y: 40 },
-  { queue: QueueName.FacialRecognition, x: 1074, y: 220 },
+  { queue: QueueName.MetadataExtraction, x: 234, y: 220, taskName: 'metadata-extraction' },
+  { queue: QueueName.ThumbnailGeneration, x: 444, y: 220, taskName: 'thumbnail-generation' },
+  { queue: QueueName.NikonPairing, x: 444, y: 430 },
+  { queue: QueueName.SmartSearch, x: 654, y: 40 },
+  { queue: QueueName.FaceDetection, x: 654, y: 220, taskName: 'face-detection' },
+  { queue: QueueName.Ocr, x: 654, y: 400 },
+  { queue: QueueName.DuplicateDetection, x: 864, y: 40 },
+  { queue: QueueName.FacialRecognition, x: 864, y: 220 },
 ];
 
 export const pipelineEdges: PipelineEdge[] = [
-  { from: QueueName.Library, to: QueueName.Sidecar },
-  { from: QueueName.Sidecar, to: QueueName.MetadataExtraction },
+  { from: QueueName.Library, to: QueueName.MetadataExtraction },
   { from: QueueName.MetadataExtraction, to: QueueName.ThumbnailGeneration },
   { from: QueueName.MetadataExtraction, to: QueueName.NikonPairing, conditional: true },
   { from: QueueName.ThumbnailGeneration, to: QueueName.SmartSearch },

@@ -64,9 +64,6 @@
     if (name === QueueName.Ocr) {
       return !features.ocr;
     }
-    if (name === QueueName.Sidecar) {
-      return !features.sidecar;
-    }
     if (name === QueueName.FaceDetection || name === QueueName.FacialRecognition) {
       return !features.facialRecognition;
     }

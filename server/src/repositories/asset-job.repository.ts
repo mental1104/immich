@@ -4,7 +4,7 @@ import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
 import { columns } from 'src/database.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
-import { AssetFileType, AssetStatus, AssetType, AssetVisibility } from 'src/enum.js';
+import { AssetFileType, AssetStatus, AssetType, AssetVisibility, QueueName } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import {
   ForkAssetTask,
@@ -154,6 +154,7 @@ export class AssetJobRepository {
     return this.db
       .selectFrom('asset')
       .select(columns.asset)
+      .select(sql<boolean>`asset.is_raw`.as('isRaw'))
       .select(withFaces)
       .select((eb) => withFiles(eb, AssetFileType.Sidecar))
       .innerJoin('user', 'user.id', 'asset.ownerId')
@@ -490,6 +491,11 @@ export class AssetJobRepository {
       .leftJoin('fork_asset_task_status as face_task', (join) =>
         join.onRef('face_task.assetId', '=', 'asset.id').on('face_task.taskName', '=', ForkAssetTask.FaceDetection),
       )
+      .leftJoin('fork_asset_task_status as raw_pair_task', (join) =>
+        join
+          .onRef('raw_pair_task.assetId', '=', 'asset.id')
+          .on('raw_pair_task.taskName', '=', ForkAssetTask.RawPairing),
+      )
       .where('asset.deletedAt', 'is', null)
       .select([
         sql<number>`count(*)`.as('total'),
@@ -517,6 +523,10 @@ export class AssetJobRepository {
         sql<number>`count(*) filter (where legacy_status."facesRecognizedAt" is not null)`.as(
           'facialRecognitionCompleted',
         ),
+        sql<number>`count(*) filter (where asset.is_raw is true)`.as('rawPairingTotal'),
+        sql<number>`count(*) filter (where asset.is_raw is true and (raw_pair_task.status in (${ForkAssetTaskState.Completed}, ${ForkAssetTaskState.Skipped}) or asset."stackId" is not null))`.as(
+          'rawPairingCompleted',
+        ),
       ])
       .executeTakeFirstOrThrow();
 
@@ -532,6 +542,10 @@ export class AssetJobRepository {
         facialRecognition: counts.facialRecognitionCompleted,
       }).map(([name, completed]) => [name, { total, completed: Number(completed) }]),
     ) as Record<string, { total: number; completed: number }>;
+    progress[QueueName.RawPairing] = {
+      total: Number(counts.rawPairingTotal),
+      completed: Number(counts.rawPairingCompleted),
+    };
 
     return {
       total,
@@ -552,6 +566,15 @@ export class AssetJobRepository {
       notStarted: number;
       pipeline: Record<string, { total: number; completed: number }>;
     };
+  }
+
+  async isRawAsset(assetId: string): Promise<boolean> {
+    const asset = await this.db
+      .selectFrom('asset')
+      .select(sql<boolean>`asset.is_raw`.as('isRaw'))
+      .where('id', '=', asUuid(assetId))
+      .executeTakeFirst();
+    return asset?.isRaw ?? false;
   }
 
   async queueAssetTasks(taskName: ForkAssetTaskName, assetIds: string[]): Promise<void> {

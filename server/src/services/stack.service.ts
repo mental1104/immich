@@ -15,9 +15,12 @@ import { UUIDAssetIDParamDto } from 'src/validation.js';
 export class StackService extends BaseService {
   /** 元数据提取完成后尝试唯一 RAW 配对；仅新建成功时通知用户刷新堆叠。 */
   @OnEvent({ name: 'AssetMetadataExtracted' })
-  async onAssetMetadataExtracted({ assetId, userId, source }: ArgOf<'AssetMetadataExtracted'>) {
+  async onAssetMetadataExtracted({ assetId, userId, source, isRaw }: ArgOf<'AssetMetadataExtracted'>) {
     // 编辑侧写文件不应把用户刚拆开的堆叠自动重建。
     if (source === 'sidecar-write') {
+      return;
+    }
+    if (!(isRaw ?? (await this.assetJobRepository.isRawAsset(assetId)))) {
       return;
     }
     await this.jobRepository.queue({ name: JobName.AssetStackRawPair, data: { assetId, ownerId: userId } });
@@ -29,7 +32,7 @@ export class StackService extends BaseService {
     if (stackId) {
       await this.eventRepository.emit('StackCreate', { stackId, userId: ownerId });
     }
-    return stackId ? JobStatus.Success : JobStatus.Skipped;
+    return JobStatus.Success;
   }
 
   async search(auth: AuthDto, dto: StackSearchDto): Promise<StackResponseDto[]> {

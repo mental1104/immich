@@ -1767,6 +1767,7 @@ describe(MetadataService.name, () => {
       expect(mocks.event.emit).toHaveBeenCalledWith('AssetMetadataExtracted', {
         assetId: asset.id,
         userId: asset.ownerId,
+        isRaw: false,
       });
       expect(mocks.asset.findLivePhotoMatch).toHaveBeenCalledWith({
         ownerId: asset.ownerId,
