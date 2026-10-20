@@ -80,6 +80,7 @@ interface LivePhotoSearchOptions {
 }
 
 interface AssetBuilderOptions {
+  albumLike?: 'mine' | 'any';
   isFavorite?: boolean;
   isTrashed?: boolean;
   isDuplicate?: boolean;
@@ -794,6 +795,21 @@ export class AssetRepository {
               return options.personId ? eb.or([isOwner, inSharedAlbum(eb, auth.user.id)]) : isOwner;
             }),
           )
+          .$if(!!options.albumLike, (qb) =>
+            qb.where((eb) =>
+              eb.exists(
+                eb
+                  .selectFrom('activity')
+                  .innerJoin('user as liker', 'liker.id', 'activity.userId')
+                  .select('activity.id')
+                  .whereRef('activity.assetId', '=', 'asset.id')
+                  .where('activity.albumId', '=', options.albumId!)
+                  .where('activity.isLiked', '=', true)
+                  .where('liker.deletedAt', 'is', null)
+                  .$if(options.albumLike === 'mine', (qb) => qb.where('activity.userId', '=', auth.user.id)),
+              ),
+            ),
+          )
           .$if(options.isFavorite !== undefined, (qb) => qb.where('asset.isFavorite', '=', options.isFavorite!))
           .$if(!!options.assetType, (qb) => qb.where('asset.type', '=', options.assetType!))
           .$if(options.isDuplicate !== undefined, (qb) =>
@@ -884,6 +900,21 @@ export class AssetRepository {
               const isOwner = eb('asset.ownerId', '=', anyUuid(options.userIds!));
               return options.personId ? eb.or([isOwner, inSharedAlbum(eb, auth.user.id)]) : isOwner;
             }),
+          )
+          .$if(!!options.albumLike, (qb) =>
+            qb.where((eb) =>
+              eb.exists(
+                eb
+                  .selectFrom('activity')
+                  .innerJoin('user as liker', 'liker.id', 'activity.userId')
+                  .select('activity.id')
+                  .whereRef('activity.assetId', '=', 'asset.id')
+                  .where('activity.albumId', '=', options.albumId!)
+                  .where('activity.isLiked', '=', true)
+                  .where('liker.deletedAt', 'is', null)
+                  .$if(options.albumLike === 'mine', (qb) => qb.where('activity.userId', '=', auth.user.id)),
+              ),
+            ),
           )
           .$if(options.isFavorite !== undefined, (qb) => qb.where('asset.isFavorite', '=', options.isFavorite!))
           .$if(!!options.withStacked, (qb) =>

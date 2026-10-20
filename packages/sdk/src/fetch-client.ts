@@ -7690,8 +7690,9 @@ export function tagAssets({ id, bulkIdsDto }: {
 /**
  * Get time bucket
  */
-export function getTimeBucket({ albumId, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, timeBucket, userId, visibility, withCoordinates, withPartners, withStacked }: {
+export function getTimeBucket({ albumId, albumLike, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, timeBucket, userId, visibility, withCoordinates, withPartners, withStacked }: {
     albumId?: string;
+    albumLike?: AlbumLikeFilter;
     bbox?: string;
     isFavorite?: boolean;
     isTrashed?: boolean;
@@ -7713,6 +7714,7 @@ export function getTimeBucket({ albumId, bbox, isFavorite, isTrashed, key, order
         data: TimeBucketAssetResponseDto;
     }>(`/timeline/bucket${QS.query(QS.explode({
         albumId,
+        albumLike,
         bbox,
         isFavorite,
         isTrashed,
@@ -7735,8 +7737,9 @@ export function getTimeBucket({ albumId, bbox, isFavorite, isTrashed, key, order
 /**
  * Get time buckets
  */
-export function getTimeBuckets({ albumId, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, userId, visibility, withCoordinates, withPartners, withStacked }: {
+export function getTimeBuckets({ albumId, albumLike, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, userId, visibility, withCoordinates, withPartners, withStacked }: {
     albumId?: string;
+    albumLike?: AlbumLikeFilter;
     bbox?: string;
     isFavorite?: boolean;
     isTrashed?: boolean;
@@ -7757,6 +7760,7 @@ export function getTimeBuckets({ albumId, bbox, isFavorite, isTrashed, key, orde
         data: TimeBucketsResponseDto[];
     }>(`/timeline/buckets${QS.query(QS.explode({
         albumId,
+        albumLike,
         bbox,
         isFavorite,
         isTrashed,
@@ -8848,6 +8852,10 @@ export enum SyncRequestType {
     AssetFacesV2 = "AssetFacesV2",
     AssetFacesV3 = "AssetFacesV3",
     UserMetadataV1 = "UserMetadataV1"
+}
+export enum AlbumLikeFilter {
+    Mine = "mine",
+    Any = "any"
 }
 export enum AssetOrderBy {
     TakenAt = "takenAt",

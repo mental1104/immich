@@ -8,6 +8,11 @@ const TimeBucketQueryBaseSchema = z
   .object({
     userId: z.uuidv4().optional().describe('Filter assets by specific user ID'),
     albumId: z.uuidv4().optional().describe('Filter assets belonging to a specific album'),
+    albumLike: z
+      .enum(['mine', 'any'])
+      .optional()
+      .describe('Filter photo likes in the selected album (fork extension)')
+      .meta({ id: 'AlbumLikeFilter' }),
     personId: z.uuidv4().optional().describe('Filter assets containing a specific person (face recognition)'),
     tagId: z.uuidv4().optional().describe('Filter assets with a specific tag'),
     isFavorite: stringToBool

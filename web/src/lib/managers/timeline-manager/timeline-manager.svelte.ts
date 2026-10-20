@@ -305,11 +305,11 @@ export class TimelineManager extends VirtualScrollManager {
     this.updateViewportGeometry(false);
   }
 
-  async updateOptions(options: TimelineManagerOptions) {
+  async updateOptions(options: TimelineManagerOptions, force = false) {
     if (options.deferInit) {
       return;
     }
-    if (this.#options !== TimelineManager.#INIT_OPTIONS && isEqual(this.#options, options)) {
+    if (!force && this.#options !== TimelineManager.#INIT_OPTIONS && isEqual(this.#options, options)) {
       return;
     }
 

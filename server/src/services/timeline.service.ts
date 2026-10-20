@@ -45,6 +45,10 @@ export class TimelineService extends BaseService {
   }
 
   private async timeBucketChecks(auth: AuthDto, dto: TimeBucketDto) {
+    if (dto.albumLike && (!dto.albumId || auth.sharedLink)) {
+      throw new BadRequestException('Album like filters require an album and an authenticated user');
+    }
+
     if (dto.visibility === AssetVisibility.Locked) {
       requireElevatedPermission(auth);
     }

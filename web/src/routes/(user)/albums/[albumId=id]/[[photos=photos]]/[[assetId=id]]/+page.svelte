@@ -4,6 +4,7 @@
   import { scrollMemoryClearer } from '$lib/actions/scroll-memory';
   import AlbumMap from '$lib/components/album-page/AlbumMap.svelte';
   import AlbumSummary from '$lib/components/album-page/AlbumSummary.svelte';
+  import SearchButton from '$lib/components/shared-components/search-bar/SearchButton.svelte';
   import ActivityStatus from '$lib/components/asset-viewer/ActivityStatus.svelte';
   import ActivityViewer from '$lib/components/asset-viewer/ActivityViewer.svelte';
   import HeaderActionButton from '$lib/components/HeaderActionButton.svelte';
@@ -46,7 +47,7 @@
   import { handlePromiseError } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, navigate, type AssetGridRouteSearchParams } from '$lib/utils/navigation';
-  import { AlbumUserRole, AssetVisibility, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
+  import { AlbumLikeFilter, AlbumUserRole, AssetVisibility, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider, Icon, IconButton, toastManager } from '@immich/ui';
   import {
     mdiAccountEye,
@@ -58,9 +59,10 @@
     mdiImagePlusOutline,
     mdiLink,
     mdiPlus,
+    mdiRefresh,
     mdiPresentationPlay,
   } from '@mdi/js';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
   import type { PageData } from './$types';
@@ -81,6 +83,22 @@
   let showAlbumUsers = $derived(timelineManager?.showAssetOwners ?? false);
 
   const timelineMultiSelectManager = new AssetMultiSelectManager();
+  let albumAssetFilter = $state<'all' | 'favorite' | 'mine' | 'any'>('all');
+  let wasViewing = false;
+
+  function selectAlbumAssetFilter(value: typeof albumAssetFilter) {
+    assetMultiSelectManager.clear();
+    timelineMultiSelectManager.clear();
+    albumAssetFilter = value;
+  }
+
+  $effect(() => {
+    const viewing = assetViewerManager.isViewing;
+    if (wasViewing && !viewing && albumAssetFilter !== 'all') {
+      untrack(() => handlePromiseError(timelineManager.updateOptions(options, true)));
+    }
+    wasViewing = viewing;
+  });
 
   const handleFavorite = async () => {
     try {
@@ -235,7 +253,19 @@
         timelineAlbumId: albumId,
       };
     }
-    return { albumId, order: album.order };
+    if (viewMode !== AlbumPageViewMode.VIEW) return { albumId, order: album.order };
+    return {
+      albumId,
+      order: album.order,
+      isFavorite: albumAssetFilter === 'favorite' ? true : undefined,
+      userId: albumAssetFilter === 'favorite' ? authManager.user.id : undefined,
+      albumLike:
+        albumAssetFilter === 'mine'
+          ? AlbumLikeFilter.Mine
+          : albumAssetFilter === 'any'
+            ? AlbumLikeFilter.Any
+            : undefined,
+    };
   });
 
   const isShared = $derived(viewMode === AlbumPageViewMode.SELECT_ASSETS ? false : album.albumUsers.length > 1);
@@ -414,6 +444,44 @@
                 {isEditor}
                 bind:description={() => album.description, (description) => (album = { ...album, description })}
               />
+              <section class="my-5" aria-label={$t('album_asset_filters')}>
+                <div class="flex flex-wrap items-center gap-2">
+                  <SearchButton
+                    checked
+                    active={albumAssetFilter === 'all'}
+                    onclick={() => selectAlbumAssetFilter('all')}>{$t('all')}</SearchButton
+                  >
+                  <SearchButton
+                    checked
+                    active={albumAssetFilter === 'favorite'}
+                    onclick={() => selectAlbumAssetFilter('favorite')}>{$t('album_filter_favorites')}</SearchButton
+                  >
+                  <SearchButton
+                    checked
+                    active={albumAssetFilter === 'mine'}
+                    onclick={() => selectAlbumAssetFilter('mine')}>{$t('album_filter_my_likes')}</SearchButton
+                  >
+                  <SearchButton
+                    checked
+                    active={albumAssetFilter === 'any'}
+                    onclick={() => selectAlbumAssetFilter('any')}>{$t('album_filter_any_likes')}</SearchButton
+                  >
+                  {#if albumAssetFilter !== 'all'}
+                    <IconButton
+                      icon={mdiRefresh}
+                      aria-label={$t('refresh')}
+                      size="small"
+                      variant="ghost"
+                      onclick={() => handlePromiseError(timelineManager.updateOptions(options, true))}
+                    />
+                    {#if timelineManager?.isInitialized}
+                      <span class="text-sm text-subtle"
+                        >{$t('album_filter_result_count', { values: { count: timelineManager.assetCount } })}</span
+                      >
+                    {/if}
+                  {/if}
+                </div>
+              </section>
             </section>
           {/if}
 
@@ -460,7 +528,10 @@
         {#if assetMultiSelectManager.isAllUserOwned}
           <FavoriteAction
             removeFavorite={assetMultiSelectManager.isAllFavorite}
-            onFavorite={(ids, isFavorite) => timelineManager.update(ids, (asset) => (asset.isFavorite = isFavorite))}
+            onFavorite={(ids, isFavorite) => {
+              timelineManager.update(ids, (asset) => (asset.isFavorite = isFavorite));
+              if (albumAssetFilter === 'favorite') handlePromiseError(timelineManager.updateOptions(options, true));
+            }}
           ></FavoriteAction>
         {/if}
         <ButtonContextMenu icon={mdiDotsVertical} title={$t('menu')} offset={{ x: 175, y: 25 }}>
