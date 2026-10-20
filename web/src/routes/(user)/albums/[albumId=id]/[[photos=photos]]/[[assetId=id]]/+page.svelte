@@ -47,7 +47,14 @@
   import { handlePromiseError } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, navigate, type AssetGridRouteSearchParams } from '$lib/utils/navigation';
-  import { AlbumLikeFilter, AlbumUserRole, AssetVisibility, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
+  import {
+    AlbumLikeFilter,
+    AssetTypeEnum,
+    AlbumUserRole,
+    AssetVisibility,
+    updateAlbumInfo,
+    type AlbumResponseDto,
+  } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider, Icon, IconButton, toastManager } from '@immich/ui';
   import {
     mdiAccountEye,
@@ -84,7 +91,15 @@
 
   const timelineMultiSelectManager = new AssetMultiSelectManager();
   let albumAssetFilter = $state<'all' | 'favorite' | 'mine' | 'any'>('all');
+  let albumAssetType = $state<AssetTypeEnum | undefined>(undefined);
+  const isAlbumFiltered = $derived(albumAssetFilter !== 'all' || albumAssetType !== undefined);
   let wasViewing = false;
+
+  function selectAlbumAssetType(value: AssetTypeEnum | undefined) {
+    assetMultiSelectManager.clear();
+    timelineMultiSelectManager.clear();
+    albumAssetType = value;
+  }
 
   function selectAlbumAssetFilter(value: typeof albumAssetFilter) {
     assetMultiSelectManager.clear();
@@ -94,7 +109,7 @@
 
   $effect(() => {
     const viewing = assetViewerManager.isViewing;
-    if (wasViewing && !viewing && albumAssetFilter !== 'all') {
+    if (wasViewing && !viewing && isAlbumFiltered) {
       untrack(() => handlePromiseError(timelineManager.updateOptions(options, true)));
     }
     wasViewing = viewing;
@@ -257,6 +272,7 @@
     return {
       albumId,
       order: album.order,
+      assetType: albumAssetType,
       isFavorite: albumAssetFilter === 'favorite' ? true : undefined,
       userId: albumAssetFilter === 'favorite' ? authManager.user.id : undefined,
       albumLike:
@@ -466,7 +482,7 @@
                     active={albumAssetFilter === 'any'}
                     onclick={() => selectAlbumAssetFilter('any')}>{$t('album_filter_any_likes')}</SearchButton
                   >
-                  {#if albumAssetFilter !== 'all'}
+                  {#if isAlbumFiltered}
                     <IconButton
                       icon={mdiRefresh}
                       aria-label={$t('refresh')}
@@ -480,6 +496,24 @@
                       >
                     {/if}
                   {/if}
+                </div>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <span class="me-2 text-sm text-subtle">{$t('media_type')}</span>
+                  <SearchButton
+                    checked
+                    active={albumAssetType === undefined}
+                    onclick={() => selectAlbumAssetType(undefined)}>{$t('all')}</SearchButton
+                  >
+                  <SearchButton
+                    checked
+                    active={albumAssetType === AssetTypeEnum.Image}
+                    onclick={() => selectAlbumAssetType(AssetTypeEnum.Image)}>{$t('image')}</SearchButton
+                  >
+                  <SearchButton
+                    checked
+                    active={albumAssetType === AssetTypeEnum.Video}
+                    onclick={() => selectAlbumAssetType(AssetTypeEnum.Video)}>{$t('video')}</SearchButton
+                  >
                 </div>
               </section>
             </section>

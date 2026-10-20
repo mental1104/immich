@@ -16399,6 +16399,15 @@
             }
           },
           {
+            "name": "assetType",
+            "required": false,
+            "in": "query",
+            "description": "Filter images or videos by media type",
+            "schema": {
+              "$ref": "#/components/schemas/AssetTypeEnum"
+            }
+          },
+          {
             "name": "bbox",
             "required": false,
             "in": "query",
@@ -16603,6 +16612,15 @@
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/AlbumLikeFilter"
+            }
+          },
+          {
+            "name": "assetType",
+            "required": false,
+            "in": "query",
+            "description": "Filter images or videos by media type",
+            "schema": {
+              "$ref": "#/components/schemas/AssetTypeEnum"
             }
           },
           {

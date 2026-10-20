@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 import { BBoxSchema } from 'src/dtos/bbox.dto.js';
-import { AssetOrderBySchema, AssetOrderSchema, AssetVisibilitySchema } from 'src/enum.js';
+import { AssetOrderBySchema, AssetOrderSchema, AssetTypeSchema, AssetVisibilitySchema } from 'src/enum.js';
 import { stringToBool } from 'src/validation.js';
 
 const TimeBucketQueryBaseSchema = z
@@ -13,6 +13,7 @@ const TimeBucketQueryBaseSchema = z
       .optional()
       .describe('Filter photo likes in the selected album (fork extension)')
       .meta({ id: 'AlbumLikeFilter' }),
+    assetType: AssetTypeSchema.optional().describe('Filter images or videos by media type'),
     personId: z.uuidv4().optional().describe('Filter assets containing a specific person (face recognition)'),
     tagId: z.uuidv4().optional().describe('Filter assets with a specific tag'),
     isFavorite: stringToBool

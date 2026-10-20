@@ -7690,9 +7690,10 @@ export function tagAssets({ id, bulkIdsDto }: {
 /**
  * Get time bucket
  */
-export function getTimeBucket({ albumId, albumLike, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, timeBucket, userId, visibility, withCoordinates, withPartners, withStacked }: {
+export function getTimeBucket({ albumId, albumLike, assetType, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, timeBucket, userId, visibility, withCoordinates, withPartners, withStacked }: {
     albumId?: string;
     albumLike?: AlbumLikeFilter;
+    assetType?: AssetTypeEnum;
     bbox?: string;
     isFavorite?: boolean;
     isTrashed?: boolean;
@@ -7715,6 +7716,7 @@ export function getTimeBucket({ albumId, albumLike, bbox, isFavorite, isTrashed,
     }>(`/timeline/bucket${QS.query(QS.explode({
         albumId,
         albumLike,
+        assetType,
         bbox,
         isFavorite,
         isTrashed,
@@ -7737,9 +7739,10 @@ export function getTimeBucket({ albumId, albumLike, bbox, isFavorite, isTrashed,
 /**
  * Get time buckets
  */
-export function getTimeBuckets({ albumId, albumLike, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, userId, visibility, withCoordinates, withPartners, withStacked }: {
+export function getTimeBuckets({ albumId, albumLike, assetType, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, userId, visibility, withCoordinates, withPartners, withStacked }: {
     albumId?: string;
     albumLike?: AlbumLikeFilter;
+    assetType?: AssetTypeEnum;
     bbox?: string;
     isFavorite?: boolean;
     isTrashed?: boolean;
@@ -7761,6 +7764,7 @@ export function getTimeBuckets({ albumId, albumLike, bbox, isFavorite, isTrashed
     }>(`/timeline/buckets${QS.query(QS.explode({
         albumId,
         albumLike,
+        assetType,
         bbox,
         isFavorite,
         isTrashed,
