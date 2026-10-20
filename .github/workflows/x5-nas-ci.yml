@@ -50,9 +50,10 @@ jobs:
           builder_info="$(docker buildx inspect immich-nas-x5 2>/dev/null || true)"
           if [[ -n "${builder_info}" ]] && {
             ! grep -Fq 'memory="7g"' <<<"${builder_info}" ||
-            ! grep -Fq 'memory-swap="8g"' <<<"${builder_info}";
+            ! grep -Fq 'memory-swap="8g"' <<<"${builder_info}" ||
+            ! grep -Fq 'Max Used Space: 10GiB' <<<"${builder_info}";
           }; then
-            echo "Recreating BuildKit builder with updated memory limits."
+            echo "Recreating BuildKit builder with updated resource and cache limits."
             docker buildx rm immich-nas-x5
             builder_info=""
           fi

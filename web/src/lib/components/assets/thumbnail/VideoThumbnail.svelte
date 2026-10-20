@@ -3,10 +3,19 @@
   import { Icon, LoadingSpinner } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiPauseCircleOutline, mdiPlayCircleOutline } from '@mdi/js';
   import { Duration } from 'luxon';
+  import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { getAssetHlsSessionUrl, getAssetMediaUrl } from '$lib/utils';
+  import { shouldPlaySmallVideoOriginal } from '$lib/utils/video-playback';
+  import { AssetMediaSize, getAssetInfo } from '@immich/sdk';
+  import 'hls-video-element';
+  import type HlsVideoElement from 'hls-video-element';
+  import Hls, { type HlsConfig } from 'hls.js';
   import type { ClassValue } from 'svelte/elements';
 
   interface Props {
     url: string;
+    hlsUrl?: string;
+    hlsAssetId?: string;
     durationInSeconds?: number;
     enablePlayback?: boolean;
     playbackOnIconHover?: boolean;
@@ -19,6 +28,8 @@
 
   let {
     url,
+    hlsUrl,
+    hlsAssetId,
     durationInSeconds = 0,
     enablePlayback = $bindable(false),
     playbackOnIconHover = false,
@@ -33,6 +44,95 @@
   let loading = $state(true);
   let error = $state(false);
   let player: HTMLVideoElement | undefined = $state();
+  let hlsPlayer: HlsVideoElement | undefined = $state();
+  let hlsDecisionReady = $state(false);
+  let useHlsPreview = $state(false);
+  let directOriginalUrl = $state<string>();
+  let activeSession: { assetId: string; id: string } | undefined;
+  const sessionIdRegex = /\/video\/stream\/([0-9a-f-]{36})\//;
+  const hlsConfig: Partial<HlsConfig> = {
+    startLevel: 0,
+    xhrSetup: (xhr, url) => {
+      const authenticatedUrl = new URL(url, location.origin);
+      for (const [key, value] of Object.entries(authManager.params)) {
+        if (value) {
+          authenticatedUrl.searchParams.set(key, value as string);
+        }
+      }
+      xhr.open('GET', authenticatedUrl.href);
+    },
+  };
+
+  const releaseSession = () => {
+    const session = activeSession;
+    activeSession = undefined;
+    if (session) {
+      void fetch(getAssetHlsSessionUrl(session.assetId, session.id), { method: 'DELETE' }).catch(() =>
+        console.warn('Failed to release HLS thumbnail session', session),
+      );
+    }
+  };
+
+  $effect(() => {
+    if (!enablePlayback || !hlsUrl || !hlsAssetId) {
+      hlsDecisionReady = false;
+      useHlsPreview = false;
+      directOriginalUrl = undefined;
+      return;
+    }
+    let cancelled = false;
+    loading = true;
+    error = false;
+    hlsDecisionReady = false;
+    void getAssetInfo({ id: hlsAssetId, ...authManager.params })
+      .then((asset) => {
+        if (cancelled) {
+          return;
+        }
+        const smallOriginal = shouldPlaySmallVideoOriginal(asset.exifInfo?.fileSizeInByte, false);
+        useHlsPreview = !smallOriginal;
+        directOriginalUrl = smallOriginal
+          ? getAssetMediaUrl({ id: hlsAssetId, size: AssetMediaSize.Original, edited: false })
+          : undefined;
+        hlsDecisionReady = true;
+      })
+      .catch(() => {
+        if (!cancelled) {
+          useHlsPreview = true;
+          hlsDecisionReady = true;
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  $effect(() => {
+    if (!enablePlayback || !hlsDecisionReady || !useHlsPreview || !hlsUrl || !hlsAssetId || !hlsPlayer) {
+      return;
+    }
+    const element = hlsPlayer;
+    element.config = hlsConfig;
+    element.src = hlsUrl;
+    queueMicrotask(() => {
+      const api = element.api;
+      if (!api) {
+        return;
+      }
+      api.on(Hls.Events.MANIFEST_PARSED, () => {
+        const id = api.levels[0]?.url[0]?.match(sessionIdRegex)?.[1];
+        if (id) {
+          activeSession = { assetId: hlsAssetId, id };
+        }
+      });
+    });
+    return () => {
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+      releaseSession();
+    };
+  });
 
   $effect(() => {
     if (!enablePlayback) {
@@ -62,7 +162,29 @@
   };
 </script>
 
-{#if enablePlayback}
+{#if enablePlayback && hlsUrl && hlsDecisionReady && useHlsPreview}
+  <hls-video
+    bind:this={hlsPlayer}
+    class={cleanClass('h-full w-full object-cover', className)}
+    class:rounded-xl={curve}
+    muted
+    autoplay
+    loop
+    onplaying={() => {
+      loading = false;
+      error = false;
+    }}
+    onerror={() => {
+      error = true;
+      loading = false;
+    }}
+    ontimeupdate={({ currentTarget }) => {
+      const video = currentTarget as HTMLVideoElement;
+      const remaining = video.duration - video.currentTime;
+      remainingSeconds = Math.min(Math.ceil(Number.isNaN(remaining) ? Infinity : remaining), durationInSeconds);
+    }}
+  ></hls-video>
+{:else if enablePlayback && (!hlsUrl || (hlsDecisionReady && !useHlsPreview))}
   <video
     bind:this={player}
     class={cleanClass('h-full w-full object-cover', className)}
@@ -70,12 +192,17 @@
     muted
     autoplay
     loop
-    src={url}
+    src={directOriginalUrl ?? url}
     onplay={() => {
       loading = false;
       error = false;
     }}
     onerror={() => {
+      if (directOriginalUrl && hlsUrl) {
+        directOriginalUrl = undefined;
+        useHlsPreview = true;
+        return;
+      }
       if (!player?.src) {
         // Do not show error when the URL is empty.
         return;

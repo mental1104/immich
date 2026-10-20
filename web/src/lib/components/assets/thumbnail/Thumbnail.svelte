@@ -1,10 +1,11 @@
 <script lang="ts">
   import { ProjectionType } from '$lib/constants';
   import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import type { TimelineAsset } from '$lib/managers/timeline-manager/types';
   import { mediaQueryManager } from '$lib/stores/media-query-manager.svelte';
   import { locale, playVideoThumbnailOnHover } from '$lib/stores/preferences.store';
-  import { getAssetMediaUrl, getAssetPlaybackUrl } from '$lib/utils';
+  import { getAssetHlsUrl, getAssetMediaUrl, getAssetPlaybackUrl } from '$lib/utils';
   import { moveFocus } from '$lib/utils/focus-util';
   import { currentUrlReplaceAssetId } from '$lib/utils/navigation';
   import { getAltText } from '$lib/utils/thumbnail-util';
@@ -257,6 +258,8 @@
           <VideoThumbnail
             class="group-focus-visible:rounded-lg"
             url={getAssetPlaybackUrl({ id: asset.id, cacheKey: asset.thumbhash })}
+            hlsUrl={featureFlagsManager.value.realtimeTranscoding ? getAssetHlsUrl(asset.id) : undefined}
+            hlsAssetId={asset.id}
             enablePlayback={mouseOver && $playVideoThumbnailOnHover}
             curve={selected}
             durationInSeconds={asset.duration ? asset.duration / 1000 : 0}
@@ -268,6 +271,8 @@
           <VideoThumbnail
             class="group-focus-visible:rounded-lg"
             url={getAssetPlaybackUrl({ id: asset.livePhotoVideoId, cacheKey: asset.thumbhash })}
+            hlsUrl={featureFlagsManager.value.realtimeTranscoding ? getAssetHlsUrl(asset.livePhotoVideoId) : undefined}
+            hlsAssetId={asset.livePhotoVideoId}
             enablePlayback={mouseOver && $playVideoThumbnailOnHover}
             pauseIcon={mdiMotionPauseOutline}
             playIcon={mdiMotionPlayOutline}
