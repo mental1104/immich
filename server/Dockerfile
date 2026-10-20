@@ -69,7 +69,7 @@ FROM plugin-sdk AS plugins
 
 ARG TARGETPLATFORM
 
-COPY --from=ghcr.io/jdx/mise:2026.10.13-debian@sha256:ee720baa7ceb54ccaf112b645f4b90c66320874b9feb87eed80dd5ccc5ce1f84 /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=ghcr.io/jdx/mise:2026.9.17-debian@sha256:b6716f4187e28d17b1bf134181b0448e90c2a702001bafc43597cedde26869a8 /usr/local/bin/mise /usr/local/bin/mise
 
 COPY ./mise.toml ./mise.toml
 COPY ./mise.lock ./mise.lock
