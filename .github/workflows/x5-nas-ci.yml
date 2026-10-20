@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - x5-viewer-v3.3.3
+      - nas-dev-x5-jpg
   workflow_dispatch:
 
 permissions:
