@@ -5,6 +5,8 @@
   import { Button, Text } from '@immich/ui';
   import {
     mdiAccount,
+    mdiAspectRatio,
+    mdiShapeOutline,
     mdiCalendarBlank,
     mdiChevronDown,
     mdiChevronUp,
@@ -17,6 +19,8 @@
   import SearchLocationSection from './SearchLocationSection.svelte';
   import { getAllTags, type PersonResponseDto, type TagResponseDto } from '@immich/sdk';
   import SearchMediaSection from './SearchMediaSection.svelte';
+  import SearchMediaCategorySection from './SearchMediaCategorySection.svelte';
+  import SearchResolutionSection from './SearchResolutionSection.svelte';
   import SearchCameraSection from './SearchCameraSection.svelte';
   import SearchDateSection from './SearchDateSection.svelte';
   import SearchPeopleSection from './SearchPeopleSection.svelte';
@@ -89,13 +93,10 @@
   let selectedCategory = $derived(
     mediaCategories.find((category) => category.id === searchManager.filter.mediaCategory),
   );
-  let mediaTitle = $derived(
-    [
-      selectedCategory ? $t(selectedCategory.title) : getSearchMediaTitle(searchManager.filter.mediaType),
-      resolutionPresets.find((preset) => preset.value === searchManager.filter.resolution)?.label,
-    ]
-      .filter(Boolean)
-      .join(' · ') || undefined,
+  let mediaTitle = $derived(getSearchMediaTitle(searchManager.filter.mediaType));
+  let categoryTitle = $derived(selectedCategory ? $t(selectedCategory.title) : undefined);
+  let resolutionTitle = $derived(
+    resolutionPresets.find((preset) => preset.value === searchManager.filter.resolution)?.label,
   );
 
   let filters = [
@@ -138,6 +139,18 @@
       icon: mdiImage,
       title: $t('media'),
       activeTitle: () => mediaTitle,
+    },
+    {
+      name: 'mediaCategory',
+      icon: mdiShapeOutline,
+      title: $t('media_categories'),
+      activeTitle: () => categoryTitle,
+    },
+    {
+      name: 'resolution',
+      icon: mdiAspectRatio,
+      title: $t('resolution'),
+      activeTitle: () => resolutionTitle,
     },
   ];
 
@@ -248,6 +261,10 @@
             <SearchTagsSection bind:title={tagsTitle} parentPromise={tagsPromise} />
           {:else if activeFilter === 'media'}
             <SearchMediaSection />
+          {:else if activeFilter === 'mediaCategory'}
+            <SearchMediaCategorySection />
+          {:else if activeFilter === 'resolution'}
+            <SearchResolutionSection />
           {/if}
         </div>
       {/if}
