@@ -243,8 +243,11 @@ export const getAssetPlaybackUrl = (options: AssetUrlOptions) => {
   return createUrl(getAssetPlaybackPath(id), { ...authManager.params, c });
 };
 
-export const getAssetHlsUrl = (id: string) => {
-  return createUrl(`/assets/${id}/video/stream/main.m3u8`, authManager.params);
+export const getAssetHlsUrl = (id: string, preview = false) => {
+  return createUrl(`/assets/${id}/video/stream/main.m3u8`, {
+    ...authManager.params,
+    preview: preview ? true : undefined,
+  });
 };
 
 export const getAssetHlsSessionUrl = (id: string, sessionId: string) => {

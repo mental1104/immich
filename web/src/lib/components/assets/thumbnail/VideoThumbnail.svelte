@@ -52,6 +52,7 @@
   const sessionIdRegex = /\/video\/stream\/([0-9a-f-]{36})\//;
   const hlsConfig: Partial<HlsConfig> = {
     startLevel: 0,
+    autoLevelCapping: 0,
     xhrSetup: (xhr, url) => {
       const authenticatedUrl = new URL(url, location.origin);
       for (const [key, value] of Object.entries(authManager.params)) {

@@ -258,7 +258,7 @@
           <VideoThumbnail
             class="group-focus-visible:rounded-lg"
             url={getAssetPlaybackUrl({ id: asset.id, cacheKey: asset.thumbhash })}
-            hlsUrl={featureFlagsManager.value.realtimeTranscoding ? getAssetHlsUrl(asset.id) : undefined}
+            hlsUrl={featureFlagsManager.value.realtimeTranscoding ? getAssetHlsUrl(asset.id, true) : undefined}
             hlsAssetId={asset.id}
             enablePlayback={mouseOver && $playVideoThumbnailOnHover}
             curve={selected}
@@ -271,7 +271,9 @@
           <VideoThumbnail
             class="group-focus-visible:rounded-lg"
             url={getAssetPlaybackUrl({ id: asset.livePhotoVideoId, cacheKey: asset.thumbhash })}
-            hlsUrl={featureFlagsManager.value.realtimeTranscoding ? getAssetHlsUrl(asset.livePhotoVideoId) : undefined}
+            hlsUrl={featureFlagsManager.value.realtimeTranscoding
+              ? getAssetHlsUrl(asset.livePhotoVideoId, true)
+              : undefined}
             hlsAssetId={asset.livePhotoVideoId}
             enablePlayback={mouseOver && $playVideoThumbnailOnHover}
             pauseIcon={mdiMotionPauseOutline}
