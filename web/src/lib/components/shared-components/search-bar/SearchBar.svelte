@@ -90,7 +90,9 @@
 
   const onSubmit = () => {
     handlePromiseError(handleSearch());
-    saveSearchTerm(searchManager.filter.query);
+    if (searchManager.filter.query.trim()) {
+      saveSearchTerm(searchManager.filter.query);
+    }
   };
 
   const onClear = () => {
@@ -109,12 +111,15 @@
   };
 
   const onEnter = (event: KeyboardEvent) => {
-    if (!selectedId) {
+    if (event.key !== 'Enter' || event.isComposing) {
       return;
     }
-
     event.preventDefault();
-    searchFilters?.selectActiveOption();
+    if (selectedId) {
+      searchFilters?.selectActiveOption();
+    } else if (input?.reportValidity()) {
+      onSubmit();
+    }
   };
 
   const onInput = () => {
@@ -162,12 +167,12 @@
         {showSuggestions ? 'rounded-t-3xl shadow-[0_8px_20px_rgba(0,0,0,0.12)]' : 'rounded-3xl bg-gray-200'}
         {searchStore.isSearchEnabled ? 'border-light-200 bg-white dark:border-dark-600' : 'border-transparent'}"
         {placeholder}
-        required
         pattern="^(?!m:$).*$"
         bind:value={searchManager.filter.query}
         bind:this={input}
         onfocus={openDropdown}
         oninput={onInput}
+        onkeydown={onEnter}
         role="combobox"
         aria-controls={listboxId}
         aria-activedescendant={selectedId ?? ''}
@@ -178,7 +183,6 @@
           { shortcut: { key: 'Escape' }, onShortcut: onEscape },
           { shortcut: { key: 'ArrowUp' }, onShortcut: () => onArrow(-1) },
           { shortcut: { key: 'ArrowDown' }, onShortcut: () => onArrow(1) },
-          { shortcut: { key: 'Enter' }, onShortcut: onEnter, preventDefault: false },
           { shortcut: { key: 'ArrowDown', alt: true }, onShortcut: openDropdown },
         ]}
       />

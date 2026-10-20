@@ -42,9 +42,11 @@
   interface Props {
     albumGroups: string[];
     searchQuery: string;
+    onSearch: (options: { force?: boolean }) => void;
+    onReset: () => void;
   }
 
-  let { albumGroups, searchQuery = $bindable() }: Props = $props();
+  let { albumGroups, searchQuery = $bindable(), onSearch, onReset }: Props = $props();
 
   const flipOrdering = (ordering: string) => {
     return ordering === SortOrder.Asc ? SortOrder.Desc : SortOrder.Asc;
@@ -125,7 +127,13 @@
 
 <!-- Search Albums -->
 <div class="hidden h-10 xl:block xl:w-60 2xl:w-80">
-  <SearchBar placeholder={$t('search_albums_and_groups')} bind:name={searchQuery} showLoadingSpinner={false} />
+  <SearchBar
+    placeholder={$t('search_albums_and_groups')}
+    bind:name={searchQuery}
+    {onSearch}
+    {onReset}
+    showLoadingSpinner={false}
+  />
 </div>
 
 <!-- Create Album -->

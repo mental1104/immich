@@ -19,13 +19,21 @@
   let { data }: Props = $props();
 
   let searchQuery = $state('');
+  let searchInput = $state('');
+
+  const onSearch = ({ force }: { force?: boolean }) => {
+    if (force) searchQuery = searchInput;
+  };
+  const onReset = () => {
+    searchQuery = '';
+  };
   let albumGroups: string[] = $state([]);
 </script>
 
 <UserPageLayout title={data.meta.title} use={[[scrollMemory, { routeStartsWith: Route.albums() }]]}>
   {#snippet buttons()}
     <div class="flex place-items-center gap-2">
-      <AlbumsControls {albumGroups} bind:searchQuery />
+      <AlbumsControls {albumGroups} bind:searchQuery={searchInput} {onSearch} {onReset} />
     </div>
   {/snippet}
 
@@ -39,7 +47,13 @@
       />
     </div>
     <div class="w-60">
-      <SearchBar placeholder={$t('search_albums_and_groups')} bind:name={searchQuery} showLoadingSpinner={false} />
+      <SearchBar
+        placeholder={$t('search_albums_and_groups')}
+        bind:name={searchInput}
+        {onSearch}
+        {onReset}
+        showLoadingSpinner={false}
+      />
     </div>
   </div>
 
