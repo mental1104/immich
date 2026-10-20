@@ -484,6 +484,11 @@ export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearc
         .innerJoin('asset_exif', 'asset.id', 'asset_exif.assetId')
         .where('asset_exif.make', options.make === null ? 'is' : '=', options.make!),
     )
+    .$if(!!options.deviceModels?.length, (qb) =>
+      qb
+        .innerJoin('asset_exif', 'asset.id', 'asset_exif.assetId')
+        .where('asset_exif.model', 'in', options.deviceModels!),
+    )
     .$if(options.model !== undefined, (qb) =>
       qb
         .innerJoin('asset_exif', 'asset.id', 'asset_exif.assetId')

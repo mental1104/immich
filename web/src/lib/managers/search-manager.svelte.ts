@@ -79,6 +79,7 @@ class SearchManager {
         state: this.#withNullAsEmptyString(searchQuery.state),
         city: this.#withNullAsEmptyString(searchQuery.city),
       },
+      deviceModels: searchQuery.deviceModels,
       camera: {
         make: this.#withNullAsEmptyString(searchQuery.make),
         model: this.#withNullAsEmptyString(searchQuery.model),
@@ -136,6 +137,7 @@ class SearchManager {
       make: this.#emptyStringToNull(this.filter.camera.make),
       model: this.#emptyStringToNull(this.filter.camera.model),
       lensModel: this.#emptyStringToNull(this.filter.camera.lensModel),
+      deviceModels: this.filter.deviceModels?.length ? this.filter.deviceModels : undefined,
       takenAfter: this.filter.date.takenAfter
         ? asLocalTimeISO(this.filter.date.takenAfter.startOf('day') as DateTime<true>)
         : undefined,

@@ -71,6 +71,7 @@ export type SearchFilter = {
   location: SearchLocationFilter;
   queryAssetId?: string;
   camera: SearchCameraFilter;
+  deviceModels?: string[];
   date: SearchDateFilter;
   display: SearchDisplayFilters;
   mediaType: MediaType;

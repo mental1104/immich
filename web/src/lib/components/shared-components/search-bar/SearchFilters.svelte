@@ -5,6 +5,8 @@
   import { Button, Text } from '@immich/ui';
   import {
     mdiAccount,
+    mdiCamera,
+    mdiCellphone,
     mdiAspectRatio,
     mdiShapeOutline,
     mdiCalendarBlank,
@@ -22,6 +24,8 @@
   import SearchMediaCategorySection from './SearchMediaCategorySection.svelte';
   import SearchResolutionSection from './SearchResolutionSection.svelte';
   import SearchCameraSection from './SearchCameraSection.svelte';
+  import SearchDeviceSection from './SearchDeviceSection.svelte';
+  import { cameraLabel, selectedDeviceLabel } from '$lib/utils/capture-devices';
   import SearchDateSection from './SearchDateSection.svelte';
   import SearchPeopleSection from './SearchPeopleSection.svelte';
   import SearchTagsSection from './SearchTagsSection.svelte';
@@ -99,6 +103,18 @@
     resolutionPresets.find((preset) => preset.value === searchManager.filter.resolution)?.label,
   );
 
+  let deviceTitle = $derived(selectedDeviceLabel(searchManager.filter.deviceModels));
+  let cameraTitle = $derived(
+    [
+      searchManager.filter.camera.model
+        ? cameraLabel(searchManager.filter.camera.model)
+        : searchManager.filter.camera.make,
+      searchManager.filter.camera.lensModel,
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined,
+  );
+
   let filters = [
     {
       name: 'type',
@@ -139,6 +155,18 @@
       icon: mdiImage,
       title: $t('media'),
       activeTitle: () => mediaTitle,
+    },
+    {
+      name: 'device',
+      icon: mdiCellphone,
+      title: $t('capture_device'),
+      activeTitle: () => deviceTitle,
+    },
+    {
+      name: 'camera',
+      icon: mdiCamera,
+      title: $t('camera_lens'),
+      activeTitle: () => cameraTitle,
     },
     {
       name: 'mediaCategory',
@@ -261,6 +289,10 @@
             <SearchTagsSection bind:title={tagsTitle} parentPromise={tagsPromise} />
           {:else if activeFilter === 'media'}
             <SearchMediaSection />
+          {:else if activeFilter === 'device'}
+            <SearchDeviceSection />
+          {:else if activeFilter === 'camera'}
+            <SearchCameraSection />
           {:else if activeFilter === 'mediaCategory'}
             <SearchMediaCategorySection />
           {:else if activeFilter === 'resolution'}
@@ -277,7 +309,6 @@
         <div class="overflow-hidden">
           <div class="my-5 h-px w-full bg-light-200 dark:bg-dark-600"></div>
           <div class="px-5">
-            <SearchCameraSection />
             {#if authManager.authenticated && authManager.preferences.ratings.enabled}
               <SearchRatingsSection />
             {/if}

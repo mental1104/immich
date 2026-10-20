@@ -2490,6 +2490,8 @@ export type MetadataSearchDto = {
     cursor?: string;
     /** Filter by description text */
     description?: string;
+    /** Match any device model alias; structured searches use filter.model.in (fork extension) */
+    deviceModels?: string[];
     /** Filter by encoded video file path */
     encodedVideoPath?: string;
     filter?: SearchFilter;
@@ -2639,6 +2641,8 @@ export type RandomSearchDto = {
     createdAfter?: string;
     /** Filter by creation date (before) */
     createdBefore?: string;
+    /** Match any device model alias; structured searches use filter.model.in (fork extension) */
+    deviceModels?: string[];
     filter?: SearchFilter;
     /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
     isDeltaScreenshot?: boolean;
@@ -2724,6 +2728,8 @@ export type SmartSearchDto = {
     createdAfter?: string;
     /** Filter by creation date (before) */
     createdBefore?: string;
+    /** Match any device model alias; structured searches use filter.model.in (fork extension) */
+    deviceModels?: string[];
     filter?: SearchFilter;
     /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
     isDeltaScreenshot?: boolean;
@@ -2815,6 +2821,8 @@ export type StatisticsSearchDto = {
     createdBefore?: string;
     /** Filter by description text */
     description?: string;
+    /** Match any device model alias; structured searches use filter.model.in (fork extension) */
+    deviceModels?: string[];
     filter?: SearchFilter;
     /** Filter landscape 1680x1120 Delta GBA screenshot images (fork extension) */
     isDeltaScreenshot?: boolean;
@@ -6726,12 +6734,13 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, isDeltaScreenshot, isEncoded, isFavorite, isInAlbum, isMotion, isNintendo3DsScreenshot, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, isSteamScreenshot, isSwitchScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, resolution, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
+export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, deviceModels, isDeltaScreenshot, isEncoded, isFavorite, isInAlbum, isMotion, isNintendo3DsScreenshot, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, isSteamScreenshot, isSwitchScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, resolution, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
     albumIds?: string[];
     city?: string | null;
     country?: string | null;
     createdAfter?: string;
     createdBefore?: string;
+    deviceModels?: string[];
     isDeltaScreenshot?: boolean;
     isEncoded?: boolean;
     isFavorite?: boolean;
@@ -6778,6 +6787,7 @@ export function searchLargeAssets({ albumIds, city, country, createdAfter, creat
         country,
         createdAfter,
         createdBefore,
+        deviceModels,
         isDeltaScreenshot,
         isEncoded,
         isFavorite,

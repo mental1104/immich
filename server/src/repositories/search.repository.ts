@@ -92,6 +92,7 @@ export interface SearchPathOptions {
 }
 
 export interface SearchExifOptions {
+  deviceModels?: string[];
   city?: string | null;
   country?: string | null;
   lensModel?: string | null;

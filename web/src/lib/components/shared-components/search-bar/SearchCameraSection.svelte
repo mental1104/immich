@@ -1,106 +1,128 @@
 <script lang="ts">
-  import Combobox, { asComboboxOptions, asSelectedOption } from '$lib/components/shared-components/Combobox.svelte';
+  import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
+  import { getSearchSuggestions, SearchSuggestionType } from '@immich/sdk';
+  import { Text } from '@immich/ui';
+  import { MediaType } from '$lib/constants';
   import { searchManager } from '$lib/managers/search-manager.svelte';
   import { handlePromiseError } from '$lib/utils';
-  import { SearchSuggestionType, getSearchSuggestions } from '@immich/sdk';
-  import { Text } from '@immich/ui';
-  import { t } from 'svelte-i18n';
+  import { cameraLabel, isCameraMake, isCameraModel, isCameraLens } from '$lib/utils/capture-devices';
+  import SearchButton from './SearchButton.svelte';
 
   let filters = $derived(searchManager.filter.camera);
+  let makes = $state<string[]>([]);
+  let models = $state<string[]>([]);
+  let lensModels = $state<string[]>([]);
+  let make = $derived(filters.make || undefined);
+  let model = $derived(filters.model || undefined);
 
-  let makes: string[] = $state([]);
-  let models: string[] = $state([]);
-  let lensModels: string[] = $state([]);
+  const strings = (values: Array<string | null>) => values.filter((value): value is string => Boolean(value?.trim()));
+  const sorted = (values: string[]) =>
+    [...new Set(values)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  async function updateMakes() {
-    const results: Array<string | null> = await getSearchSuggestions({
-      $type: SearchSuggestionType.CameraMake,
-      includeNull: true,
-    });
+  onMount(() =>
+    handlePromiseError(
+      (async () => {
+        makes = sorted(
+          strings(await getSearchSuggestions({ $type: SearchSuggestionType.CameraMake })).filter(isCameraMake),
+        );
+      })(),
+    ),
+  );
 
-    makes = results.map((result) => result ?? '');
+  // 切换面板或快速切换机身时，旧请求不覆盖新选择的候选项，也不清除 URL 恢复的筛选。
+  $effect(() => {
+    const selectedMake = make;
+    let current = true;
+    models = [];
+    handlePromiseError(
+      (async () => {
+        const values = strings(
+          await getSearchSuggestions({ $type: SearchSuggestionType.CameraModel, make: selectedMake }),
+        );
+        if (current) models = sorted(values.filter(isCameraModel));
+      })(),
+    );
+    return () => {
+      current = false;
+    };
+  });
 
-    if (filters.make && !makes.includes(filters.make)) {
-      filters.make = undefined;
-    }
+  $effect(() => {
+    const selectedMake = make;
+    const selectedModel = model;
+    let current = true;
+    lensModels = [];
+    handlePromiseError(
+      (async () => {
+        const values = strings(
+          await getSearchSuggestions({
+            $type: SearchSuggestionType.CameraLensModel,
+            make: selectedMake,
+            model: selectedModel,
+          }),
+        );
+        if (current) lensModels = sorted(selectedMake || selectedModel ? values : values.filter(isCameraLens));
+      })(),
+    );
+    return () => {
+      current = false;
+    };
+  });
+
+  function prepare() {
+    searchManager.filter.deviceModels = undefined;
+    searchManager.filter.mediaType = MediaType.Image;
+    if (searchManager.filter.mediaCategory === 'phone-video') searchManager.filter.mediaCategory = undefined;
   }
 
-  async function updateModels(make?: string) {
-    const results: Array<string | null> = await getSearchSuggestions({
-      $type: SearchSuggestionType.CameraModel,
-      make,
-      includeNull: true,
-    });
-
-    models = results.map((result) => result ?? '');
-
-    if (filters.model && !models.includes(filters.model)) {
-      filters.model = undefined;
-    }
+  function selectMake(value?: string) {
+    prepare();
+    searchManager.filter.camera = { make: value };
   }
 
-  async function updateLensModels(make?: string, model?: string) {
-    const results: Array<string | null> = await getSearchSuggestions({
-      $type: SearchSuggestionType.CameraLensModel,
-      make,
-      model,
-      includeNull: true,
-    });
-
-    lensModels = results.map((result) => result ?? '');
-
-    if (filters.lensModel && !lensModels.includes(filters.lensModel)) {
-      filters.lensModel = undefined;
-    }
+  function selectModel(value?: string) {
+    prepare();
+    searchManager.filter.camera = { make: filters.make, model: value };
   }
 
-  const makeFilter = $derived(filters.make);
-  const modelFilter = $derived(filters.model);
-  const lensModelFilter = $derived(filters.lensModel);
-
-  // TODO replace by async $derived, at the latest when it's in stable https://svelte.dev/docs/svelte/await-expressions
-  $effect(() => {
-    handlePromiseError(updateMakes());
-  });
-  $effect(() => {
-    handlePromiseError(updateModels(makeFilter));
-  });
-  $effect(() => {
-    handlePromiseError(updateLensModels(makeFilter, modelFilter));
-  });
+  function selectLens(value?: string) {
+    prepare();
+    filters.lensModel = value;
+  }
 </script>
 
 <div id="camera-selection">
-  <Text fontWeight="medium" class="pb-5">{$t('camera')}</Text>
-  <div class="grid grid-auto-fit-40 gap-2">
-    <div class="w-full">
-      <Combobox
-        label={$t('make')}
-        onSelect={(option) => (filters.make = option?.value)}
-        options={asComboboxOptions(makes)}
-        placeholder={$t('search_camera_make')}
-        selectedOption={asSelectedOption(makeFilter)}
-      />
+  <Text class="pb-5">{$t('camera_lens_description')}</Text>
+  <fieldset>
+    <Text class="pb-3">{$t('make')}</Text>
+    <div class="flex flex-wrap gap-2">
+      <SearchButton checked active={!make} onclick={() => selectMake()}>{$t('all')}</SearchButton>
+      {#each makes as value (value)}
+        <SearchButton checked active={make === value} onclick={() => selectMake(value)}>{value}</SearchButton>
+      {/each}
     </div>
-
-    <div class="w-full">
-      <Combobox
-        label={$t('model')}
-        onSelect={(option) => (filters.model = option?.value)}
-        options={asComboboxOptions(models)}
-        placeholder={$t('search_camera_model')}
-        selectedOption={asSelectedOption(modelFilter)}
-      />
+  </fieldset>
+  <fieldset class="mt-5">
+    <Text class="pb-3">{$t('model')}</Text>
+    <div class="flex flex-wrap gap-2">
+      <SearchButton checked active={!model} onclick={() => selectModel()}>{$t('all')}</SearchButton>
+      {#each models as value (value)}
+        <SearchButton checked active={model === value} onclick={() => selectModel(value)}
+          >{cameraLabel(value)}</SearchButton
+        >
+      {/each}
     </div>
-
-    <div class="w-full">
-      <Combobox
-        label={$t('lens_model')}
-        onSelect={(option) => (filters.lensModel = option?.value)}
-        options={asComboboxOptions(lensModels)}
-        placeholder={$t('search_camera_lens_model')}
-        selectedOption={asSelectedOption(lensModelFilter)}
-      />
+  </fieldset>
+  <fieldset class="mt-5">
+    <Text class="pb-3">{$t('lens_model')}</Text>
+    <div class="flex flex-wrap gap-2">
+      <SearchButton checked active={!filters.lensModel} onclick={() => selectLens()}>{$t('all')}</SearchButton>
+      {#each lensModels as value (value)}
+        <SearchButton checked active={filters.lensModel === value} onclick={() => selectLens(value)}
+          >{value}</SearchButton
+        >
+      {/each}
     </div>
-  </div>
+  </fieldset>
 </div>

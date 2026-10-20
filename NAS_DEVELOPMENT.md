@@ -85,3 +85,11 @@ NEF 优先使用相机内嵌 JPEG 生成预览及浏览器全尺寸副本，避�
 完成元数据提取后，仅在拍摄参数精确匹配且候选唯一时，将 NEF/DNG 与 JPG/JPEG/HEIC/HEIF 加入原有堆叠，以普通成片为封面。要求用户、图库、可见性、相机型号、拍摄时间、快门、光圈、焦段和 ISO 相同；不要求文件名、目录或厂商字段相同。多个候选、缺失元数据、已堆叠、回收站、锁定或隐藏资源均不自动合并。使用事务、用户范围事务锁和资产行锁保证并发与重试安全；不修改、删除或移动原片。不新增 API、数据库列或迁移。
 
 配对测试使用 PostgreSQL 临时表，位于 `server/test/medium/specs/utils/raw-pair.spec.ts`。现有图库需要一次受限回填：仅调用同一配对方法，并对 NEF 重新生成衍生预览；结果和回退用堆叠 ID 记录在仓库外私有目录。
+
+## 设备与相机镜头快捷筛选
+
+Web 搜索顶部的“设备”动态列出当前用户图库建议接口返回的 iPhone、DJI / Insta360 和其他设备；产品名与 EXIF 型号别名合并，原始字段不改写。Pocket 3 的 PP-101、Action 5 Pro 的 AC004 等映射参考 DJI 安全概要；Mini 4 Pro 的 FC8482 对应关系见 ExifTool 原始样本报告。仅实际出现的别名参与请求，不保存个人设备清单或数量到代码。
+
+新增兼容搜索可选 `deviceModels` 字符串数组（1–50 项），匹配任一原始型号，沿用原有权限、分页与搜索统计；结构化搜索使用已有 `filter.model.in`。相机与镜头快捷项继续使用已有 make/model/lensModel 参数及鉴权后的候选接口，仅展示佳能、尼康、索尼机身；镜头随机身联动。设备与相机来源选择会互相清除旧来源条件并切到图片类型，分辨率、日期等其他筛选仍可组合。只调整 Web 和兼容搜索可选字段，不修改移动端、原片或元数据，不需要迁移或任务重跑。
+
+别名参考：[DJI Pocket 3 安全概要](https://dl.djicdn.com/downloads/DJI_Osmo_Pocket_3/SG/DJI_Osmo_Pocket_3_Safety_Guidelines_24_lan_v1.0.pdf)、[Action 5 Pro 安全概要](https://dl.djicdn.com/downloads/DJI_Osmo_Action_5_Pro/SG/20250523/DJI_Osmo_Action_5_Pro_Safety_Guidelines.pdf)、[ExifTool Mini 4 Pro 样本报告](https://exiftool.org/forum/index.php?topic=15537.0)。

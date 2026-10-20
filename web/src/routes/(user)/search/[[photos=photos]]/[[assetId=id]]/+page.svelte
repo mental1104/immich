@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { selectedDeviceLabel } from '$lib/utils/capture-devices';
   import { afterNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
   import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
@@ -255,6 +256,7 @@
       city: $t('city'),
       country: $t('country'),
       state: $t('state'),
+      deviceModels: $t('capture_device'),
       make: $t('camera_brand'),
       model: $t('camera_model'),
       lensModel: $t('lens_model'),
@@ -347,6 +349,8 @@
                 {getHumanReadableDate(value)}
               {:else if searchKey === 'orientation' && (value === 'landscape' || value === 'portrait')}
                 {$t(value)}
+              {:else if searchKey === 'deviceModels' && Array.isArray(value)}
+                {selectedDeviceLabel(value)}
               {:else if searchKey === 'personIds' && Array.isArray(value)}
                 {#await getPersonName(value) then personName}
                   {personName}

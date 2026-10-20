@@ -11791,6 +11791,22 @@
             }
           },
           {
+            "name": "deviceModels",
+            "required": false,
+            "in": "query",
+            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
             "name": "isDeltaScreenshot",
             "required": false,
             "in": "query",
@@ -24139,6 +24155,17 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "deviceModels": {
+            "deprecated": true,
+            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
           "encodedVideoPath": {
             "deprecated": true,
             "description": "Filter by encoded video file path",
@@ -27013,6 +27040,17 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "deviceModels": {
+            "deprecated": true,
+            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
           "filter": {
             "$ref": "#/components/schemas/SearchFilter",
             "x-immich-history": [
@@ -29317,6 +29355,17 @@
             ],
             "x-immich-state": "Deprecated"
           },
+          "deviceModels": {
+            "deprecated": true,
+            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
           "filter": {
             "$ref": "#/components/schemas/SearchFilter",
             "x-immich-history": [
@@ -30138,6 +30187,17 @@
               }
             ],
             "x-immich-state": "Deprecated"
+          },
+          "deviceModels": {
+            "deprecated": true,
+            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
           },
           "filter": {
             "$ref": "#/components/schemas/SearchFilter",

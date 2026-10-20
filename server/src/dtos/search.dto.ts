@@ -81,6 +81,13 @@ const BaseSearchSchema = z.object({
   country: z.string().nullable().optional().describe('Filter by country name').meta(DEPRECATED_FLAT_FIELD),
   make: z.string().nullable().optional().describe('Filter by camera make').meta(DEPRECATED_FLAT_FIELD),
   model: z.string().nullable().optional().describe('Filter by camera model').meta(DEPRECATED_FLAT_FIELD),
+  deviceModels: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Match any device model alias; structured searches use filter.model.in (fork extension)')
+    .meta({ deprecated: true }),
   lensModel: z.string().nullable().optional().describe('Filter by lens model').meta(DEPRECATED_FLAT_FIELD),
   isNotInAlbum: z.boolean().optional().describe('Filter assets not in any album').meta(DEPRECATED_FLAT_FIELD),
   isInAlbum: z.boolean().optional().describe('Filter assets in any album (fork extension)').meta({ deprecated: true }),
