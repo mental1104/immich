@@ -153,9 +153,10 @@
   let filteredAlbums = $derived(
     normalizedSearchQuery
       ? albums.filter(
-          ({ albumName, description }) =>
+          ({ albumName, description, customGroupName }) =>
             normalizeSearchString(albumName).includes(normalizedSearchQuery) ||
-            normalizeSearchString(description).includes(normalizedSearchQuery),
+            normalizeSearchString(description ?? '').includes(normalizedSearchQuery) ||
+            normalizeSearchString(customGroupName?.trim() || $t('ungrouped')).includes(normalizedSearchQuery),
         )
       : albums,
   );

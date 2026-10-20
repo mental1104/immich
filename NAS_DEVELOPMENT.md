@@ -93,3 +93,9 @@ Web 搜索顶部的“设备”动态列出当前用户图库建议接口返回�
 新增兼容搜索可选 `deviceModels` 字符串数组（1–50 项），匹配任一原始型号，沿用原有权限、分页与搜索统计；结构化搜索使用已有 `filter.model.in`。相机与镜头快捷项继续使用已有 make/model/lensModel 参数及鉴权后的候选接口，仅展示佳能、尼康、索尼机身；镜头随机身联动。设备与相机来源选择会互相清除旧来源条件并切到图片类型，分辨率、日期等其他筛选仍可组合。只调整 Web 和兼容搜索可选字段，不修改移动端、原片或元数据，不需要迁移或任务重跑。
 
 别名参考：[DJI Pocket 3 安全概要](https://dl.djicdn.com/downloads/DJI_Osmo_Pocket_3/SG/DJI_Osmo_Pocket_3_Safety_Guidelines_24_lan_v1.0.pdf)、[Action 5 Pro 安全概要](https://dl.djicdn.com/downloads/DJI_Osmo_Action_5_Pro/SG/20250523/DJI_Osmo_Action_5_Pro_Safety_Guidelines.pdf)、[ExifTool Mini 4 Pro 样本报告](https://exiftool.org/forum/index.php?topic=15537.0)。
+
+## 相簿名称、描述与分组联合搜索
+
+Web 相簿列表的搜索会对相簿名、描述和自定义分组名称分别匹配，继续复用原有去首尾空格、不区分大小写与去重音规则。空分组按当前界面的“未分组”名称参与搜索。筛选始终在当前可见的自有／共享相簿范围内，不依赖是否正在按自定义分组显示，不新增接口、不改写相簿名或描述。
+
+仓库移动端 `mobile/lib/domain/services/remote_album.service.dart` 在本地对 name / description 做搜索，不读取 customGroupName；仅修改服务端接口不能使未修改的客户端按分组搜索。当前保留客户端和既有 API 行为，不自动向名称或描述注入分组标签。

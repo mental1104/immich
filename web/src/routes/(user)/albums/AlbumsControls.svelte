@@ -125,7 +125,7 @@
 
 <!-- Search Albums -->
 <div class="hidden h-10 xl:block xl:w-60 2xl:w-80">
-  <SearchBar placeholder={$t('search_albums')} bind:name={searchQuery} showLoadingSpinner={false} />
+  <SearchBar placeholder={$t('search_albums_and_groups')} bind:name={searchQuery} showLoadingSpinner={false} />
 </div>
 
 <!-- Create Album -->

@@ -1922,6 +1922,7 @@
   "screenshots_description": "Portrait images with a resolution of 1179 × 2556, classified by size.",
   "search": "Search",
   "search_albums": "Search albums",
+  "search_albums_and_groups": "Search album names, descriptions or groups",
   "search_by_context": "Search by context",
   "search_by_context_example": "Describe the photo you want to find, e.g. \"Children jumping on a trampoline\"",
   "search_by_description": "Search by description",

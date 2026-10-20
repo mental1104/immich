@@ -39,7 +39,7 @@
       />
     </div>
     <div class="w-60">
-      <SearchBar placeholder={$t('search_albums')} bind:name={searchQuery} showLoadingSpinner={false} />
+      <SearchBar placeholder={$t('search_albums_and_groups')} bind:name={searchQuery} showLoadingSpinner={false} />
     </div>
   </div>
 
