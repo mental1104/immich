@@ -33,6 +33,7 @@ export type TimelineAsset = {
   duration: number | null;
   projectionType: string | null;
   livePhotoVideoId: string | null;
+  livePhotoVideoFileSize?: number | null;
   city: string | null;
   country: string | null;
   people: string[] | null;

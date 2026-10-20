@@ -3322,6 +3322,8 @@ export type TimeBucketAssetResponseDto = {
     latitude?: (number | null)[];
     /** Array of live photo video asset IDs (null for non-live photos) */
     livePhotoVideoId: (string | null)[];
+    /** Array of live photo video file sizes in bytes (null when no motion video exists) */
+    livePhotoVideoFileSize?: (number | null)[];
     /** Array of UTC offset hours at the time each photo was taken. Positive values are east of UTC, negative values are west of UTC. Values may be fractional (e.g., 5.5 for +05:30, -9.75 for -09:45). Applying this offset to 'fileCreatedAt' will give you the time the photo was taken from the photographer's perspective. */
     localOffsetHours: number[];
     /** Array of longitude coordinates extracted from EXIF GPS data */

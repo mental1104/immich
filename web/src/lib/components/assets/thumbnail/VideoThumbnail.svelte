@@ -16,6 +16,7 @@
     url: string;
     hlsUrl?: string;
     hlsAssetId?: string;
+    knownFileSize?: number | null;
     durationInSeconds?: number;
     enablePlayback?: boolean;
     playbackOnIconHover?: boolean;
@@ -30,6 +31,7 @@
     url,
     hlsUrl,
     hlsAssetId,
+    knownFileSize,
     durationInSeconds = 0,
     enablePlayback = $bindable(false),
     playbackOnIconHover = false,
@@ -85,12 +87,16 @@
     loading = true;
     error = false;
     hlsDecisionReady = false;
-    void getAssetInfo({ id: hlsAssetId, ...authManager.params })
-      .then((asset) => {
+    const resolveFileSize =
+      knownFileSize === undefined
+        ? getAssetInfo({ id: hlsAssetId, ...authManager.params }).then((asset) => asset.exifInfo?.fileSizeInByte)
+        : Promise.resolve(knownFileSize);
+    void resolveFileSize
+      .then((fileSize) => {
         if (cancelled) {
           return;
         }
-        const smallOriginal = shouldPlaySmallVideoOriginal(asset.exifInfo?.fileSizeInByte, false);
+        const smallOriginal = shouldPlaySmallVideoOriginal(fileSize, false);
         useHlsPreview = !smallOriginal;
         directOriginalUrl = smallOriginal
           ? getAssetMediaUrl({ id: hlsAssetId, size: AssetMediaSize.Original, edited: false })

@@ -194,6 +194,7 @@ export class TimelineMonth {
         isTrashed: bucketAssets.isTrashed[i],
         isVideo: !bucketAssets.isImage[i],
         livePhotoVideoId: bucketAssets.livePhotoVideoId[i],
+        livePhotoVideoFileSize: bucketAssets.livePhotoVideoFileSize?.[i] ?? null,
         localDateTime,
         createdAt: fromISODateTimeUTC(bucketAssets.createdAt[i]).toLocal().toObject(),
         fileCreatedAt,

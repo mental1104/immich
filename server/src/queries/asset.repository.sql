@@ -389,6 +389,14 @@ with
       asset.type = 'IMAGE' as "isImage",
       asset."deletedAt" is not null as "isTrashed",
       "asset"."livePhotoVideoId",
+      (
+        select
+          motion_exif."fileSizeInByte"::double precision
+        from
+          "asset_exif" as motion_exif
+        where
+          motion_exif."assetId" = "asset"."livePhotoVideoId"
+      ) as "livePhotoVideoFileSize",
       extract(
         epoch
         from
@@ -457,6 +465,7 @@ with
       coalesce(array_agg("isImage"), '{}') as "isImage",
       coalesce(array_agg("isTrashed"), '{}') as "isTrashed",
       coalesce(array_agg("livePhotoVideoId"), '{}') as "livePhotoVideoId",
+      coalesce(array_agg("livePhotoVideoFileSize"), '{}') as "livePhotoVideoFileSize",
       coalesce(array_agg("fileCreatedAt"), '{}') as "fileCreatedAt",
       coalesce(array_agg("localOffsetHours"), '{}') as "localOffsetHours",
       coalesce(array_agg("createdAt"), '{}') as "createdAt",

@@ -275,6 +275,7 @@
               ? getAssetHlsUrl(asset.livePhotoVideoId, true)
               : undefined}
             hlsAssetId={asset.livePhotoVideoId}
+            knownFileSize={asset.livePhotoVideoFileSize}
             enablePlayback={mouseOver && $playVideoThumbnailOnHover}
             pauseIcon={mdiMotionPauseOutline}
             playIcon={mdiMotionPlayOutline}
