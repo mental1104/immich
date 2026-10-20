@@ -5,6 +5,7 @@ import {
   AlbumUserRole,
   BulkIdErrorReason,
   deleteAlbum,
+  getStack,
   removeUserFromAlbum,
   updateAlbumInfo,
   updateAlbumUser,
@@ -139,18 +140,34 @@ export const getAlbumAssetActions = ($t: MessageFormatter, album: AlbumResponseD
   return { SetCover };
 };
 
-export const getAlbumAssetsActions = ($t: MessageFormatter, album: AlbumResponseDto, assets: TimelineAsset[]) => {
+export const getAlbumAssetsActions = (
+  $t: MessageFormatter,
+  album: AlbumResponseDto,
+  assets: TimelineAsset[],
+  existingAssetIds: ReadonlySet<string> = new Set(),
+) => {
   const AddAssets: ActionItem = {
     title: $t('add_assets'),
     color: 'primary',
     icon: mdiPlusBoxOutline,
     $if: () => assets.length > 0,
-    onAction: () =>
-      addAssetsToAlbums(
-        [album.id],
-        assets.map(({ id }) => id),
-        { notify: true },
-      ).then(() => undefined),
+    onAction: async () => {
+      const assetIds = new Set(assets.map(({ id }) => id));
+      const stackIds = new Set(
+        assets.flatMap(({ ownerId, stack }) => (stack && ownerId === authManager.user.id ? [stack.id] : [])),
+      );
+      const stacks = await Promise.all([...stackIds].map((id) => getStack({ id })));
+      for (const stack of stacks) {
+        for (const asset of stack.assets) {
+          assetIds.add(asset.id);
+        }
+      }
+
+      const newAssetIds = [...assetIds].filter((id) => !existingAssetIds.has(id));
+      if (newAssetIds.length > 0) {
+        await addAssetsToAlbums([album.id], newAssetIds, { notify: true });
+      }
+    },
   };
 
   const Upload: ActionItem = {

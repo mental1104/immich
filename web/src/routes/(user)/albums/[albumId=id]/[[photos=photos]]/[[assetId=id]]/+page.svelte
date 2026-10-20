@@ -265,6 +265,7 @@
       return {
         visibility: AssetVisibility.Timeline,
         withPartners: true,
+        withStacked: true,
         timelineAlbumId: albumId,
       };
     }
@@ -272,6 +273,7 @@
     return {
       albumId,
       order: album.order,
+      withStacked: true,
       assetType: albumAssetType,
       isFavorite: albumAssetFilter === 'favorite' ? true : undefined,
       userId: albumAssetFilter === 'favorite' ? authManager.user.id : undefined,
@@ -359,7 +361,9 @@
 
   const { Cast } = $derived(getGlobalActions($t));
   const Actions = $derived(getAlbumActions($t, album));
-  const { AddAssets, Upload } = $derived(getAlbumAssetsActions($t, album, timelineMultiSelectManager.assets));
+  const { AddAssets, Upload } = $derived(
+    getAlbumAssetsActions($t, album, timelineMultiSelectManager.assets, timelineManager.albumAssets),
+  );
 
   const Close = $derived({
     title: $t('go_back'),

@@ -930,6 +930,17 @@ export class AssetRepository {
                     eb
                       .selectFrom('stack')
                       .whereRef('stack.id', '=', 'asset.stackId')
+                      .$if(!!options.albumId, (qb) =>
+                        qb.where((eb) =>
+                          eb.exists(
+                            eb
+                              .selectFrom('album_asset')
+                              .select('album_asset.assetId')
+                              .where('album_asset.albumId', '=', asUuid(options.albumId!))
+                              .whereRef('album_asset.assetId', '=', 'stack.primaryAssetId'),
+                          ),
+                        ),
+                      )
                       .whereRef('stack.primaryAssetId', '!=', 'asset.id'),
                   ),
                 ),
