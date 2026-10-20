@@ -393,7 +393,7 @@ export class SearchService extends BaseService {
       assets: {
         total: assets.length,
         count: assets.length,
-        items: assets.map((asset) => mapAsset(asset, options)),
+        items: assets.map((asset) => mapAsset(asset, { ...options, withStack: true })),
         facets: [],
         nextPage: page.nextPage ?? null,
         nextCursor: page.nextCursor ?? null,

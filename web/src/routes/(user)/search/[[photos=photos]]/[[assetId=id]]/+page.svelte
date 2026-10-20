@@ -75,6 +75,7 @@
   let nextPage = $state(1);
   let searchResultAlbums: AlbumResponseDto[] = $state([]);
   let searchResultAssets: AssetResponseDto[] = $state([]);
+  let allSearchResultAssets: AssetResponseDto[] = $state([]);
   let isLoading = $state(true);
   let scrollY = $state(0);
   let scrollYHistory = 0;
@@ -124,7 +125,31 @@
 
   const onAssetDelete = (assetIds: string[]) => {
     const assetIdSet = new Set(assetIds);
-    searchResultAssets = searchResultAssets.filter((asset: AssetResponseDto) => !assetIdSet.has(asset.id));
+    allSearchResultAssets = allSearchResultAssets.filter((asset) => !assetIdSet.has(asset.id));
+    searchResultAssets = collapseStackedAssets(allSearchResultAssets);
+  };
+
+  const collapseStackedAssets = (assets: AssetResponseDto[]): AssetResponseDto[] => {
+    const collapsed: AssetResponseDto[] = [];
+    const stackIndexes = new Map<string, number>();
+
+    for (const asset of assets) {
+      const stackId = asset.stack?.id;
+      if (!stackId) {
+        collapsed.push(asset);
+        continue;
+      }
+
+      const existingIndex = stackIndexes.get(stackId);
+      if (existingIndex === undefined) {
+        stackIndexes.set(stackId, collapsed.length);
+        collapsed.push(asset);
+      } else if (asset.id === asset.stack?.primaryAssetId) {
+        collapsed[existingIndex] = asset;
+      }
+    }
+
+    return collapsed;
   };
 
   const handleSetVisibility = (assetIds: string[]) => {
@@ -185,6 +210,7 @@
   async function onSearchQueryUpdate() {
     nextPage = 1;
     searchResultAssets = [];
+    allSearchResultAssets = [];
     searchResultAlbums = [];
     await loadNextPage(true);
   }
@@ -211,7 +237,8 @@
           : await searchAssets({ metadataSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto } });
 
       searchResultAlbums.push(...albums.items);
-      searchResultAssets.push(...assets.items);
+      allSearchResultAssets.push(...assets.items);
+      searchResultAssets = collapseStackedAssets(allSearchResultAssets);
 
       nextPage = Number(assets.nextPage) || 0;
     } catch (error) {
@@ -307,7 +334,8 @@
 
     if (terms.isNotInAlbum) {
       const assetIdSet = new Set(assetIds);
-      searchResultAssets = searchResultAssets.filter((asset) => !assetIdSet.has(asset.id));
+      allSearchResultAssets = allSearchResultAssets.filter((asset) => !assetIdSet.has(asset.id));
+      searchResultAssets = collapseStackedAssets(allSearchResultAssets);
     }
   };
 

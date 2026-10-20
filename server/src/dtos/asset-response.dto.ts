@@ -161,7 +161,12 @@ export type MapAsset = {
   originalPath: string;
   owner?: ShallowDehydrateObject<User> | null;
   ownerId: string;
-  stack?: (ShallowDehydrateObject<Stack> & { assets: Stack['assets'] }) | null;
+  stack?: {
+    id: string;
+    primaryAssetId: string;
+    assetCount?: number | null;
+    assets?: Stack['assets'];
+  } | null;
   stackId: string | null;
   tags?: ShallowDehydrateObject<Tag>[];
   thumbhash: Buffer<ArrayBufferLike> | null;
@@ -193,7 +198,9 @@ const peopleFromFaces = (faces?: MaybeDehydrated<AssetFace>[]): PersonResponseDt
   return peopleMap.values().toArray();
 };
 
-const mapStack = (entity: { stack?: Stack | null }) => {
+const mapStack = (entity: {
+  stack?: { id: string; primaryAssetId: string; assetCount?: number | null; assets?: Stack['assets'] } | null;
+}) => {
   if (!entity.stack) {
     return null;
   }
@@ -201,7 +208,7 @@ const mapStack = (entity: { stack?: Stack | null }) => {
   return {
     id: entity.stack.id,
     primaryAssetId: entity.stack.primaryAssetId,
-    assetCount: entity.stack.assetCount ?? entity.stack.assets.length + 1,
+    assetCount: entity.stack.assetCount ?? (entity.stack.assets?.length ?? 0) + 1,
   };
 };
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { type Kysely, type OrderByDirection, type Selectable, type ShallowDehydrateObject, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import { jsonObjectFrom } from 'kysely/helpers/postgres';
 import z from 'zod';
 import { columns } from 'src/database.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
@@ -242,6 +243,22 @@ export class SearchRepository {
     const orderDirection = (options.orderDirection?.toLowerCase() || 'desc') as OrderByDirection;
     const items = await searchAssetBuilderLegacy(this.db, options)
       .select(columns.searchAsset)
+      .select((eb) =>
+        jsonObjectFrom(
+          eb
+            .selectFrom('stack')
+            .select(['stack.id', 'stack.primaryAssetId'])
+            .select((eb) =>
+              eb
+                .selectFrom('asset as stackedAsset')
+                .select((eb) => eb.fn.countAll<number>().as('assetCount'))
+                .whereRef('stackedAsset.stackId', '=', 'stack.id')
+                .where('stackedAsset.deletedAt', 'is', null)
+                .as('assetCount'),
+            )
+            .whereRef('stack.id', '=', 'asset.stackId'),
+        ).as('stack'),
+      )
       .orderBy('asset.fileCreatedAt', orderDirection)
       .orderBy('asset.id', orderDirection)
       .limit(pagination.size + 1)
@@ -339,6 +356,22 @@ export class SearchRepository {
       await sql`set local vchordrq.probes = ${sql.lit(probes[VectorIndex.Clip])}`.execute(trx);
       const items = await searchAssetBuilderLegacy(trx, options)
         .select(columns.searchAsset)
+        .select((eb) =>
+          jsonObjectFrom(
+            eb
+              .selectFrom('stack')
+              .select(['stack.id', 'stack.primaryAssetId'])
+              .select((eb) =>
+                eb
+                  .selectFrom('asset as stackedAsset')
+                  .select((eb) => eb.fn.countAll<number>().as('assetCount'))
+                  .whereRef('stackedAsset.stackId', '=', 'stack.id')
+                  .where('stackedAsset.deletedAt', 'is', null)
+                  .as('assetCount'),
+              )
+              .whereRef('stack.id', '=', 'asset.stackId'),
+          ).as('stack'),
+        )
         .innerJoin('smart_search', 'asset.id', 'smart_search.assetId')
         .orderBy(sql`smart_search.embedding <=> ${options.embedding}`)
         .orderBy('asset.id', 'asc')
