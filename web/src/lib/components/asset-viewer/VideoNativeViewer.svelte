@@ -254,6 +254,11 @@
         }
       }
 
+      // Detail playback starts at the lowest supported 720p-or-higher level;
+      // hls.js remains free to adapt quality after playback begins.
+      const preferredStartLevel = api.levels.findIndex((level) => level.height >= 720);
+      api.startLevel = Math.max(preferredStartLevel, 0);
+
       api.startLoad(resumeTime);
     });
 
