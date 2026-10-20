@@ -9,9 +9,10 @@ import {
   HttpStatus,
   Next,
   Param,
+  Query,
   Res,
 } from '@nestjs/common';
-import { ApiProduces, ApiTags } from '@nestjs/swagger';
+import { ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ZodValidationException } from 'nestjs-zod';
 import type { NextFunction, Response } from 'express';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
@@ -44,15 +45,16 @@ export class VideoStreamController {
   @Header('Cache-Control', 'no-cache')
   @Header('Content-Type', HLS_PLAYLIST_CONTENT_TYPE)
   @ApiProduces(HLS_PLAYLIST_CONTENT_TYPE)
+  @ApiQuery({ name: 'preview', required: false, type: Boolean })
   @Endpoint({
     summary: 'Get HLS main playlist',
     description: 'Returns an HLS main playlist with all available variants for the asset.',
     history: new HistoryBuilder().added('v3').alpha('v3'),
   })
-  async getMainPlaylist(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto) {
+  async getMainPlaylist(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto, @Query('preview') preview?: string) {
     const requestStartedAt = Date.now();
     try {
-      const playlist = await this.service.getMainPlaylist(auth, id);
+      const playlist = await this.service.getMainPlaylist(auth, id, '', preview === 'true');
       const sessionId = /\/([\w-]+)\/\d+\/playlist\.m3u8/.exec(playlist)?.[1] ?? 'unknown';
       this.logger.log(
         `HLS request stage=main_playlist result=ready session=${sessionId} elapsedMs=${Date.now() - requestStartedAt}`,

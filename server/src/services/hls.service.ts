@@ -3,7 +3,13 @@ import { constants } from 'node:fs';
 import { join } from 'node:path';
 import type { ArgOf } from 'src/repositories/event.repository.js';
 import type { VideoPacketInfo, VideoStreamInfo } from 'src/types.js';
-import { HLS_SEGMENT_DURATION, HLS_SEGMENT_FILENAME_REGEX, HLS_VARIANTS, HLS_VERSION } from 'src/constants.js';
+import {
+  HLS_PREVIEW_RESOLUTION,
+  HLS_SEGMENT_DURATION,
+  HLS_SEGMENT_FILENAME_REGEX,
+  HLS_VARIANTS,
+  HLS_VERSION,
+} from 'src/constants.js';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { OnEvent } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
@@ -61,7 +67,7 @@ export class HlsService extends BaseService {
    * @param variantPathPrefix 子播放列表 URL 前缀；默认空字符串保持原 HLS 接口兼容。
    * @returns 包含分支播放列表相对 URL 的 UTF-8 文本，配置或元数据不可用时抛出 HTTP 异常。
    */
-  async getMainPlaylist(auth: AuthDto, assetId: string, variantPathPrefix = '') {
+  async getMainPlaylist(auth: AuthDto, assetId: string, variantPathPrefix = '', includePreviewVariant = false) {
     await this.requireAccess({ auth, permission: Permission.AssetView, ids: [assetId] });
     const { ffmpeg } = await this.getConfig({ withCache: true });
     if (!ffmpeg.realtime.enabled) {
@@ -80,7 +86,7 @@ export class HlsService extends BaseService {
     await this.pendingSessions.wait(sessionId);
     this.trackSession(sessionId);
 
-    return this.generateMainPlaylist(sessionId, ffmpeg, asset, variantPathPrefix);
+    return this.generateMainPlaylist(sessionId, ffmpeg, asset, variantPathPrefix, includePreviewVariant);
   }
 
   async getMediaPlaylist(auth: AuthDto, assetId: string, sessionId: string, variantIndex: number, position?: number) {
@@ -189,6 +195,7 @@ export class HlsService extends BaseService {
     ffmpeg: ConfigFFmpegDto,
     asset: AssetWithStreamInfo,
     variantPathPrefix: string,
+    includePreviewVariant: boolean,
   ) {
     const fps = (asset.packets.packetCount * asset.videoStream.timeBase) / asset.packets.totalDuration;
     const roundedFps = fps.toFixed(3);
@@ -200,7 +207,12 @@ export class HlsService extends BaseService {
       (a, b) => a.bitrate - b.bitrate,
     );
     for (const { index: i, resolution, bitrate, codec } of variants) {
-      if (resolution > targetResolution || !videoCodecs.includes(codec) || !resolutions.includes(resolution)) {
+      const isPreviewVariant = includePreviewVariant && resolution === HLS_PREVIEW_RESOLUTION;
+      if (
+        resolution > targetResolution ||
+        !videoCodecs.includes(codec) ||
+        (!isPreviewVariant && !resolutions.includes(resolution))
+      ) {
         continue;
       }
       const { width, height } = getOutputSize(asset.videoStream, resolution);

@@ -79,6 +79,15 @@ describe(HlsService.name, () => {
       ]);
     });
 
+    it('offers a 360p H.264 variant for hover previews without changing configured resolutions', async () => {
+      setup(eiffelTower, [VideoCodec.H264], [HlsVideoResolution.p480]);
+      const playlist = await sut.getMainPlaylist(auth, assetId, '', true);
+
+      expect(playlist).toContain('RESOLUTION=360x640');
+      expect(playlist).toContain(`${sessionId}/17/playlist.m3u8`);
+      expect(playlist).toContain('RESOLUTION=480x852');
+    });
+
     it('prefixes variant URLs without changing the existing HLS endpoint output', async () => {
       setup(eiffelTower);
       const result = await sut.getMainPlaylist(auth, assetId, 'stream/');
