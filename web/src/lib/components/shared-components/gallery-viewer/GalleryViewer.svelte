@@ -36,6 +36,9 @@
   type Props = {
     assets: AssetResponseDto[];
     viewerAssets?: AssetResponseDto[];
+    withStacked?: boolean;
+    stackAssetIds?: ReadonlySet<string>;
+    onViewerAction?: (action: Action) => void;
     assetInteraction: AssetMultiSelectManager;
     disableAssetSelect?: boolean;
     showArchiveIcon?: boolean;
@@ -52,6 +55,9 @@
   let {
     assets = $bindable(),
     viewerAssets,
+    withStacked = false,
+    stackAssetIds,
+    onViewerAction,
     assetInteraction,
     disableAssetSelect = false,
     showArchiveIcon = false,
@@ -166,6 +172,11 @@
 
     let start = assets.findIndex((a) => a.id === startAsset.id);
     let end = assets.findIndex((a) => a.id === endAsset.id);
+
+    if (start < 0 || end < 0) {
+      assetInteraction.clearCandidates();
+      return;
+    }
 
     if (start > end) {
       [start, end] = [end, start];
@@ -301,6 +312,7 @@
         if (nextAsset) {
           await navigateToAsset(nextAsset);
         }
+        onViewerAction?.(action);
         break;
       }
       // no default
@@ -312,6 +324,17 @@
       handleSelectAssetCandidates(asset);
     }
   };
+
+  $effect(() => {
+    const visibleAssetIds = new Set(assets.map(({ id }) => id));
+    if (lastAssetMouseEvent && !visibleAssetIds.has(lastAssetMouseEvent.id)) {
+      lastAssetMouseEvent = null;
+    }
+    if (assetInteraction.startAsset && !visibleAssetIds.has(assetInteraction.startAsset.id)) {
+      assetInteraction.setAssetSelectionStart(null);
+      assetInteraction.clearCandidates();
+    }
+  });
 
   $effect(() => {
     if (!lastAssetMouseEvent) {
@@ -388,6 +411,8 @@
     {#await import('$lib/components/asset-viewer/AssetViewer.svelte') then { default: AssetViewer }}
       <AssetViewer
         cursor={assetCursor}
+        {withStacked}
+        {stackAssetIds}
         onAction={handleAction}
         onRandom={handleRandom}
         onAssetChange={updateCurrentAsset}

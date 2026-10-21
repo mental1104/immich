@@ -7,6 +7,7 @@
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import ControlAppBar from '$lib/components/shared-components/ControlAppBar.svelte';
   import GalleryViewer from '$lib/components/shared-components/gallery-viewer/GalleryViewer.svelte';
+  import type { Action } from '$lib/components/asset-viewer/actions/action';
   import SearchBar from '$lib/components/shared-components/search-bar/SearchBar.svelte';
   import ArchiveAction from '$lib/components/timeline/actions/ArchiveAction.svelte';
   import ChangeDate from '$lib/components/timeline/actions/ChangeDateAction.svelte';
@@ -18,7 +19,7 @@
   import SetVisibilityAction from '$lib/components/timeline/actions/SetVisibilityAction.svelte';
   import AssetSelectControlBar from '$lib/components/timeline/AssetSelectControlBar.svelte';
   import SearchResultAlbumModal from '$lib/modals/SearchResultAlbumModal.svelte';
-  import { QueryParameter } from '$lib/constants';
+  import { AssetAction, QueryParameter } from '$lib/constants';
   import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
   import { eventManager } from '$lib/managers/event-manager.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
@@ -76,6 +77,7 @@
   let searchResultAlbums: AlbumResponseDto[] = $state([]);
   let searchResultAssets: AssetResponseDto[] = $state([]);
   let allSearchResultAssets: AssetResponseDto[] = $state([]);
+  let stackAssetIds = $derived(new Set(allSearchResultAssets.map(({ id }) => id)));
   let isLoading = $state(true);
   let scrollY = $state(0);
   let scrollYHistory = 0;
@@ -124,6 +126,7 @@
   });
 
   const onAssetDelete = (assetIds: string[]) => {
+    assetMultiSelectManager.clear();
     const assetIdSet = new Set(assetIds);
     allSearchResultAssets = allSearchResultAssets.filter((asset) => !assetIdSet.has(asset.id));
     searchResultAssets = collapseStackedAssets(allSearchResultAssets);
@@ -132,6 +135,7 @@
   const collapseStackedAssets = (assets: AssetResponseDto[]): AssetResponseDto[] => {
     const collapsed: AssetResponseDto[] = [];
     const stackIndexes = new Map<string, number>();
+    const stackCounts = new Map<string, number>();
 
     for (const asset of assets) {
       const stackId = asset.stack?.id;
@@ -139,6 +143,8 @@
         collapsed.push(asset);
         continue;
       }
+
+      stackCounts.set(stackId, (stackCounts.get(stackId) ?? 0) + 1);
 
       const existingIndex = stackIndexes.get(stackId);
       if (existingIndex === undefined) {
@@ -149,12 +155,43 @@
       }
     }
 
-    return collapsed;
+    return collapsed.map((asset) => {
+      const stackId = asset.stack?.id;
+      const assetCount = stackId ? stackCounts.get(stackId) : undefined;
+      return asset.stack && assetCount ? { ...asset, stack: { ...asset.stack, assetCount } } : asset;
+    });
+  };
+
+  const handleArchive = (assetIds: string[], visibility: AssetVisibility) => {
+    assetMultiSelectManager.clear();
+    const expectedVisibility = terms.visibility ?? AssetVisibility.Timeline;
+    if (visibility !== expectedVisibility) {
+      onAssetDelete(assetIds);
+      return;
+    }
+
+    const assetIdSet = new Set(assetIds);
+    allSearchResultAssets = allSearchResultAssets.map((asset) =>
+      assetIdSet.has(asset.id)
+        ? { ...asset, visibility, isArchived: visibility === AssetVisibility.Archive }
+        : asset,
+    );
+    searchResultAssets = collapseStackedAssets(allSearchResultAssets);
   };
 
   const handleSetVisibility = (assetIds: string[]) => {
     assetMultiSelectManager.clear();
     onAssetDelete(assetIds);
+  };
+
+  const handleViewerAction = (action: Action) => {
+    if (
+      action.type === AssetAction.ARCHIVE ||
+      action.type === AssetAction.DELETE ||
+      action.type === AssetAction.TRASH
+    ) {
+      onAssetDelete([action.asset.id]);
+    }
   };
 
   const handleSelectAll = () => {
@@ -208,6 +245,7 @@
     modalManager.show(SearchResultAlbumModal, { onCreate: createAlbumFromSearchResults });
 
   async function onSearchQueryUpdate() {
+    assetMultiSelectManager.clear();
     nextPage = 1;
     searchResultAssets = [];
     allSearchResultAssets = [];
@@ -422,6 +460,9 @@
     {#if searchResultAssets.length > 0}
       <GalleryViewer
         assets={searchResultAssets}
+        withStacked={true}
+        {stackAssetIds}
+        onViewerAction={handleViewerAction}
         assetInteraction={assetMultiSelectManager}
         onEndReached={loadNextPage}
         showArchiveIcon={true}
@@ -482,7 +523,11 @@
               <ChangeDate menuItem />
               <ChangeDescription menuItem />
               <ChangeLocation menuItem />
-              <ArchiveAction menuItem unarchive={assetMultiSelectManager.isAllArchived} />
+              <ArchiveAction
+                menuItem
+                unarchive={assetMultiSelectManager.isAllArchived}
+                onArchive={handleArchive}
+              />
               <SetVisibilityAction menuItem onVisibilitySet={handleSetVisibility} />
               <ActionMenuItem action={Actions.Tag} />
               <DeleteAssets menuItem {onAssetDelete} onUndoDelete={onSearchQueryUpdate} />

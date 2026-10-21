@@ -68,6 +68,7 @@
     cursor: AssetCursor;
     showNavigation?: boolean;
     withStacked?: boolean;
+    stackAssetIds?: ReadonlySet<string>;
     isShared?: boolean;
     album?: AlbumResponseDto;
     person?: PersonResponseDto;
@@ -83,6 +84,7 @@
     cursor,
     showNavigation = true,
     withStacked = false,
+    stackAssetIds,
     isShared = false,
     album,
     person,
@@ -107,6 +109,7 @@
 
   let previewStackedAsset: AssetResponseDto | undefined = $state();
   let stack: StackResponseDto | undefined = $state();
+  const visibleStackAssets = $derived(stack?.assets.filter(({ id }) => !stackAssetIds || stackAssetIds.has(id)) ?? []);
 
   const asset = $derived(previewStackedAsset ?? cursor.current);
   const nextAsset = $derived(cursor.nextAsset);
@@ -131,7 +134,7 @@
       stack = await getStack({ id: asset.stack.id });
     }
 
-    if (!stack?.assets.some(({ id }) => id === asset.id)) {
+    if (!visibleStackAssets.some(({ id }) => id === asset.id)) {
       stack = undefined;
     }
   };
@@ -175,9 +178,8 @@
     }
 
     stack = updatedStack;
-    if (!stack.assets.map((a) => a.id).includes(asset.id)) {
-      // current asset was removed from stack, go to primary
-      cursor.current = stack.assets[0];
+    if (!visibleStackAssets.map((a) => a.id).includes(asset.id)) {
+      stack = undefined;
     }
   };
 
@@ -295,7 +297,7 @@
     if (!stack || !withStacked || assetViewerManager.isShowEditor) {
       return;
     }
-    const assets = stack.assets;
+    const assets = visibleStackAssets;
     const currentIndex = assets.findIndex(({ id }) => id === asset.id);
     if (currentIndex === -1) {
       return;
@@ -671,7 +673,7 @@
   {/if}
 
   {#if stack && withStacked && !assetViewerManager.isShowEditor && $slideshowState === SlideshowState.None}
-    {@const stackedAssets = stack.assets}
+    {@const stackedAssets = visibleStackAssets}
     <div id="stack-slideshow" class="absolute bottom-0 col-span-4 col-start-1 w-fit max-w-full">
       <div class="no-wrap horizontal-scrollbar relative flex flex-row overflow-x-auto overflow-y-hidden">
         {#each stackedAssets as stackedAsset (stackedAsset.id)}

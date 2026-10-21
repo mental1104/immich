@@ -952,7 +952,18 @@ export class AssetRepository {
                     .select(sql`array[stacked."stackId"::text, count('stacked')::text]`.as('stack'))
                     .whereRef('stacked.stackId', '=', 'asset.stackId')
                     .where('stacked.deletedAt', 'is', null)
-                    .where('stacked.visibility', '=', AssetVisibility.Timeline)
+                    .$if(!options.albumId, (qb) => qb.where('stacked.visibility', '=', AssetVisibility.Timeline))
+                    .$if(!!options.albumId, (qb) =>
+                      qb.where((eb) =>
+                        eb.exists(
+                          eb
+                            .selectFrom('album_asset')
+                            .select('album_asset.assetId')
+                            .where('album_asset.albumId', '=', asUuid(options.albumId!))
+                            .whereRef('album_asset.assetId', '=', 'stacked.id'),
+                        ),
+                      ),
+                    )
                     .groupBy('stacked.stackId')
                     .as('stacked_assets'),
                 (join) => join.onTrue(),

@@ -188,6 +188,7 @@
 {#await import('$lib/components/asset-viewer/AssetViewer.svelte') then { default: AssetViewer }}
   <AssetViewer
     {withStacked}
+    stackAssetIds={withStacked ? timelineManager.albumAssets : undefined}
     cursor={assetCursor}
     {isShared}
     {album}
