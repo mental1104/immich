@@ -163,7 +163,12 @@ export const getAlbumAssetsActions = (
         }
       }
 
-      const newAssetIds = [...assetIds].filter((id) => !existingAssetIds.has(id));
+      const newAssetIds: string[] = [];
+      for (const assetId of assetIds) {
+        if (!existingAssetIds.has(assetId)) {
+          newAssetIds.push(assetId);
+        }
+      }
       if (newAssetIds.length > 0) {
         await addAssetsToAlbums([album.id], newAssetIds, { notify: true });
       }
@@ -358,6 +363,35 @@ export const handleUpdateAlbum = async ({ id }: { id: string }, dto: UpdateAlbum
   } catch (error) {
     handleError(error, $t('errors.unable_to_update_album_info'));
   }
+};
+
+export const handleUpdateAlbumsCustomGroup = async (albumIds: string[], customGroupName: string | null) => {
+  const $t = await getFormatter();
+  const responses = [];
+
+  for (let index = 0; index < albumIds.length; index += 10) {
+    const batch = albumIds.slice(index, index + 10);
+    responses.push(
+      ...(await Promise.allSettled(batch.map((id) => updateAlbumInfo({ id, updateAlbumDto: { customGroupName } })))),
+    );
+  }
+
+  const updatedAlbums = responses.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+  const failureCount = responses.length - updatedAlbums.length;
+
+  for (const album of updatedAlbums) {
+    eventManager.emit('AlbumUpdate', album);
+  }
+
+  if (failureCount === 0) {
+    toastManager.primary($t('bulk_custom_group_updated', { values: { count: updatedAlbums.length } }));
+    return true;
+  }
+
+  toastManager.danger(
+    $t('bulk_custom_group_partial', { values: { successCount: updatedAlbums.length, totalCount: albumIds.length } }),
+  );
+  return false;
 };
 
 export const handleDeleteAlbum = async (album: AlbumResponseDto, options?: { prompt?: boolean; notify?: boolean }) => {

@@ -2496,6 +2496,15 @@
   "custom_group": "自定义分组",
   "custom_group_description": "使用自定义分组时，分组名称相同的相簿会显示在一起。",
   "custom_group_placeholder": "例如：游戏",
+  "cancel_album_selection": "取消选择",
+  "select_all_filtered_albums": "全选筛选后的相簿",
+  "deselect_all_filtered_albums": "取消选择筛选后的相簿",
+  "set_custom_group_count": "设置分组（{count}）",
+  "select_album_named": "选择相簿 {album}",
+  "bulk_custom_group_title": "为 {count} 个相簿设置自定义分组",
+  "bulk_custom_group_description": "输入名称以应用到所有已选相簿。留空则清除它们的自定义分组。",
+  "bulk_custom_group_updated": "已更新 {count} 个相簿的自定义分组。",
+  "bulk_custom_group_partial": "已更新 {totalCount} 个相簿中的 {successCount} 个。",
   "group_custom": "自定义分组",
   "ungrouped": "未分组"
 }

@@ -3,7 +3,7 @@
   import AlbumsTable from '$lib/components/album-page/AlbumsTable.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
-  import { handleDeleteAlbum, isAlbumOwner } from '$lib/services/album.service';
+  import { handleDeleteAlbum, isAlbumEditor, isAlbumOwner } from '$lib/services/album.service';
   import {
     AlbumFilter,
     AlbumGroupBy,
@@ -28,6 +28,10 @@
     allowEdit?: boolean;
     showOwner?: boolean;
     albumGroupIds?: string[];
+    selectionMode?: boolean;
+    selectedAlbumIds?: string[];
+    onAlbumSelect?: (albumId: string) => void;
+    selectableAlbumIds?: string[];
     empty?: Snippet;
   }
 
@@ -40,6 +44,11 @@
     showOwner = false,
     // eslint-disable-next-line no-useless-assignment
     albumGroupIds = $bindable([]),
+    selectionMode = false,
+    selectedAlbumIds = [],
+    onAlbumSelect,
+    // eslint-disable-next-line no-useless-assignment
+    selectableAlbumIds = $bindable([]),
     empty,
   }: Props = $props();
 
@@ -178,6 +187,10 @@
     albumGroupIds = groupedAlbums.map(({ id }) => id);
   });
 
+  $effect(() => {
+    selectableAlbumIds = filteredAlbums.filter(isAlbumEditor).map(({ id }) => id);
+  });
+
   onMount(async () => {
     if (allowEdit) {
       await removeAlbumsIfEmpty();
@@ -221,15 +234,32 @@
   {#if userSettings.view === AlbumViewMode.Cover}
     <!-- Album Cards -->
     {#if albumGroupOption === AlbumGroupBy.None}
-      <AlbumCardGroup albums={groupedAlbums[0].albums} {showOwner} showDateRange showItemCount />
+      <AlbumCardGroup
+        albums={groupedAlbums[0].albums}
+        {showOwner}
+        showDateRange
+        showItemCount
+        {selectionMode}
+        {selectedAlbumIds}
+        {onAlbumSelect}
+      />
     {:else}
       {#each groupedAlbums as albumGroup (albumGroup.id)}
-        <AlbumCardGroup albums={albumGroup.albums} group={albumGroup} {showOwner} showDateRange showItemCount />
+        <AlbumCardGroup
+          albums={albumGroup.albums}
+          group={albumGroup}
+          {showOwner}
+          showDateRange
+          showItemCount
+          {selectionMode}
+          {selectedAlbumIds}
+          {onAlbumSelect}
+        />
       {/each}
     {/if}
   {:else if userSettings.view === AlbumViewMode.List}
     <!-- Album Table -->
-    <AlbumsTable {groupedAlbums} {albumGroupOption} />
+    <AlbumsTable {groupedAlbums} {albumGroupOption} {selectionMode} {selectedAlbumIds} {onAlbumSelect} />
   {/if}
 {:else}
   <!-- Empty Message -->

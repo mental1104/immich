@@ -23,10 +23,12 @@
     groupOptionsMetadata,
     sortOptionsMetadata,
   } from '$lib/utils/album-utils';
-  import { Button, IconButton, Text } from '@immich/ui';
+  import { Button, IconButton, modalManager, Text } from '@immich/ui';
   import {
     mdiArrowDownThin,
     mdiArrowUpThin,
+    mdiCheckboxMultipleMarkedOutline,
+    mdiFolderEditOutline,
     mdiFolderArrowDownOutline,
     mdiFolderArrowUpOutline,
     mdiFolderRemoveOutline,
@@ -38,15 +40,33 @@
   } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
+  import BulkAlbumCustomGroupModal from '$lib/modals/BulkAlbumCustomGroupModal.svelte';
 
   interface Props {
     albumGroups: string[];
+    selectableAlbumIds: string[];
+    selectedAlbumIds: string[];
+    selectionMode: boolean;
     searchQuery: string;
     onSearch: (options: { force?: boolean }) => void;
     onReset: () => void;
+    onSelectAll: () => void;
+    onSetSelectionMode: (enabled: boolean) => void;
+    onClearSelection: () => void;
   }
 
-  let { albumGroups, searchQuery = $bindable(), onSearch, onReset }: Props = $props();
+  let {
+    albumGroups,
+    selectableAlbumIds,
+    selectedAlbumIds,
+    selectionMode,
+    searchQuery = $bindable(),
+    onSearch,
+    onReset,
+    onSelectAll,
+    onSetSelectionMode,
+    onClearSelection,
+  }: Props = $props();
 
   const flipOrdering = (ordering: string) => {
     return ordering === SortOrder.Asc ? SortOrder.Desc : SortOrder.Asc;
@@ -97,6 +117,16 @@
   let selectedSortOption = $derived(findSortOptionMetadata($albumViewSettings.sortBy));
   let selectedGroupOption = $derived(findGroupOptionMetadata($albumViewSettings.groupBy));
   let sortIcon = $derived($albumViewSettings.sortOrder === SortOrder.Desc ? mdiArrowDownThin : mdiArrowUpThin);
+  let allVisibleSelected = $derived(
+    selectableAlbumIds.length > 0 && selectableAlbumIds.every((id) => selectedAlbumIds.includes(id)),
+  );
+
+  const openBulkCustomGroupModal = () => {
+    void modalManager.show(BulkAlbumCustomGroupModal, {
+      albumIds: selectedAlbumIds,
+      onDone: onClearSelection,
+    });
+  };
 
   let albumSortByNames: Record<AlbumSortBy, string> = $derived({
     [AlbumSortBy.Title]: $t('sort_title'),
@@ -124,6 +154,49 @@
     onSelect={(selected) => handleChangeAlbumFilter(selected, AlbumFilter.All)}
   />
 </div>
+
+<Button
+  leadingIcon={mdiCheckboxMultipleMarkedOutline}
+  aria-label={$t(selectionMode ? 'cancel_album_selection' : 'select_albums')}
+  title={$t(selectionMode ? 'cancel_album_selection' : 'select_albums')}
+  onclick={() => onSetSelectionMode(!selectionMode)}
+  size="small"
+  variant="ghost"
+  color="secondary"
+>
+  <Text class="hidden md:block">{$t(selectionMode ? 'cancel_album_selection' : 'select_albums')}</Text>
+</Button>
+
+{#if selectionMode}
+  <Button
+    leadingIcon={mdiCheckboxMultipleMarkedOutline}
+    aria-label={$t(allVisibleSelected ? 'deselect_all_filtered_albums' : 'select_all_filtered_albums')}
+    title={$t(allVisibleSelected ? 'deselect_all_filtered_albums' : 'select_all_filtered_albums')}
+    onclick={onSelectAll}
+    disabled={selectableAlbumIds.length === 0}
+    size="small"
+    variant="ghost"
+    color="secondary"
+  >
+    <Text class="hidden md:block"
+      >{$t(allVisibleSelected ? 'deselect_all_filtered_albums' : 'select_all_filtered_albums')}</Text
+    >
+  </Button>
+{/if}
+
+{#if selectedAlbumIds.length > 0}
+  <Button
+    leadingIcon={mdiFolderEditOutline}
+    aria-label={$t('set_custom_group_count', { values: { count: selectedAlbumIds.length } })}
+    title={$t('set_custom_group_count', { values: { count: selectedAlbumIds.length } })}
+    onclick={openBulkCustomGroupModal}
+    size="small"
+    variant="ghost"
+    color="secondary"
+  >
+    <Text class="hidden md:block">{$t('set_custom_group_count', { values: { count: selectedAlbumIds.length } })}</Text>
+  </Button>
+{/if}
 
 <!-- Search Albums -->
 <div class="hidden h-10 xl:block xl:w-60 2xl:w-80">

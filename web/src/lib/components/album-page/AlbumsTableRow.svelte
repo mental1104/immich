@@ -4,18 +4,21 @@
   import Portal from '$lib/elements/Portal.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import { Route } from '$lib/route';
-  import { getAlbumActions } from '$lib/services/album.service';
+  import { getAlbumActions, isAlbumEditor } from '$lib/services/album.service';
   import { locale } from '$lib/stores/preferences.store';
   import { AlbumUserRole, type AlbumResponseDto } from '@immich/sdk';
-  import { Icon, menuManager } from '@immich/ui';
+  import { Checkbox, Icon, menuManager } from '@immich/ui';
   import { mdiShareVariantOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   type Props = {
     album: AlbumResponseDto;
+    selectionMode?: boolean;
+    selectedAlbumIds?: string[];
+    onAlbumSelect?: (albumId: string) => void;
   };
 
-  const { album }: Props = $props();
+  const { album, selectionMode = false, selectedAlbumIds = [], onAlbumSelect }: Props = $props();
 
   let contextMenuAnchor: HTMLDivElement | undefined = $state();
   const items = $derived.by(() => {
@@ -43,10 +46,26 @@
 
 <tr
   class="flex w-full place-items-center border-3 border-transparent p-2 text-center odd:bg-subtle/80 even:bg-subtle/20 hover:cursor-pointer hover:border-immich-primary/75 md:px-5 md:py-2 odd:dark:bg-immich-dark-gray/75 even:dark:bg-immich-dark-gray/50 dark:hover:border-immich-dark-primary/75"
-  onclick={() => goto(Route.viewAlbum(album))}
+  onclick={() => {
+    if (selectionMode && isAlbumEditor(album)) {
+      onAlbumSelect?.(album.id);
+    } else {
+      void goto(Route.viewAlbum(album));
+    }
+  }}
   {oncontextmenu}
 >
   <td class="text-md w-8/12 items-center text-start text-ellipsis sm:w-4/12 md:w-4/12 xl:w-[30%] 2xl:w-[40%]">
+    {#if selectionMode && isAlbumEditor(album)}
+      <Checkbox
+        id="select-album-{album.id}"
+        class="me-2 inline-block align-middle"
+        checked={selectedAlbumIds.includes(album.id)}
+        aria-label={$t('select_album_named', { values: { album: album.albumName } })}
+        onclick={(event) => event.stopPropagation()}
+        onCheckedChange={() => onAlbumSelect?.(album.id)}
+      />
+    {/if}
     {album.albumName}
     {#if album.shared}
       <Icon

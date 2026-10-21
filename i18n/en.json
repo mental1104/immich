@@ -2499,6 +2499,15 @@
   "custom_group": "Custom group",
   "custom_group_description": "Albums with the same group name appear together when grouped by custom group.",
   "custom_group_placeholder": "e.g. Games",
+  "cancel_album_selection": "Cancel selection",
+  "select_all_filtered_albums": "Select all filtered albums",
+  "deselect_all_filtered_albums": "Deselect filtered albums",
+  "set_custom_group_count": "Set group ({count})",
+  "select_album_named": "Select album {album}",
+  "bulk_custom_group_title": "Set custom group for {count} albums",
+  "bulk_custom_group_description": "Enter a name to assign it to every selected album. Leave it blank to remove their custom group.",
+  "bulk_custom_group_updated": "Updated the custom group for {count} albums.",
+  "bulk_custom_group_partial": "Updated the custom group for {successCount} of {totalCount} albums.",
   "group_custom": "Custom group",
   "ungrouped": "Ungrouped"
 }

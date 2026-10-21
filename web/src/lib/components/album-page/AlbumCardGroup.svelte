@@ -2,11 +2,11 @@
   import AlbumCard from '$lib/components/album-page/AlbumCard.svelte';
   import Portal from '$lib/elements/Portal.svelte';
   import { Route } from '$lib/route';
-  import { getAlbumActions } from '$lib/services/album.service';
+  import { getAlbumActions, isAlbumEditor } from '$lib/services/album.service';
   import { albumViewSettings } from '$lib/stores/preferences.store';
   import { type AlbumGroup, isAlbumGroupCollapsed, toggleAlbumGroupCollapsing } from '$lib/utils/album-utils';
   import type { AlbumResponseDto } from '@immich/sdk';
-  import { Icon, menuManager, type ActionItem } from '@immich/ui';
+  import { Checkbox, Icon, menuManager, type ActionItem } from '@immich/ui';
   import { mdiChevronRight } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { flip } from 'svelte/animate';
@@ -18,6 +18,9 @@
     showOwner?: boolean;
     showDateRange?: boolean;
     showItemCount?: boolean;
+    selectionMode?: boolean;
+    selectedAlbumIds?: string[];
+    onAlbumSelect?: (albumId: string) => void;
   };
 
   const {
@@ -26,6 +29,9 @@
     showOwner = false,
     showDateRange = false,
     showItemCount = false,
+    selectionMode = false,
+    selectedAlbumIds = [],
+    onAlbumSelect,
   }: Props = $props();
 
   let isCollapsed = $derived(!!group && isAlbumGroupCollapsed($albumViewSettings, group.id));
@@ -68,21 +74,39 @@
       {#each albums as album, index (album.id)}
         {@const { Edit, Share, Download, Leave, Delete } = getAlbumActions($t, album)}
         {@const items = [Edit, Share, Download, Leave, Delete]}
-        <a
-          href={Route.viewAlbum(album)}
-          class="h-fit"
-          animate:flip={{ duration: 400 }}
-          oncontextmenu={(event) => oncontextmenu(event, items)}
-        >
-          <AlbumCard
-            {album}
-            {showOwner}
-            {showDateRange}
-            {showItemCount}
-            preload={index < 20}
-            contextMenuItems={items}
-          />
-        </a>
+        <div class="relative h-fit" animate:flip={{ duration: 400 }}>
+          {#if selectionMode && isAlbumEditor(album)}
+            <div class="absolute top-7 left-7 z-10 rounded-md bg-white/90 p-1 dark:bg-immich-dark-gray/90">
+              <Checkbox
+                id="select-album-{album.id}"
+                checked={selectedAlbumIds.includes(album.id)}
+                aria-label={$t('select_album_named', { values: { album: album.albumName } })}
+                onclick={(event) => event.stopPropagation()}
+                onCheckedChange={() => onAlbumSelect?.(album.id)}
+              />
+            </div>
+          {/if}
+          <a
+            href={Route.viewAlbum(album)}
+            class="h-fit"
+            onclick={(event) => {
+              if (selectionMode && isAlbumEditor(album)) {
+                event.preventDefault();
+                onAlbumSelect?.(album.id);
+              }
+            }}
+            oncontextmenu={(event) => oncontextmenu(event, items)}
+          >
+            <AlbumCard
+              {album}
+              {showOwner}
+              {showDateRange}
+              {showItemCount}
+              preload={index < 20}
+              contextMenuItems={items}
+            />
+          </a>
+        </div>
       {/each}
     </div>
   {/if}

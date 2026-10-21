@@ -28,12 +28,46 @@
     searchQuery = '';
   };
   let albumGroups: string[] = $state([]);
+  let selectableAlbumIds: string[] = $state([]);
+  let selectedAlbumIds: string[] = $state([]);
+  let selectionMode = $state(false);
+
+  const toggleAlbumSelection = (albumId: string) => {
+    selectedAlbumIds = selectedAlbumIds.includes(albumId)
+      ? selectedAlbumIds.filter((id) => id !== albumId)
+      : [...selectedAlbumIds, albumId];
+  };
+
+  const selectAllAlbums = () => {
+    const allSelected = selectableAlbumIds.every((id) => selectedAlbumIds.includes(id));
+    selectedAlbumIds = allSelected
+      ? selectedAlbumIds.filter((id) => !selectableAlbumIds.includes(id))
+      : [...new Set([...selectedAlbumIds, ...selectableAlbumIds])];
+  };
+
+  const setSelectionMode = (enabled: boolean) => {
+    selectionMode = enabled;
+    if (!enabled) {
+      selectedAlbumIds = [];
+    }
+  };
 </script>
 
 <UserPageLayout title={data.meta.title} use={[[scrollMemory, { routeStartsWith: Route.albums() }]]}>
   {#snippet buttons()}
     <div class="flex place-items-center gap-2">
-      <AlbumsControls {albumGroups} bind:searchQuery={searchInput} {onSearch} {onReset} />
+      <AlbumsControls
+        {albumGroups}
+        {selectableAlbumIds}
+        {selectedAlbumIds}
+        {selectionMode}
+        bind:searchQuery={searchInput}
+        {onSearch}
+        {onReset}
+        onSelectAll={selectAllAlbums}
+        onSetSelectionMode={setSelectionMode}
+        onClearSelection={() => (selectedAlbumIds = [])}
+      />
     </div>
   {/snippet}
 
@@ -62,6 +96,10 @@
     sharedAlbums={data.sharedAlbums}
     userSettings={$albumViewSettings}
     allowEdit
+    {selectionMode}
+    {selectedAlbumIds}
+    onAlbumSelect={toggleAlbumSelection}
+    bind:selectableAlbumIds
     {searchQuery}
     bind:albumGroupIds={albumGroups}
   >
