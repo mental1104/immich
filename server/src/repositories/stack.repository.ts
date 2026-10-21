@@ -65,6 +65,7 @@ export class StackRepository {
       .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
       .select([
         'asset.originalFileName',
+        'asset.originalPath',
         'asset.libraryId',
         'asset.isExternal',
         'asset.visibility',
@@ -102,7 +103,7 @@ export class StackRepository {
       const candidates = await tx
         .selectFrom('asset')
         .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
-        .select(['asset.id', 'asset.originalFileName', 'asset.stackId'])
+        .select(['asset.id', 'asset.originalFileName', 'asset.originalPath', 'asset.stackId'])
         .where('asset.ownerId', '=', ownerId)
         .where('asset.libraryId', anchor.libraryId === null ? 'is' : '=', anchor.libraryId)
         .where('asset.isExternal', '=', anchor.isExternal)
@@ -119,15 +120,22 @@ export class StackRepository {
         .orderBy('asset.id')
         .forUpdate('asset')
         .execute();
-      const raw = candidates.filter((asset) => /[.](nef|dng)$/i.test(asset.originalFileName));
-      const rendered = candidates.filter((asset) => /[.](jpe?g|heic|heif)$/i.test(asset.originalFileName));
-      // 仅在完整拍摄参数唯一匹配时配对；不猜测歧义候选，也不覆盖手工堆叠。
+      const anchorDirectory = anchor.originalPath.slice(0, anchor.originalPath.lastIndexOf('/'));
+      const anchorStem = anchor.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
+      const pairedCandidates = candidates.filter((asset) => {
+        const directory = asset.originalPath.slice(0, asset.originalPath.lastIndexOf('/'));
+        const stem = asset.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
+        return directory === anchorDirectory && stem === anchorStem;
+      });
+      const raw = pairedCandidates.filter((asset) => /[.](nef|dng)$/i.test(asset.originalFileName));
+      const rendered = pairedCandidates.filter((asset) => /[.](jpe?g|heic|heif)$/i.test(asset.originalFileName));
+      // 完整拍摄参数用于缩小范围，最终按同目录、同文件名主干配对，避免其他同秒照片造成歧义；不覆盖手工堆叠。
       if (
-        candidates.length !== 2 ||
+        pairedCandidates.length !== 2 ||
         raw.length !== 1 ||
         rendered.length !== 1 ||
         candidates.every((asset) => asset.id !== assetId) ||
-        candidates.some((asset) => asset.stackId)
+        pairedCandidates.some((asset) => asset.stackId)
       ) {
         return;
       }
