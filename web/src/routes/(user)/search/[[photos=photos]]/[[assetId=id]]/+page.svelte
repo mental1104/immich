@@ -198,6 +198,33 @@
     assetMultiSelectManager.selectAssets(searchResultAssets.map((asset) => toTimelineAsset(asset)));
   };
 
+  const getSelectedSearchAssetIdsForAlbum = (): string[] => {
+    const assetIds = new Set<string>();
+
+    for (const selectedAsset of assetMultiSelectManager.assets) {
+      const result = searchResultAssets.find(({ id }) => id === selectedAsset.id);
+      if (!result) {
+        continue;
+      }
+
+      const stackId = result.stack?.id;
+      if (!stackId) {
+        assetIds.add(result.id);
+        continue;
+      }
+
+      // Search results contain only matching stack members, so expanding from
+      // this list keeps album additions consistent with the visible results.
+      for (const stackAsset of allSearchResultAssets) {
+        if (stackAsset.stack?.id === stackId) {
+          assetIds.add(stackAsset.id);
+        }
+      }
+    }
+
+    return [...assetIds];
+  };
+
   const createAlbumFromSearchResults = async (albumName: string): Promise<boolean> => {
     const searchTerms = { ...terms };
     const smartSearch = ('query' in searchTerms || 'queryAssetId' in searchTerms) && smartSearchEnabled;
@@ -491,7 +518,7 @@
     {#if assetMultiSelectManager.selectionActive}
       <div class="fixed inset-s-0 top-0 z-2 w-full">
         <AssetSelectControlBar>
-          {@const Actions = getAssetBulkActions($t)}
+          {@const Actions = getAssetBulkActions($t, undefined, getSelectedSearchAssetIdsForAlbum)}
           <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
 
           <ActionButton action={Actions.CreateSharedLink} />

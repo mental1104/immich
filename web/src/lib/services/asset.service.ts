@@ -60,7 +60,11 @@ import { downloadUrl } from '$lib/utils';
 import { handleError } from '$lib/utils/handle-error';
 import { getFormatter } from '$lib/utils/i18n';
 
-export const getAssetBulkActions = ($t: MessageFormatter, album?: AlbumResponseDto) => {
+export const getAssetBulkActions = (
+  $t: MessageFormatter,
+  album?: AlbumResponseDto,
+  addToAlbumAssetIds?: () => string[],
+) => {
   const assetIds = assetMultiSelectManager.assets.map((asset) => asset.id);
   const ownedAssets = assetMultiSelectManager.ownedAssets;
   const isAlbumOwner = album?.albumUsers[0].user.id === authManager.user.id;
@@ -74,7 +78,8 @@ export const getAssetBulkActions = ($t: MessageFormatter, album?: AlbumResponseD
     title: $t('add_to_album'),
     icon: mdiPlus,
     shortcuts: [{ key: 'l' }],
-    onAction: () => modalManager.show(AssetAddToAlbumModal, { assetIds }),
+    onAction: () =>
+      modalManager.show(AssetAddToAlbumModal, { assetIds: addToAlbumAssetIds?.() ?? assetIds }),
   };
 
   const CreateSharedLink: ActionItem = {
