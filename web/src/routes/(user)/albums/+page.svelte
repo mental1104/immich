@@ -31,6 +31,11 @@
   let selectableAlbumIds: string[] = $state([]);
   let selectedAlbumIds: string[] = $state([]);
   let selectionMode = $state(false);
+  let selectedAlbums = $derived(
+    [...new Map([...data.albums, ...data.sharedAlbums].map((album) => [album.id, album])).values()].filter((album) =>
+      selectedAlbumIds.includes(album.id),
+    ),
+  );
 
   const toggleAlbumSelection = (albumId: string) => {
     selectedAlbumIds = selectedAlbumIds.includes(albumId)
@@ -60,6 +65,7 @@
         {albumGroups}
         {selectableAlbumIds}
         {selectedAlbumIds}
+        {selectedAlbums}
         {selectionMode}
         bind:searchQuery={searchInput}
         {onSearch}

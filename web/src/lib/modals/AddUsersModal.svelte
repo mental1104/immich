@@ -12,6 +12,8 @@
   type Props = {
     excludedUserIds: string[];
     emptyMessage?: string;
+    title?: string;
+    description?: string;
     onAddUsers: (users: UserResponseDto[]) => Promise<boolean | undefined>;
     loadUsers?: () => Promise<UserResponseDto[]>;
     onClose: () => void;
@@ -22,6 +24,8 @@
   const {
     excludedUserIds,
     emptyMessage = $t('album_share_no_users'),
+    title = $t('users'),
+    description,
     onAddUsers,
     loadUsers = searchUsers,
     onClose,
@@ -63,7 +67,7 @@
 </script>
 
 <FormModal
-  title={$t('users')}
+  {title}
   submitText={$t('add')}
   cancelText={$t('back')}
   {onSubmit}
@@ -76,6 +80,7 @@
     </div>
   {:else}
     <Stack>
+      {#if description}<Text>{description}</Text>{/if}
       <input
         class="border-b-4 border-immich-bg px-6 py-2 text-2xl focus:border-immich-primary dark:border-immich-dark-gray dark:focus:border-immich-dark-primary"
         placeholder={$t('search')}

@@ -41,11 +41,16 @@
   import { t } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
   import BulkAlbumCustomGroupModal from '$lib/modals/BulkAlbumCustomGroupModal.svelte';
+  import AddUsersModal from '$lib/modals/AddUsersModal.svelte';
+  import { handleAddUsersToAlbums, handleDeleteAlbums, isAlbumOwner } from '$lib/services/album.service';
+  import type { AlbumResponseDto } from '@immich/sdk';
+  import { mdiShareVariantOutline, mdiTrashCanOutline } from '@mdi/js';
 
   interface Props {
     albumGroups: string[];
     selectableAlbumIds: string[];
     selectedAlbumIds: string[];
+    selectedAlbums: AlbumResponseDto[];
     selectionMode: boolean;
     searchQuery: string;
     onSearch: (options: { force?: boolean }) => void;
@@ -59,6 +64,7 @@
     albumGroups,
     selectableAlbumIds,
     selectedAlbumIds,
+    selectedAlbums,
     selectionMode,
     searchQuery = $bindable(),
     onSearch,
@@ -125,6 +131,21 @@
     void modalManager.show(BulkAlbumCustomGroupModal, {
       albumIds: selectedAlbumIds,
       onDone: onClearSelection,
+    });
+  };
+
+  let ownedSelectedAlbums = $derived(selectedAlbums.filter(isAlbumOwner));
+  const openBulkShareModal = () => {
+    const albums = ownedSelectedAlbums;
+    if (albums.length === 0) return;
+    const presentInEveryAlbum = albums[0].albumUsers
+      .map(({ user }) => user.id)
+      .filter((userId) => albums.every((album) => album.albumUsers.some(({ user }) => user.id === userId)));
+    void modalManager.show(AddUsersModal, {
+      title: $t('bulk_album_share_title', { values: { count: albums.length } }),
+      description: $t('bulk_album_share_description', { values: { count: albums.length } }),
+      excludedUserIds: presentInEveryAlbum,
+      onAddUsers: (users) => handleAddUsersToAlbums(albums, users),
     });
   };
 
@@ -195,6 +216,35 @@
     color="secondary"
   >
     <Text class="hidden md:block">{$t('set_custom_group_count', { values: { count: selectedAlbumIds.length } })}</Text>
+  </Button>
+{/if}
+
+{#if ownedSelectedAlbums.length > 0}
+  <Button
+    leadingIcon={mdiShareVariantOutline}
+    aria-label={$t('bulk_album_share_button', { values: { count: ownedSelectedAlbums.length } })}
+    title={$t('bulk_album_share_button', { values: { count: ownedSelectedAlbums.length } })}
+    onclick={openBulkShareModal}
+    size="small"
+    variant="ghost"
+    color="secondary"
+  >
+    <Text class="hidden md:block"
+      >{$t('bulk_album_share_button', { values: { count: ownedSelectedAlbums.length } })}</Text
+    >
+  </Button>
+  <Button
+    leadingIcon={mdiTrashCanOutline}
+    aria-label={$t('bulk_album_delete_button', { values: { count: ownedSelectedAlbums.length } })}
+    title={$t('bulk_album_delete_button', { values: { count: ownedSelectedAlbums.length } })}
+    onclick={() => void handleDeleteAlbums(ownedSelectedAlbums)}
+    size="small"
+    variant="ghost"
+    color="secondary"
+  >
+    <Text class="hidden md:block"
+      >{$t('bulk_album_delete_button', { values: { count: ownedSelectedAlbums.length } })}</Text
+    >
   </Button>
 {/if}
 

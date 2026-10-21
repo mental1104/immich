@@ -2505,6 +2505,15 @@
   "bulk_custom_group_description": "输入名称以应用到所有已选相簿。留空则清除它们的自定义分组。",
   "bulk_custom_group_updated": "已更新 {count} 个相簿的自定义分组。",
   "bulk_custom_group_partial": "已更新 {totalCount} 个相簿中的 {successCount} 个。",
+  "bulk_album_share_title": "共享 {count} 个相簿",
+  "bulk_album_share_description": "选择要添加到所选相簿的用户；已是成员的用户会自动跳过。",
+  "bulk_album_share_button": "批量共享（{count}）",
+  "bulk_album_shared": "已成功共享 {count} 个相簿。",
+  "bulk_album_share_partial": "已共享 {totalCount} 个相簿中的 {successCount} 个。",
+  "bulk_album_delete_button": "批量删除（{count}）",
+  "bulk_album_delete_confirmation": "确定要删除所选的 {count} 个相簿吗？",
+  "bulk_album_deleted": "已删除 {count} 个相簿。",
+  "bulk_album_delete_partial": "已删除 {totalCount} 个相簿中的 {successCount} 个。",
   "group_custom": "自定义分组",
   "ungrouped": "未分组"
 }

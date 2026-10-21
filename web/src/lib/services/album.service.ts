@@ -287,6 +287,72 @@ export const handleAddUsersToAlbum = async (album: AlbumResponseDto, users: User
   }
 };
 
+export const handleAddUsersToAlbums = async (albums: AlbumResponseDto[], users: UserResponseDto[]) => {
+  const results = [];
+  for (let index = 0; index < albums.length; index += 10) {
+    const batch = albums.slice(index, index + 10);
+    results.push(
+      ...(await Promise.allSettled(
+        batch.map((album) => {
+          const existingUserIds = new Set(album.albumUsers.map(({ user }) => user.id));
+          const albumUsers = users.filter(({ id }) => !existingUserIds.has(id)).map(({ id }) => ({ userId: id }));
+          return albumUsers.length > 0
+            ? addUsersToAlbum({ id: album.id, addUsersDto: { albumUsers } })
+            : Promise.resolve();
+        }),
+      )),
+    );
+  }
+
+  const successCount = results.filter(({ status }) => status === 'fulfilled').length;
+  const $t = await getFormatter();
+  if (successCount > 0) {
+    eventManager.emit('AlbumShare');
+  }
+  if (successCount === albums.length) {
+    toastManager.primary($t('bulk_album_shared', { values: { count: successCount } }));
+    return true;
+  }
+  toastManager.danger($t('bulk_album_share_partial', { values: { successCount, totalCount: albums.length } }));
+  return false;
+};
+
+export const handleDeleteAlbums = async (albums: AlbumResponseDto[]) => {
+  if (albums.length === 0) {
+    return false;
+  }
+
+  const $t = await getFormatter();
+  const confirmed = await modalManager.showDialog({
+    title: $t('delete_album'),
+    prompt: `${$t('bulk_album_delete_confirmation', { values: { count: albums.length } })} ${$t('album_delete_confirmation_description')}`,
+    confirmText: $t('delete'),
+  });
+  if (!confirmed) {
+    return false;
+  }
+
+  const results = [];
+  for (let index = 0; index < albums.length; index += 10) {
+    const batch = albums.slice(index, index + 10);
+    results.push(
+      ...(await Promise.allSettled(
+        batch.map(async (album) => {
+          await deleteAlbum({ id: album.id });
+          eventManager.emit('AlbumDelete', album);
+        }),
+      )),
+    );
+  }
+  const successCount = results.filter(({ status }) => status === 'fulfilled').length;
+  if (successCount === albums.length) {
+    toastManager.primary($t('bulk_album_deleted', { values: { count: successCount } }));
+    return true;
+  }
+  toastManager.danger($t('bulk_album_delete_partial', { values: { successCount, totalCount: albums.length } }));
+  return false;
+};
+
 export const handleRemoveUserFromAlbum = async (album: AlbumResponseDto, albumUser: UserResponseDto) => {
   const $t = await getFormatter();
 

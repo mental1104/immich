@@ -2508,6 +2508,15 @@
   "bulk_custom_group_description": "Enter a name to assign it to every selected album. Leave it blank to remove their custom group.",
   "bulk_custom_group_updated": "Updated the custom group for {count} albums.",
   "bulk_custom_group_partial": "Updated the custom group for {successCount} of {totalCount} albums.",
+  "bulk_album_share_title": "Share {count} albums",
+  "bulk_album_share_description": "Choose users to add to every selected album where they are not already members.",
+  "bulk_album_share_button": "Share ({count})",
+  "bulk_album_shared": "Shared {count} albums successfully.",
+  "bulk_album_share_partial": "Shared {successCount} of {totalCount} albums.",
+  "bulk_album_delete_button": "Delete ({count})",
+  "bulk_album_delete_confirmation": "Are you sure you want to delete {count} selected albums?",
+  "bulk_album_deleted": "Deleted {count} albums.",
+  "bulk_album_delete_partial": "Deleted {successCount} of {totalCount} albums.",
   "group_custom": "Custom group",
   "ungrouped": "Ungrouped"
 }
