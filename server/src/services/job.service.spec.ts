@@ -30,7 +30,7 @@ describe(JobService.name, () => {
       try {
         const item: JobItem = { name: JobName.AssetGenerateThumbnails, data: { id: 'asset-1', source: 'upload' } };
         mocks.asset.getByIdsWithAllRelationsButStacks.mockResolvedValue([
-          AssetFactory.create({ id: 'asset-1', type: AssetType.Video }),
+          { ...AssetFactory.create({ id: 'asset-1', type: AssetType.Video }), exifInfo: null, faces: [] },
         ]);
         mocks.job.run.mockResolvedValue(JobStatus.Success);
 

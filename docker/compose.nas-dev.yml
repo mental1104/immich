@@ -42,7 +42,7 @@ services:
       redis:
         condition: service_started
   web:
-    image: node:24.21.0
+    image: node:24.22.1
     working_dir: /workspace
     # Corepack 使用 package.json 中锁定的 pnpm；SDK 先编译再启动 HMR。
     command: sh -c 'corepack enable && pnpm --filter @immich/sdk build && pnpm --dir web exec vite dev --host 0.0.0.0 --port 3000 --strictPort'

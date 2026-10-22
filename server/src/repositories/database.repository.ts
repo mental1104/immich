@@ -502,7 +502,8 @@ export class DatabaseRepository {
     return new Migrator({
       db: this.db,
       migrationLockTableName: 'kysely_migrations_lock',
-      allowUnorderedMigrations: this.configRepository.isDev(),
+      // Fork 已执行的迁移可能晚于后续合入的官方迁移；保留双方原名并执行尚未应用的迁移。
+      allowUnorderedMigrations: true,
       migrationTableName: 'kysely_migrations',
       provider: new FileMigrationProvider({
         fs: { readdir },

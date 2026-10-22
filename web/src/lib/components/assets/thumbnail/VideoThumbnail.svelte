@@ -54,7 +54,6 @@
   const sessionIdRegex = /\/video\/stream\/([0-9a-f-]{36})\//;
   const hlsConfig: Partial<HlsConfig> = {
     startLevel: 0,
-    autoLevelCapping: 0,
     xhrSetup: (xhr, url) => {
       const authenticatedUrl = new URL(url, location.origin);
       for (const [key, value] of Object.entries(authManager.params)) {
@@ -126,6 +125,7 @@
       if (!api) {
         return;
       }
+      api.autoLevelCapping = 0;
       api.on(Hls.Events.MANIFEST_PARSED, () => {
         const id = api.levels[0]?.url[0]?.match(sessionIdRegex)?.[1];
         if (id) {
@@ -185,8 +185,8 @@
       error = true;
       loading = false;
     }}
-    ontimeupdate={({ currentTarget }) => {
-      const video = currentTarget as HTMLVideoElement;
+    ontimeupdate={(event: Event) => {
+      const video = event.currentTarget as HlsVideoElement;
       const remaining = video.duration - video.currentTime;
       remainingSeconds = Math.min(Math.ceil(Number.isNaN(remaining) ? Infinity : remaining), durationInSeconds);
     }}

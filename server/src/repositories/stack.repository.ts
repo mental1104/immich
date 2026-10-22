@@ -113,10 +113,10 @@ export class StackRepository {
         .where('asset.visibility', '=', anchor.visibility)
         .where('asset.deletedAt', 'is', null)
         .where(
-          sql<boolean>`lower(asset."originalPath") in (${sql.join(candidatePaths)}) or (
+          sql<boolean>`(lower(asset."originalPath") in (${sql.join(candidatePaths)}) or (
             ${anchor.model ? sql`asset_exif.model = ${anchor.model}` : sql`false`} and
             ${anchor.dateTimeOriginal ? sql`asset_exif."dateTimeOriginal" = ${anchor.dateTimeOriginal}` : sql`false`}
-          )`,
+          ))`,
         )
         .orderBy('asset.id')
         .forUpdate('asset')

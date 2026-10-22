@@ -27,3 +27,4 @@
 - 完成任务时报告修改文件、兼容性影响、实际运行的检查、性能证据（适用时）及尚未验证的风险；不得把未运行的测试写成通过。
 
 执行流程参见 `.agents/skills/immich-fork-development/SKILL.md`。
+上游版本同步与稳定发布遵循 `docs/fork-upstream-upgrades.md`；保留官方及已发布 Fork 迁移原名，使用 `docker/verify-fork-migrations.mjs` 校验迁移。

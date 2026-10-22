@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   migration-order:
     name: Verify migration ORDER
-    if: ${{ !github.event.created }}
+    if: ${{ github.repository == 'immich-app/immich' && !github.event.created }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

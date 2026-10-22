@@ -113,7 +113,7 @@ describe(AssetService.name, () => {
 
       const result = await sut.get(authStub.admin, asset.id);
 
-      expect(result.taskStatuses).toEqual([
+      expect(result).toHaveProperty('taskStatuses', [
         expect.objectContaining({
           taskName: 'thumbnail-generation',
           status: 'failed',

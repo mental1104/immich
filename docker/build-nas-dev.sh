@@ -9,6 +9,7 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 commit=$(git rev-parse HEAD)
+source_ref=$(git symbolic-ref --short HEAD || git describe --tags --always)
 tag="immich-server:nas-dev-$(git rev-parse --short=12 HEAD)"
 available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
 if [ "$available_kib" -lt 8388608 ]; then
@@ -24,6 +25,6 @@ tar --exclude=.git --exclude=node_modules --exclude=.pnpm-store \
   --build-arg "BUILD_ID=local-$commit" \
   --build-arg "BUILD_IMAGE=$tag" \
   --build-arg BUILD_REPOSITORY=mental1104/immich \
-  --build-arg BUILD_SOURCE_REF=nas-dev-x5-jpg \
+  --build-arg "BUILD_SOURCE_REF=$source_ref" \
   --build-arg "BUILD_SOURCE_COMMIT=$commit" --tag "$tag" -
 docker image inspect "$tag" --format '{{.Id}} {{.Os}}/{{.Architecture}}'

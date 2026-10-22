@@ -15,7 +15,7 @@ describe(StackService.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(StackService));
-    mocks.assetJob.isRawAsset.mockResolvedValue(true);
+    mocks.assetJob.isStackableImage.mockResolvedValue(true);
   });
 
   it('should be defined', () => {
@@ -41,8 +41,8 @@ describe(StackService.name, () => {
     expect(mocks.job.queue).not.toHaveBeenCalled();
   });
 
-  it('does not queue RAW pairing for non-RAW assets', async () => {
-    mocks.assetJob.isRawAsset.mockResolvedValue(false);
+  it('does not queue capture stacking for unsupported assets', async () => {
+    mocks.assetJob.isStackableImage.mockResolvedValue(false);
     await sut.onAssetMetadataExtracted({ assetId: 'jpeg-id', userId: 'owner-id', source: 'upload', isRaw: false });
     expect(mocks.job.queue).not.toHaveBeenCalled();
   });

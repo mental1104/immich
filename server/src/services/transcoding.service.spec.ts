@@ -592,7 +592,7 @@ describe(TranscodingService.name, () => {
     mocks.process.spawn.mockReturnValue(mockSpawn(0, '', ''));
 
     await sut.onSessionRequest({ sessionId, assetId, ownerId });
-    await sut.onSegmentRequest({ sessionId, variantIndex: 2, segmentIndex: 0 });
+    await sut.onSegmentRequest({ sessionId, assetId, variantIndex: 2, segmentIndex: 0 });
 
     const args = mocks.process.spawn.mock.calls[0][1] as string[];
     expect(args).toEqual(expect.arrayContaining(['-async_depth', '1']));
