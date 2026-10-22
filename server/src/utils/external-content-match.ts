@@ -39,7 +39,7 @@ export const hashExternalContentFile = async (filename: string): Promise<string>
 
 /**
  * 构建移动端同步用 checksum 投影，保持原有 bytea 协议结构不变。
- * 若当前用户存在同内容的其他资产，则退回路径指纹，防止错误归属。
+ * 对同一用户的相同内容仅映射资产 ID 最小者，其余保留路径 SHA1，避免客户端多重关联。
  * @returns Kysely 别名为 checksum 的字节表达式。
  */
 export const syncExternalContentChecksum = () => {
@@ -61,7 +61,7 @@ export const syncExternalContentChecksum = () => {
           AND other_hash.value->>'published' = 'true'
           AND other_hash.value->>'sha1' = content_hash.value->>'sha1'
           AND other_asset."ownerId" = asset."ownerId"
-          AND other_asset.id <> asset.id
+          AND other_asset.id < asset.id
           AND other_asset."deletedAt" IS NULL
       )
       AND NOT EXISTS (
