@@ -577,6 +577,16 @@ export class AssetJobRepository {
     return asset?.isRaw ?? false;
   }
 
+  async isStackableImage(assetId: string): Promise<boolean> {
+    const asset = await this.db
+      .selectFrom('asset')
+      .select('originalFileName')
+      .where('id', '=', asUuid(assetId))
+      .where('type', '=', AssetType.Image)
+      .executeTakeFirst();
+    return !!asset && /\.(nef|dng|jpe?g|heic|heif)$/i.test(asset.originalFileName);
+  }
+
   async queueAssetTasks(taskName: ForkAssetTaskName, assetIds: string[]): Promise<void> {
     const ids = [...new Set(assetIds)];
     if (ids.length === 0) {

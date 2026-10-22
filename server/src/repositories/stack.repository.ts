@@ -49,15 +49,15 @@ const withAssets = (eb: ExpressionBuilder<DB, 'stack'>, withTags = false) => {
 };
 
 @Injectable()
-/** 持久化现有照片堆叠，并对唯一 RAW/成片拍摄参数配对提供事务与幂等保护。 */
+/** 持久化现有照片堆叠，并将 RAW 与相关成片自动归组。 */
 export class StackRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
 
   /**
-   * 把拍摄参数唯一匹配的 NEF/DNG 与 JPG/HEIC/HEIF 放入既有堆叠，成片为封面；不删除或移动原片。
+   * 将同名或相机型号、拍摄时间相同的 RAW 与成片加入同一堆叠，不限制成员数，也不删除资源。
    * @param assetId 元数据提取完成的资源 ID，允许由任一文件先触发。
    * @param ownerId 事件所属用户；查询与事务均限定此用户。
-   * @returns 新建的 stackId；无唯一配对、信息不足或已有堆叠时为 undefined。
+   * @returns 有变更时的 stackId；信息不足或无变更时为 undefined。
    */
   async autoStackRawPair(assetId: string, ownerId: string): Promise<string | undefined> {
     const anchor = await this.db
@@ -70,6 +70,8 @@ export class StackRepository {
         'asset.isExternal',
         'asset.visibility',
         'asset.stackId',
+        'asset_exif.model',
+        'asset_exif.dateTimeOriginal',
       ])
       .where('asset.id', '=', assetId)
       .where('asset.ownerId', '=', ownerId)
@@ -78,7 +80,6 @@ export class StackRepository {
       .executeTakeFirst();
     if (
       !anchor ||
-      anchor.stackId ||
       !/[.](nef|dng|jpe?g|heic|heif)$/i.test(anchor.originalFileName) ||
       (anchor.visibility !== AssetVisibility.Timeline && anchor.visibility !== AssetVisibility.Archive)
     ) {
@@ -96,45 +97,94 @@ export class StackRepository {
       await sql`select pg_advisory_xact_lock(hashtextextended(${`raw-pair:${ownerId}`}, 0))`.execute(tx);
       const candidates = await tx
         .selectFrom('asset')
-        .select(['asset.id', 'asset.originalFileName', 'asset.originalPath', 'asset.stackId'])
+        .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+        .select([
+          'asset.id',
+          'asset.originalFileName',
+          'asset.originalPath',
+          'asset.stackId',
+          'asset_exif.model',
+          'asset_exif.dateTimeOriginal',
+        ])
         .where('asset.ownerId', '=', ownerId)
         .where('asset.libraryId', anchor.libraryId === null ? 'is' : '=', anchor.libraryId)
         .where('asset.isExternal', '=', anchor.isExternal)
         .where('asset.type', '=', AssetType.Image)
         .where('asset.visibility', '=', anchor.visibility)
         .where('asset.deletedAt', 'is', null)
-        .where(sql<boolean>`lower(asset."originalPath") in (${sql.join(candidatePaths)})`)
+        .where(
+          sql<boolean>`lower(asset."originalPath") in (${sql.join(candidatePaths)}) or (
+            ${anchor.model ? sql`asset_exif.model = ${anchor.model}` : sql`false`} and
+            ${anchor.dateTimeOriginal ? sql`asset_exif."dateTimeOriginal" = ${anchor.dateTimeOriginal}` : sql`false`}
+          )`,
+        )
         .orderBy('asset.id')
         .forUpdate('asset')
         .execute();
       const pairedCandidates = candidates.filter((asset) => {
         const directory = asset.originalPath.slice(0, asset.originalPath.lastIndexOf('/'));
         const stem = asset.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
-        return directory.toLocaleLowerCase() === anchorDirectory.toLocaleLowerCase() && stem === anchorStem;
+        return (
+          (directory.toLocaleLowerCase() === anchorDirectory.toLocaleLowerCase() && stem === anchorStem) ||
+          (!!anchor.model &&
+            !!anchor.dateTimeOriginal &&
+            asset.model === anchor.model &&
+            asset.dateTimeOriginal?.getTime() === anchor.dateTimeOriginal.getTime())
+        );
       });
       const raw = pairedCandidates.filter((asset) => /[.](nef|dng)$/i.test(asset.originalFileName));
       const rendered = pairedCandidates.filter((asset) => /[.](jpe?g|heic|heif)$/i.test(asset.originalFileName));
-      // 同目录、同文件名主干足以确认 RAW/成片关系；不同格式的 EXIF 时间或镜头参数可能不一致。不覆盖手工堆叠。
-      if (
-        pairedCandidates.length !== 2 ||
-        raw.length !== 1 ||
-        rendered.length !== 1 ||
-        candidates.every((asset) => asset.id !== assetId) ||
-        pairedCandidates.some((asset) => asset.stackId)
-      ) {
+      // 允许同一曝光存在多个 RAW 或成片；型号与拍摄时间一致的候选也归组，留给用户判断。
+      if (raw.length === 0 || rendered.length === 0 || !pairedCandidates.some((asset) => asset.id === assetId)) {
         return;
       }
-      const stack = await tx
-        .insertInto('stack')
-        .values({ ownerId, primaryAssetId: rendered[0].id })
-        .returning('id')
-        .executeTakeFirstOrThrow();
+      const existingStackIds = [...new Set(pairedCandidates.flatMap(({ stackId }) => (stackId ? [stackId] : [])))];
+      const existingStacks = existingStackIds.length
+        ? await tx
+            .selectFrom('stack')
+            .select(['id', 'primaryAssetId'])
+            .where('id', 'in', existingStackIds)
+            .where('ownerId', '=', ownerId)
+            .orderBy('id')
+            .forUpdate()
+            .execute()
+        : [];
+      const target = existingStacks[0];
+      if (target && existingStacks.length === 1 && pairedCandidates.every(({ stackId }) => stackId === target.id)) {
+        return;
+      }
+      const targetId =
+        target?.id ??
+        (
+          await tx
+            .insertInto('stack')
+            .values({
+              ownerId,
+              primaryAssetId: [...rendered].sort((a, b) => a.originalPath.localeCompare(b.originalPath))[0].id,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow()
+        ).id;
+      const sourceIds = existingStacks.filter(({ id }) => id !== targetId).map(({ id }) => id);
+      if (sourceIds.length) {
+        await tx
+          .updateTable('asset')
+          .set({ stackId: targetId, updatedAt: new Date() })
+          .where('asset.stackId', 'in', sourceIds)
+          .execute();
+        await tx.deleteFrom('stack').where('id', 'in', sourceIds).execute();
+      }
       await tx
         .updateTable('asset')
-        .set({ stackId: stack.id, updatedAt: new Date() })
-        .where('id', 'in', [rendered[0].id, raw[0].id])
+        .set({ stackId: targetId, updatedAt: new Date() })
+        .where(
+          'id',
+          'in',
+          pairedCandidates.map(({ id }) => id),
+        )
+        .where('stackId', 'is', null)
         .execute();
-      return stack.id;
+      return targetId;
     });
   }
 

@@ -11,16 +11,19 @@ import { findOrFail } from 'src/utils/misc.js';
 import { UUIDAssetIDParamDto } from 'src/validation.js';
 
 @Injectable()
-/** 复用既有堆叠 API 与通知，为完成元数据提取的 RAW 文件触发受限自动配对。 */
+/** 复用既有堆叠 API 与通知，为完成元数据提取的图像触发 RAW/成片归组。 */
 export class StackService extends BaseService {
-  /** 元数据提取完成后尝试唯一 RAW 配对；仅新建成功时通知用户刷新堆叠。 */
+  /** 元数据提取完成后尝试归组；有新成员或合并堆叠时通知客户端刷新。 */
   @OnEvent({ name: 'AssetMetadataExtracted' })
   async onAssetMetadataExtracted({ assetId, userId, source, isRaw }: ArgOf<'AssetMetadataExtracted'>) {
     // 编辑侧写文件不应把用户刚拆开的堆叠自动重建。
     if (source === 'sidecar-write') {
       return;
     }
-    if (!(isRaw ?? (await this.assetJobRepository.isRawAsset(assetId)))) {
+    if (
+      !(isRaw ?? (await this.assetJobRepository.isRawAsset(assetId))) &&
+      !(await this.assetJobRepository.isStackableImage(assetId))
+    ) {
       return;
     }
     await this.jobRepository.queue({ name: JobName.AssetStackRawPair, data: { assetId, ownerId: userId } });
