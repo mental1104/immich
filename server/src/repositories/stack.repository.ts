@@ -70,12 +70,6 @@ export class StackRepository {
         'asset.isExternal',
         'asset.visibility',
         'asset.stackId',
-        'asset_exif.model',
-        'asset_exif.dateTimeOriginal',
-        'asset_exif.exposureTime',
-        'asset_exif.fNumber',
-        'asset_exif.focalLength',
-        'asset_exif.iso',
       ])
       .where('asset.id', '=', assetId)
       .where('asset.ownerId', '=', ownerId)
@@ -85,24 +79,23 @@ export class StackRepository {
     if (
       !anchor ||
       anchor.stackId ||
-      !anchor.dateTimeOriginal ||
-      !anchor.model ||
-      !anchor.exposureTime ||
-      anchor.fNumber === null ||
-      anchor.focalLength === null ||
-      anchor.iso === null ||
       !/[.](nef|dng|jpe?g|heic|heif)$/i.test(anchor.originalFileName) ||
       (anchor.visibility !== AssetVisibility.Timeline && anchor.visibility !== AssetVisibility.Archive)
     ) {
       return;
     }
 
+    const anchorDirectory = anchor.originalPath.slice(0, anchor.originalPath.lastIndexOf('/'));
+    const anchorStem = anchor.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
+    const candidatePaths = ['nef', 'dng', 'jpg', 'jpeg', 'heic', 'heif'].map((extension) =>
+      `${anchorDirectory}/${anchorStem}.${extension}`.toLocaleLowerCase(),
+    );
+
     return this.db.transaction().execute(async (tx) => {
       // 同一用户的配对串行执行，避免同时完成时重复建堆叠。
       await sql`select pg_advisory_xact_lock(hashtextextended(${`raw-pair:${ownerId}`}, 0))`.execute(tx);
       const candidates = await tx
         .selectFrom('asset')
-        .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
         .select(['asset.id', 'asset.originalFileName', 'asset.originalPath', 'asset.stackId'])
         .where('asset.ownerId', '=', ownerId)
         .where('asset.libraryId', anchor.libraryId === null ? 'is' : '=', anchor.libraryId)
@@ -110,26 +103,18 @@ export class StackRepository {
         .where('asset.type', '=', AssetType.Image)
         .where('asset.visibility', '=', anchor.visibility)
         .where('asset.deletedAt', 'is', null)
-        .where('asset_exif.model', '=', anchor.model)
-        .where('asset_exif.dateTimeOriginal', '=', anchor.dateTimeOriginal)
-        .where('asset_exif.exposureTime', '=', anchor.exposureTime)
-        .where('asset_exif.fNumber', '=', anchor.fNumber)
-        .where('asset_exif.focalLength', '=', anchor.focalLength)
-        .where('asset_exif.iso', '=', anchor.iso)
-        .where(sql<boolean>`asset."originalFileName" ~* '[.](nef|dng|jpe?g|heic|heif)$'`)
+        .where(sql<boolean>`lower(asset."originalPath") in (${sql.join(candidatePaths)})`)
         .orderBy('asset.id')
         .forUpdate('asset')
         .execute();
-      const anchorDirectory = anchor.originalPath.slice(0, anchor.originalPath.lastIndexOf('/'));
-      const anchorStem = anchor.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
       const pairedCandidates = candidates.filter((asset) => {
         const directory = asset.originalPath.slice(0, asset.originalPath.lastIndexOf('/'));
         const stem = asset.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
-        return directory === anchorDirectory && stem === anchorStem;
+        return directory.toLocaleLowerCase() === anchorDirectory.toLocaleLowerCase() && stem === anchorStem;
       });
       const raw = pairedCandidates.filter((asset) => /[.](nef|dng)$/i.test(asset.originalFileName));
       const rendered = pairedCandidates.filter((asset) => /[.](jpe?g|heic|heif)$/i.test(asset.originalFileName));
-      // 完整拍摄参数用于缩小范围，最终按同目录、同文件名主干配对，避免其他同秒照片造成歧义；不覆盖手工堆叠。
+      // 同目录、同文件名主干足以确认 RAW/成片关系；不同格式的 EXIF 时间或镜头参数可能不一致。不覆盖手工堆叠。
       if (
         pairedCandidates.length !== 2 ||
         raw.length !== 1 ||
