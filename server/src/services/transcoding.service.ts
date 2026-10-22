@@ -218,7 +218,11 @@ export class TranscodingService extends BaseService {
       return;
     }
 
-    if (session.revision !== revision || session.variantIndex !== variantIndex || session.startSegment !== startSegment) {
+    if (
+      session.revision !== revision ||
+      session.variantIndex !== variantIndex ||
+      session.startSegment !== startSegment
+    ) {
       return;
     }
 
@@ -284,7 +288,11 @@ export class TranscodingService extends BaseService {
       asset.audioStream ?? undefined,
     );
     // BaseConfig.create 和 getHlsCommand 中没有 await；前面的 getConfig 是最后一个可能让出执行权的位置。
-    if (session.revision !== revision || session.variantIndex !== variantIndex || session.startSegment !== startSegment) {
+    if (
+      session.revision !== revision ||
+      session.variantIndex !== variantIndex ||
+      session.startSegment !== startSegment
+    ) {
       return;
     }
     this.logger.log(

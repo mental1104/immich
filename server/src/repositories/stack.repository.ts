@@ -136,7 +136,7 @@ export class StackRepository {
         );
       });
       // 拍摄时间与相机型号都相同时即纳入候选；相同时间的连拍或重复文件交由用户判断。
-      if (pairedCandidates.length < 2 || !pairedCandidates.some((asset) => asset.id === assetId)) {
+      if (pairedCandidates.length < 2 || pairedCandidates.every((asset) => asset.id !== assetId)) {
         return;
       }
       const existingStackIds = [...new Set(pairedCandidates.flatMap(({ stackId }) => (stackId ? [stackId] : [])))];
@@ -146,7 +146,7 @@ export class StackRepository {
         .select(['id', 'primaryAssetId', 'ownerId'])
         .where((eb) =>
           eb.or([
-            ...(existingStackIds.length ? [eb('stack.id', 'in', existingStackIds)] : []),
+            ...(existingStackIds.length > 0 ? [eb('stack.id', 'in', existingStackIds)] : []),
             eb('stack.primaryAssetId', 'in', candidateIds),
           ]),
         )
@@ -192,7 +192,7 @@ export class StackRepository {
         }
       }
       const sourceIds = existingStacks.filter(({ id }) => id !== targetId).map(({ id }) => id);
-      if (sourceIds.length) {
+      if (sourceIds.length > 0) {
         await tx
           .updateTable('asset')
           .set({ stackId: targetId, updatedAt: new Date() })

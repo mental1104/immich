@@ -45,6 +45,10 @@ jobs:
           pnpm --dir web check:typescript
       - name: Server unit tests
         run: pnpm --dir server test --run --maxWorkers=2
+      - name: Server and Web lint
+        run: |
+          pnpm --dir server lint
+          pnpm --dir web exec eslint . --max-warnings 0 --concurrency 1
       - name: Database upgrade and feature regressions
         run: >-
           pnpm --dir server test:medium --run --maxWorkers=2

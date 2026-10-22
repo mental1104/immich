@@ -193,7 +193,7 @@ export class QueueService extends BaseService {
       this.jobRepository.isPaused(name),
       name === QueueName.MetadataExtraction ? this.assetJobRepository.getMetadataExtractionProgress() : undefined,
     ]);
-    return { name, isPaused, statistics, ...(metadataProgress ? { metadataProgress } : {}) };
+    return { name, isPaused, statistics, ...(metadataProgress && { metadataProgress }) };
   }
 
   private async start(name: QueueName, { force }: QueueCommandDto): Promise<void> {
