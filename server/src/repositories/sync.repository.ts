@@ -6,6 +6,7 @@ import { columns } from 'src/database.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
+import { syncExternalContentChecksum } from 'src/utils/external-content-match.js';
 
 export type SyncBackfillOptions = {
   nowId: string;
@@ -202,7 +203,8 @@ class AlbumAssetSync extends BaseSync {
   getBackfill(options: SyncBackfillOptions, albumId: string, userId: string) {
     return this.backfillQuery('album_asset', options)
       .innerJoin('asset', 'asset.id', 'album_asset.assetId')
-      .select(columns.syncAlbumAsset)
+      .select(columns.syncAlbumAsset.filter((column) => column !== 'asset.checksum'))
+      .select(syncExternalContentChecksum())
       .select((eb) =>
         eb
           .case()
@@ -222,7 +224,8 @@ class AlbumAssetSync extends BaseSync {
     const userId = options.userId;
     return this.upsertQuery('asset', options)
       .innerJoin('album_asset', 'album_asset.assetId', 'asset.id')
-      .select(columns.syncAlbumAsset)
+      .select(columns.syncAlbumAsset.filter((column) => column !== 'asset.checksum'))
+      .select(syncExternalContentChecksum())
       .select((eb) =>
         eb
           .case()
@@ -245,7 +248,8 @@ class AlbumAssetSync extends BaseSync {
     return this.upsertQuery('album_asset', options)
       .select('album_asset.updateId')
       .innerJoin('asset', 'asset.id', 'album_asset.assetId')
-      .select(columns.syncAlbumAsset)
+      .select(columns.syncAlbumAsset.filter((column) => column !== 'asset.checksum'))
+      .select(syncExternalContentChecksum())
       .select((eb) =>
         eb
           .case()
@@ -403,7 +407,8 @@ class AssetSync extends BaseSync {
   @GenerateSql({ params: [dummyQueryOptions], stream: true })
   getUpserts(options: SyncQueryOptions) {
     return this.upsertQuery('asset', options)
-      .select(columns.syncAsset)
+      .select(columns.syncAsset.filter((column) => column !== 'asset.checksum'))
+      .select(syncExternalContentChecksum())
       .select('asset.updateId')
       .where('ownerId', '=', options.userId)
       .stream();
@@ -662,7 +667,8 @@ class PartnerAssetsSync extends BaseSync {
   @GenerateSql({ params: [dummyBackfillOptions, DummyValue.UUID], stream: true })
   getBackfill(options: SyncBackfillOptions, partnerId: string) {
     return this.backfillQuery('asset', options)
-      .select(columns.syncPartnerAsset)
+      .select(columns.syncPartnerAsset.filter((column) => column !== 'asset.checksum'))
+      .select(syncExternalContentChecksum())
       .select(sql.val(false).as('isFavorite'))
       .select('asset.updateId')
       .where('ownerId', '=', partnerId)
@@ -682,7 +688,8 @@ class PartnerAssetsSync extends BaseSync {
   @GenerateSql({ params: [dummyQueryOptions], stream: true })
   getUpserts(options: SyncQueryOptions) {
     return this.upsertQuery('asset', options)
-      .select(columns.syncPartnerAsset)
+      .select(columns.syncPartnerAsset.filter((column) => column !== 'asset.checksum'))
+      .select(syncExternalContentChecksum())
       .select(sql.val(false).as('isFavorite'))
       .select('asset.updateId')
       .where('ownerId', 'in', (eb) =>
