@@ -34,6 +34,13 @@ import { AssetSyncResult } from 'src/repositories/library.repository.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
+import {
+  EXTERNAL_CONTENT_HASH_KEY,
+  hashExternalContentFile,
+  isExternalContentHashIndexEnabled,
+  isExternalContentHashSyncEnabled,
+  isReusableExternalContentHash,
+} from 'src/utils/external-content-match.js';
 import { batched, findOrFail, handlePromiseError } from 'src/utils/misc.js';
 
 const DEFERRED_VIDEO_SIZE_BYTES = 3 * 1024 ** 3;
@@ -509,6 +516,59 @@ export class LibraryService extends BaseService {
     const stats = await Promise.all(
       assets.map((asset) => this.storageRepository.stat(asset.originalPath).catch(() => null)),
     );
+
+    // 只有显式启用时才在已有外部图库扫描期间计算内容指纹，不增加启动 I/O。
+    if (isExternalContentHashIndexEnabled()) {
+      const indexed = await this.assetRepository.getExternalContentHashes(assets.map((asset) => asset.id));
+      const cache = new Map(indexed.map(({ assetId, value }) => [assetId, value]));
+      const publish = isExternalContentHashSyncEnabled();
+      let computed = 0;
+      let reused = 0;
+      let changed = 0;
+
+      // 每个队列批次内顺序读取原片，避免同批次大量磁盘流并发读取。
+      for (let i = 0; i < assets.length; i++) {
+        const asset = assets[i];
+        const stat = stats[i];
+        if (!asset.libraryId || !stat || asset.status !== AssetStatus.Active) {
+          continue;
+        }
+
+        const previous = cache.get(asset.id);
+        const reusable = isReusableExternalContentHash(previous, stat);
+        if (reusable && previous?.published === publish) {
+          reused++;
+          continue;
+        }
+
+        try {
+          // 写入缓存前再次检查原片，避免对扫描期间变化的文件发布陈旧指纹。
+          const sha1 = reusable ? (previous.sha1 as string) : await hashExternalContentFile(asset.originalPath);
+          const after = await this.storageRepository.stat(asset.originalPath);
+          if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
+            this.logger.warn(`External content changed during hashing: asset ${asset.id}`);
+            continue;
+          }
+
+          await this.assetRepository.upsertMetadata(asset.id, [
+            { key: EXTERNAL_CONTENT_HASH_KEY, value: { sha1, size: stat.size, mtimeMs: stat.mtimeMs, published: publish } },
+          ]);
+          if (publish || previous?.published === true) {
+            // 将原有 asset.updateId 向前推进，客户端下一次增量同步才会重新关联 checksum。
+            await this.assetRepository.updateAll([asset.id], { updatedAt: new Date() });
+            changed++;
+          }
+          if (!reusable) {
+            computed++;
+          }
+        } catch (error) {
+          this.logger.warn(`External content hashing failed for asset ${asset.id}: ${String(error)}`);
+        }
+      }
+      this.logger.log(
+        `External content hashing: ${computed} computed, ${reused} reused, ${changed} sync updates for batch of ${assets.length}`,
+      );
+    }
 
     for (let i = 0; i < assets.length; i++) {
       const asset = assets[i];
