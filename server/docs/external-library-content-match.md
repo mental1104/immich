@@ -25,7 +25,7 @@ Keep both flags off for production until the isolated test passes. There is no a
 - The existing external library scan now computes one hash at a time **within each batch**. Multiple scan jobs or containers may overlap, so reduce library job concurrency before indexing a large HDD library.
 - Each checksum cache record stores SHA1, source size, `mtimeMs`, and whether its digest is published. If a file changes, the next scan recalculates it.
 - Switching publication on or off requires running **Scan Library** with indexing enabled. That refreshes `asset.updateId` so the unchanged client can receive the revised checksum.
-- Sync SQL maps only published content fingerprints that have no same-owner collision with another indexed external asset or an already uploaded asset.
+- Sync SQL chooses the lowest asset ID when the same owner has multiple published external copies. If the owner already has an uploaded copy with the same checksum, the external asset keeps its original path checksum.
 - To roll back, leave indexing enabled, switch publishing off and run Library Scan once. Then disable indexing and restore the previous server image.
 
 ## Limitations
