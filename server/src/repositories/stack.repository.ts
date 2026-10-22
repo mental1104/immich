@@ -49,12 +49,12 @@ const withAssets = (eb: ExpressionBuilder<DB, 'stack'>, withTags = false) => {
 };
 
 @Injectable()
-/** 持久化现有照片堆叠，并将 RAW 与相关成片自动归组。 */
+/** 持久化现有照片堆叠，并将拍摄信息相同的照片自动归组。 */
 export class StackRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
 
   /**
-   * 将同名或相机型号、拍摄时间相同的 RAW 与成片加入同一堆叠，不限制成员数，也不删除资源。
+   * 将同名或相机型号、拍摄时间相同的照片加入同一堆叠，不限制成员数，也不删除资源。
    * @param assetId 元数据提取完成的资源 ID，允许由任一文件先触发。
    * @param ownerId 事件所属用户；查询与事务均限定此用户。
    * @returns 有变更时的 stackId；信息不足或无变更时为 undefined。
@@ -62,7 +62,7 @@ export class StackRepository {
   async autoStackRawPair(assetId: string, ownerId: string): Promise<string | undefined> {
     const anchor = await this.db
       .selectFrom('asset')
-      .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
       .select([
         'asset.originalFileName',
         'asset.originalPath',
@@ -97,7 +97,7 @@ export class StackRepository {
       await sql`select pg_advisory_xact_lock(hashtextextended(${`raw-pair:${ownerId}`}, 0))`.execute(tx);
       const candidates = await tx
         .selectFrom('asset')
-        .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+        .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
         .select([
           'asset.id',
           'asset.originalFileName',
@@ -122,6 +122,9 @@ export class StackRepository {
         .forUpdate('asset')
         .execute();
       const pairedCandidates = candidates.filter((asset) => {
+        if (!/[.](nef|dng|jpe?g|heic|heif)$/i.test(asset.originalFileName)) {
+          return false;
+        }
         const directory = asset.originalPath.slice(0, asset.originalPath.lastIndexOf('/'));
         const stem = asset.originalFileName.replace(/[.][^.]+$/, '').toLocaleLowerCase();
         return (
@@ -132,39 +135,62 @@ export class StackRepository {
             asset.dateTimeOriginal?.getTime() === anchor.dateTimeOriginal.getTime())
         );
       });
-      const raw = pairedCandidates.filter((asset) => /[.](nef|dng)$/i.test(asset.originalFileName));
-      const rendered = pairedCandidates.filter((asset) => /[.](jpe?g|heic|heif)$/i.test(asset.originalFileName));
-      // 允许同一曝光存在多个 RAW 或成片；型号与拍摄时间一致的候选也归组，留给用户判断。
-      if (raw.length === 0 || rendered.length === 0 || !pairedCandidates.some((asset) => asset.id === assetId)) {
+      // 拍摄时间与相机型号都相同时即纳入候选；相同时间的连拍或重复文件交由用户判断。
+      if (pairedCandidates.length < 2 || !pairedCandidates.some((asset) => asset.id === assetId)) {
         return;
       }
       const existingStackIds = [...new Set(pairedCandidates.flatMap(({ stackId }) => (stackId ? [stackId] : [])))];
-      const existingStacks = existingStackIds.length
-        ? await tx
-            .selectFrom('stack')
-            .select(['id', 'primaryAssetId'])
-            .where('id', 'in', existingStackIds)
-            .where('ownerId', '=', ownerId)
-            .orderBy('id')
-            .forUpdate()
-            .execute()
-        : [];
+      const candidateIds = pairedCandidates.map(({ id }) => id);
+      const existingStacks = await tx
+        .selectFrom('stack')
+        .select(['id', 'primaryAssetId', 'ownerId'])
+        .where((eb) =>
+          eb.or([
+            ...(existingStackIds.length ? [eb('stack.id', 'in', existingStackIds)] : []),
+            eb('stack.primaryAssetId', 'in', candidateIds),
+          ]),
+        )
+        .orderBy('id')
+        .forUpdate()
+        .execute();
+      // 不跨用户合并堆叠；这也避免把另一位用户的主图占用当作本组新封面。
+      if (existingStacks.some(({ ownerId: stackOwnerId }) => stackOwnerId !== ownerId)) {
+        return;
+      }
       const target = existingStacks[0];
       if (target && existingStacks.length === 1 && pairedCandidates.every(({ stackId }) => stackId === target.id)) {
         return;
       }
-      const targetId =
-        target?.id ??
-        (
-          await tx
-            .insertInto('stack')
-            .values({
-              ownerId,
-              primaryAssetId: [...rendered].sort((a, b) => a.originalPath.localeCompare(b.originalPath))[0].id,
-            })
-            .returning('id')
-            .executeTakeFirstOrThrow()
-        ).id;
+      const preferredPrimary = [...pairedCandidates].sort((a, b) => {
+        const aRendered = /[.](jpe?g|heic|heif)$/i.test(a.originalFileName);
+        const bRendered = /[.](jpe?g|heic|heif)$/i.test(b.originalFileName);
+        return Number(bRendered) - Number(aRendered) || a.originalPath.localeCompare(b.originalPath);
+      })[0].id;
+      let targetId: string;
+      if (target) {
+        targetId = target.id;
+      } else {
+        const created = await tx
+          .insertInto('stack')
+          .values({ ownerId, primaryAssetId: preferredPrimary })
+          .onConflict((oc) => oc.column('primaryAssetId').doNothing())
+          .returning('id')
+          .executeTakeFirst();
+        if (created) {
+          targetId = created.id;
+        } else {
+          const conflictingStack = await tx
+            .selectFrom('stack')
+            .select(['id', 'ownerId'])
+            .where('primaryAssetId', '=', preferredPrimary)
+            .forUpdate()
+            .executeTakeFirst();
+          if (!conflictingStack || conflictingStack.ownerId !== ownerId) {
+            return;
+          }
+          targetId = conflictingStack.id;
+        }
+      }
       const sourceIds = existingStacks.filter(({ id }) => id !== targetId).map(({ id }) => id);
       if (sourceIds.length) {
         await tx
