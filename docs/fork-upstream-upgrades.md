@@ -61,6 +61,8 @@ pnpm --dir web test --run --maxWorkers=2
 
 `.github/workflows/fork-checks.yml` 包含上述检查，以及人物查询、照片堆叠、媒体分类、全景、同步和迁移的独立 PostgreSQL 测试。测试库由 Testcontainers 创建，不连接生产数据库。
 
+依赖官方组织 `PUSH_O_MATIC_APP` 凭据的测试、文档、Docker、CLI 和 CodeQL 自动化只在官方仓库执行。Fork 使用自己的 compatibility 检查、NAS 镜像构建和 `x5-image.yml` 发布，不复制官方组织密钥或向官方包地址发布。
+
 API 源代码变化时，先构建 Server，再执行 `server/dist/bin/sync-open-api.js`，随后按根 `mise.toml` 的 `open-api-typescript` 参数生成 SDK；审查生成差异。不手工合并生成 SDK 的业务含义。
 
 镜像构建使用 `bash docker/build-nas-dev.sh`，要求源码干净、已提交并有至少 8 GiB 可用内存。镜像按完整提交记录来源，不随构建自动部署。

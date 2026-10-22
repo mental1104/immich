@@ -28,6 +28,7 @@ permissions: {}
 
 jobs:
   analyze:
+    if: github.repository == 'immich-app/immich'
     name: Analyze
     runs-on: ubuntu-latest
     permissions:

@@ -10,6 +10,7 @@ concurrency:
 permissions: {}
 jobs:
   pre-job:
+    if: github.repository == 'immich-app/immich'
     runs-on: ubuntu-latest
     permissions:
       contents: read
