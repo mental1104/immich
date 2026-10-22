@@ -5,6 +5,7 @@ on:
     branches:
       - x5-viewer-v3.3.3
       - nas-dev-x5-jpg
+      - feature/external-library-content-match
   workflow_dispatch:
 
 permissions:
