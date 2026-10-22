@@ -31,7 +31,7 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [[ -z "$BASE_REF" || "$BASE_REF" =~ ^0+$ ]]; then
-            BASE_REF=$(git merge-base HEAD v3.3.3)
+            BASE_REF=$(git rev-parse HEAD^1)
           fi
           node docker/verify-fork-migrations.mjs "$BASE_REF"
       - name: Install and build shared SDKs
