@@ -33,6 +33,7 @@ import { AssetFileTable } from 'src/schema/tables/asset-file.table.js';
 import { AssetJobStatusTable } from 'src/schema/tables/asset-job-status.table.js';
 import { AssetMetadataTable } from 'src/schema/tables/asset-metadata.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
+import { EXTERNAL_CONTENT_HASH_KEY } from 'src/utils/external-content-match.js';
 import {
   anyUuid,
   asUuid,
@@ -384,6 +385,23 @@ export class AssetRepository {
       .selectFrom('asset_metadata')
       .select(['key', 'value', 'updatedAt'])
       .where('assetId', '=', assetId)
+      .execute();
+  }
+
+  /**
+   * 一次性读取本批次资产保存的指纹缓存，避免给每个原片增加单独的 SELECT。
+   * @param ids 要查询的 UUID 列表；空列表不访问数据库。
+   * @returns 资产 ID 及指纹 JSON，未索引的资产不会出现。
+   */
+  getExternalContentHashes(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset_metadata')
+      .select(['assetId', 'value'])
+      .where('key', '=', EXTERNAL_CONTENT_HASH_KEY)
+      .where('assetId', 'in', anyUuid(ids))
       .execute();
   }
 
