@@ -346,7 +346,7 @@
                     },
                   })}
                 {:else if pipelineCount}
-                  {$t('pipeline.assets_count', {
+                  {$t(pipelineCount.unit === 'faces' ? 'pipeline.faces_count' : 'pipeline.assets_count', {
                     values: {
                       completed: pipelineCount.completed.toLocaleString($locale),
                       total: pipelineCount.total.toLocaleString($locale),
@@ -361,6 +361,17 @@
                   })}
                 {:else}{$t('pipeline.state.unknown')}{/if}
               </span>
+              {#if !asset && pipelineCount?.notStarted !== undefined}
+                <span class="text-[10px] leading-tight text-gray-600 dark:text-gray-300">
+                  {$t('pipeline.remaining_count', {
+                    values: {
+                      pending: pipelineCount.notStarted,
+                      failed: pipelineCount.failed ?? 0,
+                      blocked: pipelineCount.blocked ?? 0,
+                    },
+                  })}
+                </span>
+              {/if}
             </button>
           {/each}
         </div>

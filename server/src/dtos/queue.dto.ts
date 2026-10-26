@@ -77,6 +77,12 @@ const QueueResponseSchema = z
           z.object({
             total: z.int().nonnegative(),
             completed: z.int().nonnegative(),
+            blocked: z.int().nonnegative().optional(),
+            failed: z.int().nonnegative().optional(),
+            queued: z.int().nonnegative().optional(),
+            running: z.int().nonnegative().optional(),
+            notStarted: z.int().nonnegative().optional(),
+            unit: z.enum(['assets', 'faces']).optional(),
           }),
         ),
       })

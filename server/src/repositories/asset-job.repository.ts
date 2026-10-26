@@ -4,7 +4,7 @@ import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
 import { columns } from 'src/database.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
-import { AssetFileType, AssetStatus, AssetType, AssetVisibility, QueueName } from 'src/enum.js';
+import { AssetFileType, AssetStatus, AssetType, AssetVisibility } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import {
   ForkAssetTask,
@@ -531,21 +531,7 @@ export class AssetJobRepository {
       .executeTakeFirstOrThrow();
 
     const total = Number(counts.total);
-    const progress = Object.fromEntries(
-      Object.entries({
-        library: counts.total,
-        thumbnailGeneration: counts.thumbnailCompleted,
-        faceDetection: counts.faceDetectionCompleted,
-        smartSearch: counts.smartSearchCompleted,
-        ocr: counts.ocrCompleted,
-        duplicateDetection: counts.duplicateDetectionCompleted,
-        facialRecognition: counts.facialRecognitionCompleted,
-      }).map(([name, completed]) => [name, { total, completed: Number(completed) }]),
-    ) as Record<string, { total: number; completed: number }>;
-    progress[QueueName.RawPairing] = {
-      total: Number(counts.rawPairingTotal),
-      completed: Number(counts.rawPairingCompleted),
-    };
+    const progress = await this.getPipelineProgress();
 
     return {
       total,
@@ -565,6 +551,102 @@ export class AssetJobRepository {
       skipped: number;
       notStarted: number;
       pipeline: Record<string, { total: number; completed: number }>;
+    };
+  }
+
+  /** 适用范围与任务筛选一致；前置缺失保留在分母中，失败记录不推断为未运行。 */
+  private async getPipelineProgress() {
+    const { rows } = await sql<{
+      name: string;
+      total: string;
+      completed: string;
+      blocked: string;
+      failed: string;
+      queued: string;
+      running: string;
+      notStarted: string;
+      unit: 'assets' | 'faces';
+    }>`
+      WITH facts AS (
+        SELECT a.*, j."assetId" IS NOT NULL AS has_status,
+          j."facesRecognizedAt", j."ocrAt", j."duplicatesDetectedAt",
+          EXISTS(SELECT 1 FROM asset_exif e WHERE e."assetId" = a.id) AS has_exif,
+          EXISTS(SELECT 1 FROM asset_file f WHERE f."assetId" = a.id AND f.type = 'preview') AS has_preview,
+          EXISTS(SELECT 1 FROM asset_file f WHERE f."assetId" = a.id AND f.type = 'thumbnail') AS has_thumbnail,
+          EXISTS(SELECT 1 FROM smart_search ss WHERE ss."assetId" = a.id) AS has_embedding
+        FROM asset a LEFT JOIN asset_job_status j ON j."assetId" = a.id
+        WHERE a."deletedAt" IS NULL
+      ), tasks AS (
+        SELECT f.id, task.name, task.done, task.ready, task.task_name, 'assets'::text AS unit
+        FROM facts f CROSS JOIN LATERAL (VALUES
+          ('library', true, true, NULL::text, true),
+          ('thumbnailGeneration', f.has_thumbnail AND f.has_preview AND f.thumbhash IS NOT NULL,
+            f.has_status AND f.has_exif, 'thumbnail-generation', f.visibility != 'hidden'),
+          ('smartSearch', f.has_embedding, f.has_status AND f.has_preview, NULL, f.visibility != 'hidden'),
+          ('faceDetection', f."facesRecognizedAt" IS NOT NULL, f.has_status AND f.has_preview,
+            'face-detection', f.visibility != 'hidden'),
+          ('ocr', f."ocrAt" IS NOT NULL, f.has_status AND f.has_preview, NULL, f.visibility != 'hidden'),
+          ('duplicateDetection', f."duplicatesDetectedAt" IS NOT NULL, f.has_status AND f.has_embedding,
+            NULL, f.visibility IN ('timeline', 'archive') AND f."stackId" IS NULL),
+          ('nikonPairing', f."stackId" IS NOT NULL, f.has_exif, 'raw-pairing', f.is_raw IS TRUE)
+        ) AS task(name, done, ready, task_name, applicable) WHERE task.applicable
+        UNION ALL
+        SELECT face.id, 'facialRecognition', face."personGroupId" IS NOT NULL, true, NULL, 'faces'
+        FROM asset_face face JOIN facts f ON f.id = face."assetId"
+        WHERE face."deletedAt" IS NULL AND face."isVisible" IS TRUE
+          AND face."sourceType" = 'machine-learning' AND f.visibility != 'hidden'
+      ), classified AS (
+        SELECT t.name, t.unit, CASE
+          WHEN t.done OR (t.name = 'nikonPairing' AND s.status IN ('completed', 'skipped')) THEN 'completed'
+          WHEN NOT t.ready THEN 'blocked'
+          WHEN s.status IN ('failed', 'queued', 'running') THEN s.status
+          ELSE 'notStarted' END AS state
+        FROM tasks t LEFT JOIN fork_asset_task_status s ON s."assetId" = t.id AND s."taskName" = t.task_name
+      )
+      SELECT name, unit, count(*) AS total,
+        count(*) FILTER (WHERE state = 'completed') AS completed,
+        count(*) FILTER (WHERE state = 'blocked') AS blocked,
+        count(*) FILTER (WHERE state = 'failed') AS failed,
+        count(*) FILTER (WHERE state = 'queued') AS queued,
+        count(*) FILTER (WHERE state = 'running') AS running,
+        count(*) FILTER (WHERE state = 'notStarted') AS "notStarted"
+      FROM classified GROUP BY name, unit
+    `.execute(this.db);
+    const empty = {
+      total: 0,
+      completed: 0,
+      blocked: 0,
+      failed: 0,
+      queued: 0,
+      running: 0,
+      notStarted: 0,
+      unit: 'assets',
+    };
+    const progress = Object.fromEntries([
+      ...[
+        'library',
+        'thumbnailGeneration',
+        'smartSearch',
+        'faceDetection',
+        'ocr',
+        'duplicateDetection',
+        'nikonPairing',
+      ].map((name) => [name, { ...empty }]),
+      ['facialRecognition', { ...empty, unit: 'faces' }],
+    ]);
+    return {
+      ...progress,
+      ...Object.fromEntries(
+        rows.map(({ name, unit, ...counts }) => [
+          name,
+          {
+            ...Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, Number(value)])),
+            total: Number(counts.total),
+            completed: Number(counts.completed),
+            unit,
+          },
+        ]),
+      ),
     };
   }
 

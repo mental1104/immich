@@ -2358,5 +2358,10 @@
   "custom_group_description": "使用自訂分組時，分組名稱相同的相簿會顯示在一起。",
   "custom_group_placeholder": "例如：遊戲",
   "group_custom": "自訂分組",
-  "ungrouped": "未分組"
+  "ungrouped": "未分組",
+  "pipeline": {
+    "faces_count": "已歸組 {completed} / {total} 張人臉",
+    "remaining_count": "待處理 {pending} · 失敗 {failed} · 阻塞 {blocked}",
+    "global_legend": "總量僅含適用資產。待處理排除已記錄的失敗和前置阻塞；執行/等待來自即時佇列。辨識按人臉歸組統計，未歸組可能已嘗試辨識。"
+  }
 }

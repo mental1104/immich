@@ -119,7 +119,7 @@ const TimeBucketAssetResponseSchema = z
       .array(z.string().nullable())
       .describe('Array of live photo video asset IDs (null for non-live photos)'),
     livePhotoVideoFileSize: z
-      .array(z.number().nullable())
+      .array(z.number().meta({ format: 'double' }).nullable())
       .optional()
       .describe('Array of live photo video file sizes in bytes (null when no motion video exists)'),
     city: z.array(z.string().nullable()).optional().describe('Array of city names extracted from EXIF GPS data'),
