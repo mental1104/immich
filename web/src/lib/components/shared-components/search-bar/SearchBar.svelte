@@ -25,14 +25,23 @@
   );
 
   let input = $state<HTMLInputElement>();
+  let dropdownContainer = $state<HTMLDivElement>();
   let searchFilters = $state<ReturnType<typeof SearchFilters>>();
   let showSuggestions = $state(false);
+  let dropdownCloseTimer: ReturnType<typeof setTimeout> | undefined;
+  let dropdownPointerTimer: ReturnType<typeof setTimeout> | undefined;
+  let isDropdownPointerInteraction = false;
   let selectedId: string | undefined = $state();
-
   const listboxId = generateId();
   const searchTypeId = generateId();
 
   onDestroy(() => {
+    if (dropdownCloseTimer !== undefined) {
+      clearTimeout(dropdownCloseTimer);
+    }
+    if (dropdownPointerTimer !== undefined) {
+      clearTimeout(dropdownPointerTimer);
+    }
     searchStore.isSearchEnabled = false;
   });
 
@@ -80,7 +89,26 @@
       return;
     }
 
-    closeDropdown();
+    // 移动端点击按钮时焦点可能落到 body，relatedTarget 为空；指针已在面板
+    // 内按下时不把这次焦点变化当成离开面板。
+    if (isDropdownPointerInteraction) {
+      return;
+    }
+
+    // 移动端控件切换焦点时 relatedTarget 可能为空；等浏览器完成焦点切换后再判断，
+    // 避免点击筛选面板里的按钮时把整个面板卸载。
+    if (dropdownCloseTimer !== undefined) {
+      clearTimeout(dropdownCloseTimer);
+    }
+    dropdownCloseTimer = setTimeout(() => {
+      dropdownCloseTimer = undefined;
+      const activeElement = document.activeElement;
+      if (activeElement instanceof Node && dropdownContainer?.contains(activeElement)) {
+        return;
+      }
+
+      closeDropdown();
+    });
   };
 
   const onHistoryTermClick = async (searchTerm: string) => {
@@ -131,6 +159,25 @@
     showSuggestions = true;
   };
 
+  const keepDropdownOpen = () => {
+    if (dropdownCloseTimer !== undefined) {
+      clearTimeout(dropdownCloseTimer);
+      dropdownCloseTimer = undefined;
+    }
+    showSuggestions = true;
+  };
+
+  const onDropdownPointerDown = () => {
+    isDropdownPointerInteraction = true;
+    if (dropdownPointerTimer !== undefined) {
+      clearTimeout(dropdownPointerTimer);
+    }
+    dropdownPointerTimer = setTimeout(() => {
+      dropdownPointerTimer = undefined;
+      isDropdownPointerInteraction = false;
+    }, 500);
+  };
+
   const closeDropdown = () => {
     showSuggestions = false;
     searchFilters?.clearSelection();
@@ -155,7 +202,13 @@
     onfocusin={onFocusIn}
     role="search"
   >
-    <div use:focusOutside={{ onFocusOut: onDropdownFocusOut }} tabindex="-1">
+    <div
+      bind:this={dropdownContainer}
+      use:focusOutside={{ onFocusOut: onDropdownFocusOut }}
+      onpointerdown={onDropdownPointerDown}
+      role="presentation"
+      tabindex="-1"
+    >
       <label for="main-search-bar" class="sr-only">{$t('search_your_photos')}</label>
       <input
         type="text"
@@ -196,9 +249,9 @@
         onSelectSearchTerm={(searchTerm) => handlePromiseError(onHistoryTermClick(searchTerm))}
         onActiveSelectionChange={(id) => (selectedId = id)}
         onSearch={() => handleSearch()}
+        onKeepOpen={keepDropdownOpen}
       />
     </div>
-
     {#if showClearIcon}
       <div class="absolute inset-y-0 inset-e-0 flex items-center pe-2">
         <IconButton

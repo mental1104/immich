@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { LRUMap } from 'mnemonist';
 import { AssetMapOptions, AssetResponseDto, MapAsset, mapAsset } from 'src/dtos/asset-response.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
@@ -22,7 +23,7 @@ import {
   isNewShapeRequest,
   mapPlaces,
 } from 'src/dtos/search.dto.js';
-import { AssetOrder, AssetVisibility, Permission } from 'src/enum.js';
+import { AssetOrder, AssetVisibility, Permission, SearchOrderField } from 'src/enum.js';
 import { AssetSearchScope } from 'src/repositories/search.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { requireElevatedPermission } from 'src/utils/access.js';
@@ -72,6 +73,14 @@ export class SearchService extends BaseService {
   }
 
   async searchMetadata(auth: AuthDto, dto: MetadataSearchDto): Promise<SearchResponseDto> {
+    const albumSearchQuery = this.getAlbumSearchQuery(dto);
+    if (albumSearchQuery && !auth.sharedLink && !(dto.albumIds?.length) && !dto.filter?.albumIds) {
+      const albumIds = await this.albumRepository.searchIdsByText(auth.user.id, albumSearchQuery);
+      if (albumIds.length > 0) {
+        return this.searchAlbumAssets(auth, dto, albumIds, `${auth.user.id}:${albumSearchQuery}`);
+      }
+    }
+
     if (isNewShapeRequest(dto)) {
       return this.searchMetadataV3(auth, dto);
     }
@@ -98,6 +107,7 @@ export class SearchService extends BaseService {
 
     const page = dto.page ?? 1;
     const size = dto.size;
+
     const { hasNextPage, items } = await this.searchRepository.searchMetadata(
       { page, size },
       {
@@ -166,24 +176,68 @@ export class SearchService extends BaseService {
   }
 
   async searchSmart(auth: AuthDto, dto: SmartSearchDto): Promise<SearchResponseDto> {
+    dto = this.applyExifNumericSearch(dto);
+    const searchTraceId = dto.query ? randomUUID() : undefined;
+    if (searchTraceId) {
+      this.logger.log(
+        `[GlobalSearch:${searchTraceId}] start endpoint=smart queryLength=${dto.query!.length} chinese=${/\p{Script=Han}/u.test(dto.query!)} shape=${isNewShapeRequest(dto) ? 'v3' : 'legacy'}`,
+      );
+    }
+
+    if (dto.query && !dto.queryAssetId && !auth.sharedLink && !dto.filter?.albumIds) {
+      const albumIds = await this.albumRepository.searchIdsByText(auth.user.id, dto.query);
+      if (searchTraceId) {
+        this.logger.log(`[GlobalSearch:${searchTraceId}] album-match count=${albumIds.length}`);
+      }
+      if (albumIds.length > 0) {
+        const albumDto = {
+          ...dto,
+          query: undefined,
+          queryAssetId: undefined,
+          description: undefined,
+          originalFileName: undefined,
+          originalPath: undefined,
+          ocr: undefined,
+        } as MetadataSearchDto;
+        const response = await this.searchAlbumAssets(auth, albumDto, albumIds, `${auth.user.id}:${dto.query}`);
+        if (searchTraceId) {
+          this.logger.log(
+            `[GlobalSearch:${searchTraceId}] complete mode=album-assets albums=${albumIds.length} assets=${response.assets.count} nextPage=${response.assets.nextPage ?? 'none'} nextCursor=${response.assets.nextCursor ? 'available' : 'none'}`,
+          );
+        }
+        return response;
+      }
+    }
+
     // CLIP 的中文文本编码效果有限；中文描述优先按资产描述字段做文本匹配。
     if (dto.query && /\p{Script=Han}/u.test(dto.query) && !dto.queryAssetId) {
-      if (isNewShapeRequest(dto)) {
-        return this.searchMetadataV3(auth, {
-          ...dto,
-          filter: { ...dto.filter, description: { like: dto.query } },
-        });
+      const response = await this.searchRandomMetadataV3(
+        auth,
+        {
+          size: dto.size,
+          page: dto.page,
+          withExif: dto.withExif,
+        } as MetadataSearchDto,
+        this.buildChineseTextSearchFilter(dto),
+        `${auth.user.id}:${dto.query}`,
+      );
+      if (searchTraceId) {
+        this.logger.log(
+          `[GlobalSearch:${searchTraceId}] complete mode=chinese-metadata assets=${response.assets.count} nextPage=${response.assets.nextPage ?? 'none'} nextCursor=${response.assets.nextCursor ? 'available' : 'none'}`,
+        );
       }
+      return response;
+    }
 
-      return this.searchMetadata(auth, {
-        ...dto,
-        query: undefined,
-        queryAssetId: undefined,
-        description: dto.query,
-      } as MetadataSearchDto);
+    // 只输入 EXIF 条件时无需计算 CLIP 向量，按时间顺序返回所有符合条件的照片。
+    if (!dto.query && !dto.queryAssetId && dto.filter) {
+      return this.searchMetadataV3(auth, dto as MetadataSearchDto);
     }
 
     if (isNewShapeRequest(dto)) {
+      if (searchTraceId) {
+        this.logger.log(`[GlobalSearch:${searchTraceId}] continue mode=smart-v3`);
+      }
       return this.searchSmartV3(auth, dto);
     }
 
@@ -193,6 +247,9 @@ export class SearchService extends BaseService {
 
     const { machineLearning } = await this.getConfig({ withCache: false });
     if (!isSmartSearchEnabled(machineLearning)) {
+      if (searchTraceId) {
+        this.logger.warn(`[GlobalSearch:${searchTraceId}] rejected reason=smart-search-disabled`);
+      }
       throw new BadRequestException('Smart search is not enabled');
     }
 
@@ -211,7 +268,201 @@ export class SearchService extends BaseService {
       },
     );
 
+    const response = this.mapResponse(items, { auth }, { nextPage: hasNextPage ? (page + 1).toString() : null });
+    if (searchTraceId) {
+      this.logger.log(`[GlobalSearch:${searchTraceId}] complete mode=smart-vector assets=${response.assets.count}`);
+    }
+    return response;
+  }
+
+  /** 从全局搜索文本提取 EXIF 数值条件；未识别的文字继续参与普通搜索。 */
+  private applyExifNumericSearch(dto: SmartSearchDto): SmartSearchDto {
+    if (!dto.query) {
+      return dto;
+    }
+
+    const filter = { ...(dto.filter ?? {}) };
+    let query = dto.query;
+    const dimensions: Array<{ aliases: string; field: 'iso' | 'fNumber' | 'focalLength' | 'exposureTime'; unit?: string }> = [
+      { aliases: 'ISO|感光度', field: 'iso' },
+      { aliases: '光圈|f[- ]?number|f值', field: 'fNumber' },
+      { aliases: '焦段|焦距|focal[- ]?length', field: 'focalLength', unit: '(?:mm|毫米)' },
+      { aliases: '快门速度|快门|shutter', field: 'exposureTime', unit: '(?:s|秒)' },
+    ];
+
+    for (const { aliases, field, unit } of dimensions) {
+      const pattern = new RegExp(
+        `(?:${aliases})\\s*(大于等于|小于等于|大于|小于|等于|>=|<=|>|<|=|≥|≤)\\s*(\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+(?:\\.\\d+)?)?)(?:\\s*${unit ?? ''})?`,
+        'giu',
+      );
+      query = query.replace(pattern, (_match, operator: string, rawValue: string) => {
+        const parts = rawValue.split('/').map((part) => Number(part.trim()));
+        const value = parts.length === 2 ? parts[0] / parts[1] : parts[0];
+        const key = (
+          {
+            '>': 'gt',
+            大于: 'gt',
+            '>=': 'gte',
+            '≥': 'gte',
+            大于等于: 'gte',
+            '<': 'lt',
+            小于: 'lt',
+            '<=': 'lte',
+            '≤': 'lte',
+            小于等于: 'lte',
+            '=': 'eq',
+            等于: 'eq',
+          } as const
+        )[operator as '>' | '>=' | '≥' | '<' | '<=' | '≤' | '=' | '大于' | '大于等于' | '小于' | '小于等于' | '等于'];
+        if (!key || !Number.isFinite(value) || (parts.length === 2 && parts[1] === 0)) {
+          return _match;
+        }
+        filter[field] = { ...(filter[field] ?? {}), [key]: value } as never;
+        return ' ';
+      });
+    }
+
+    return { ...dto, query: query.trim() || undefined, filter: Object.keys(filter).length ? filter : dto.filter };
+  }
+
+  private buildChineseTextSearchFilter(dto: SmartSearchDto): SearchFilter {
+    const filter = this.buildSmartSearchFilter(dto);
+    const query = dto.query!;
+
+    const textBranches: SearchFilter[] = [
+      { description: { like: query } },
+      { originalFileName: { like: query } },
+      { originalPath: { like: query } },
+      { ocr: { matches: query } },
+      { city: { like: query } },
+      { state: { like: query } },
+      { country: { like: query } },
+    ];
+    const existingBranches = filter.or ?? [];
+    filter.or = existingBranches.length
+      ? existingBranches.flatMap((branch) => textBranches.map((textBranch) => ({ ...branch, ...textBranch })))
+      : textBranches;
+
+    return filter;
+  }
+
+  private buildSmartSearchFilter(dto: SmartSearchDto): SearchFilter {
+    const filter: SearchFilter = { ...(dto.filter ?? {}) };
+    if (dto.filter) {
+      return filter;
+    }
+
+    if (dto.visibility) filter.visibility = { eq: dto.visibility };
+    if (dto.type) filter.type = { eq: dto.type };
+    if (dto.isFavorite !== undefined) filter.isFavorite = { eq: dto.isFavorite };
+    if (dto.isNotInAlbum) filter.hasAlbums = { eq: false };
+    if (dto.rating !== undefined) filter.rating = { eq: dto.rating };
+    if (dto.city) filter.city = { eq: dto.city };
+    if (dto.state) filter.state = { eq: dto.state };
+    if (dto.country) filter.country = { eq: dto.country };
+    if (dto.make) filter.make = { eq: dto.make };
+    if (dto.model) filter.model = { eq: dto.model };
+    if (dto.takenAfter || dto.takenBefore) {
+      filter.takenAt = { gte: dto.takenAfter, lte: dto.takenBefore };
+    }
+    if (dto.personIds?.length) filter.personIds = { any: dto.personIds };
+    if (dto.tagIds?.length) filter.tagIds = { any: dto.tagIds };
+    return filter;
+  }
+
+  private getAlbumSearchQuery(dto: MetadataSearchDto): string | undefined {
+    if (dto.description || dto.originalFileName || dto.originalPath || dto.ocr) {
+      return dto.description || dto.originalFileName || dto.originalPath || dto.ocr;
+    }
+
+    const filter = dto.filter;
+    return (
+      filter?.description?.like ??
+      filter?.description?.eq ??
+      filter?.originalFileName?.like ??
+      filter?.originalFileName?.eq ??
+      filter?.originalPath?.like ??
+      filter?.originalPath?.eq ??
+      filter?.ocr?.matches
+    );
+  }
+
+  private async searchAlbumAssets(
+    auth: AuthDto,
+    dto: MetadataSearchDto,
+    albumIds: string[],
+    seed: string,
+  ): Promise<SearchResponseDto> {
+    if (isNewShapeRequest(dto)) {
+      const filter: SearchFilter = { ...dto.filter };
+      delete filter.description;
+      delete filter.originalFileName;
+      delete filter.originalPath;
+      delete filter.ocr;
+      filter.albumIds = { any: albumIds };
+
+      return this.searchRandomMetadataV3(auth, dto, filter, seed);
+    }
+
+    await this.requireAccess({ auth, ids: albumIds, permission: Permission.AlbumRead });
+
+    let checksum: Buffer | undefined;
+    if (dto.checksum) {
+      const encoding = dto.checksum.length === 28 ? 'base64' : 'hex';
+      checksum = Buffer.from(dto.checksum, encoding);
+    }
+
+    const { hasNextPage, items } = await this.searchRepository.searchRandomPage(
+      { page: dto.page ?? 1, size: dto.size },
+      {
+      ...dto,
+      description: undefined,
+      originalFileName: undefined,
+      originalPath: undefined,
+      ocr: undefined,
+      checksum,
+      albumIds: undefined,
+      albumIdsAny: albumIds,
+      visibility: dto.visibility ?? (auth.session?.hasElevatedPermission ? undefined : 'not-locked'),
+      orderDirection: AssetOrder.Desc,
+      viewingUserId: auth.user.id,
+      },
+      seed,
+    );
+
+    const page = dto.page ?? 1;
     return this.mapResponse(items, { auth }, { nextPage: hasNextPage ? (page + 1).toString() : null });
+  }
+
+  private async searchRandomMetadataV3(
+    auth: AuthDto,
+    dto: MetadataSearchDto,
+    filter: SearchFilter,
+    seed: string,
+  ): Promise<SearchResponseDto> {
+    const searchDto = { size: dto.size, filter } as MetadataSearchDto;
+    const { filter: resolvedFilter, scope } = await this.resolveSearchScopeV3(auth, searchDto);
+    const page = dto.page;
+    const offset = page ? (page - 1) * dto.size : decodeSearchCursor(dto.cursor).offset;
+    const { hasNextPage, items } = await this.searchRepository.searchRandomPageV3(
+      { take: dto.size, skip: offset },
+      {
+        filter: resolvedFilter,
+        withExif: dto.withExif,
+        withPeople: dto.withPeople,
+        withStacked: dto.withStacked,
+      },
+      scope,
+      seed,
+    );
+
+    return this.mapResponse(
+      items,
+      { auth },
+      page
+        ? { nextPage: hasNextPage ? (page + 1).toString() : null }
+        : { nextCursor: hasNextPage ? encodeSearchCursor(offset + dto.size) : null },
+    );
   }
 
   async getAssetsByCity(auth: AuthDto): Promise<AssetResponseDto[]> {
@@ -258,8 +509,9 @@ export class SearchService extends BaseService {
   private async searchMetadataV3(auth: AuthDto, dto: MetadataSearchDto): Promise<SearchResponseDto> {
     const { filter, scope } = await this.resolveSearchScopeV3(auth, dto);
 
-    const { offset } = decodeSearchCursor(dto.cursor);
+    const page = dto.page;
     const size = dto.size;
+    const offset = page ? (page - 1) * size : decodeSearchCursor(dto.cursor).offset;
     const { hasNextPage, items } = await this.searchRepository.searchMetadataV3(
       { take: size, skip: offset },
       {
@@ -272,7 +524,13 @@ export class SearchService extends BaseService {
       scope,
     );
 
-    return this.mapResponse(items, { auth }, { nextCursor: hasNextPage ? encodeSearchCursor(offset + size) : null });
+    return this.mapResponse(
+      items,
+      { auth },
+      page
+        ? { nextPage: hasNextPage ? (page + 1).toString() : null }
+        : { nextCursor: hasNextPage ? encodeSearchCursor(offset + size) : null },
+    );
   }
 
   private async searchStatisticsV3(auth: AuthDto, dto: StatisticsSearchDto): Promise<SearchStatisticsResponseDto> {

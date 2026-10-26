@@ -74,6 +74,7 @@
   import { fly } from 'svelte/transition';
   import type { PageData } from './$types';
   import AlbumDescription from './AlbumDescription.svelte';
+  import AlbumTags from './AlbumTags.svelte';
   import AlbumTitle from './AlbumTitle.svelte';
   import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import { delay } from '$lib/utils/asset-utils';
@@ -463,6 +464,12 @@
                 id={album.id}
                 {isEditor}
                 bind:description={() => album.description, (description) => (album = { ...album, description })}
+              />
+              <AlbumTags
+                id={album.id}
+                tags={album.tags ?? []}
+                isEditor={isOwned}
+                onUpdate={(tags) => (album = { ...album, tags })}
               />
               <section class="my-5" aria-label={$t('album_asset_filters')}>
                 <div class="flex flex-wrap items-center gap-2">

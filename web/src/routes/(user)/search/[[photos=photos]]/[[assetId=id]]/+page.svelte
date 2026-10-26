@@ -83,6 +83,21 @@
   let scrollYHistory = 0;
 
   type SearchTerms = MetadataSearchDto & Pick<SmartSearchDto, 'query' | 'queryAssetId'>;
+
+  const withTimelineVisibility = <T extends MetadataSearchDto | SmartSearchDto>(dto: T): T => {
+    if (!dto.filter) {
+      return { visibility: AssetVisibility.Timeline, ...dto } as T;
+    }
+
+    const { visibility, ...searchDto } = dto;
+    return {
+      ...searchDto,
+      filter: {
+        ...dto.filter,
+        visibility: dto.filter.visibility ?? { eq: visibility ?? AssetVisibility.Timeline },
+      },
+    } as T;
+  };
   let searchQuery = $derived(page.url.searchParams.get(QueryParameter.QUERY));
   let smartSearchEnabled = $derived(featureFlagsManager.value.smartSearch);
   let terms = $derived<SearchTerms>(searchQuery ? JSON.parse(searchQuery) : {});
@@ -172,9 +187,7 @@
 
     const assetIdSet = new Set(assetIds);
     allSearchResultAssets = allSearchResultAssets.map((asset) =>
-      assetIdSet.has(asset.id)
-        ? { ...asset, visibility, isArchived: visibility === AssetVisibility.Archive }
-        : asset,
+      assetIdSet.has(asset.id) ? { ...asset, visibility, isArchived: visibility === AssetVisibility.Archive } : asset,
     );
     searchResultAssets = collapseStackedAssets(allSearchResultAssets);
   };
@@ -237,9 +250,9 @@
         const searchDto: SearchTerms = { ...searchTerms, page: pageNumber, withExif: false };
         const { assets } = smartSearch
           ? await searchSmart({
-              smartSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto, language: $lang },
+              smartSearchDto: withTimelineVisibility({ ...searchDto, language: $lang }),
             })
-          : await searchAssets({ metadataSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto } });
+          : await searchAssets({ metadataSearchDto: withTimelineVisibility(searchDto) });
 
         for (const asset of assets.items) {
           if (seenAssetIds[asset.id]) {
@@ -297,9 +310,9 @@
       const { albums, assets } =
         ('query' in searchDto || 'queryAssetId' in searchDto) && smartSearchEnabled
           ? await searchSmart({
-              smartSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto, language: $lang },
+              smartSearchDto: withTimelineVisibility({ ...searchDto, language: $lang }),
             })
-          : await searchAssets({ metadataSearchDto: { visibility: AssetVisibility.Timeline, ...searchDto } });
+          : await searchAssets({ metadataSearchDto: withTimelineVisibility(searchDto) });
 
       searchResultAlbums.push(...albums.items);
       allSearchResultAssets.push(...assets.items);
@@ -359,8 +372,22 @@
       description: $t('description'),
       queryAssetId: $t('query_asset_id'),
       ocr: $t('ocr'),
+      filter: '曝光条件',
     };
     return keyMap[key] || key;
+  }
+
+  function getExifFilterSummary(filter: Record<string, Record<string, number>>) {
+    const labels: Record<string, string> = { iso: 'ISO', fNumber: '光圈', exposureTime: '快门', focalLength: '焦段' };
+    const operators: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=' };
+    return Object.entries(filter)
+      .flatMap(([field, conditions]) =>
+        Object.entries(conditions).map(
+          ([operator, value]) =>
+            `${labels[field] ?? field} ${operators[operator] ?? operator} ${value}${field === 'focalLength' ? ' mm' : field === 'exposureTime' ? ' 秒' : ''}`,
+        ),
+      )
+      .join(' · ');
   }
 
   async function getPersonName(personIds: string[]) {
@@ -454,6 +481,8 @@
                 {/await}
               {:else if searchKey === 'rating'}
                 {$t('rating_count', { values: { count: value ?? 0 } })}
+              {:else if searchKey === 'filter' && typeof value === 'object' && value !== null}
+                {getExifFilterSummary(value as unknown as Record<string, Record<string, number>>)}
               {:else if value === null || value === ''}
                 {$t('unknown')}
               {:else}
@@ -550,11 +579,7 @@
               <ChangeDate menuItem />
               <ChangeDescription menuItem />
               <ChangeLocation menuItem />
-              <ArchiveAction
-                menuItem
-                unarchive={assetMultiSelectManager.isAllArchived}
-                onArchive={handleArchive}
-              />
+              <ArchiveAction menuItem unarchive={assetMultiSelectManager.isAllArchived} onArchive={handleArchive} />
               <SetVisibilityAction menuItem onVisibilitySet={handleSetVisibility} />
               <ActionMenuItem action={Actions.Tag} />
               <DeleteAssets menuItem {onAssetDelete} onUndoDelete={onSearchQueryUpdate} />

@@ -81,7 +81,10 @@
   let motionVideoInfo: { id: string; fileSize: number | null | undefined } | undefined = $state();
   let originalFailedFor: string | undefined = $state();
   const playbackInfoReady = $derived(
-    !featureFlagsManager.value.realtimeTranscoding || assetId === asset.id || motionVideoInfo?.id === assetId,
+    playOriginalVideo ||
+      !featureFlagsManager.value.realtimeTranscoding ||
+      assetId === asset.id ||
+      motionVideoInfo?.id === assetId,
   );
   const preferSmallOriginal = $derived(
     featureFlagsManager.value.realtimeTranscoding &&
@@ -90,11 +93,13 @@
         originalFailedFor === assetId,
       ),
   );
-  const useHls = $derived(featureFlagsManager.value.realtimeTranscoding && !preferSmallOriginal);
+  // 用户显式选择原片时，不受实时转码开关和文件大小阈值影响。
+  const useHls = $derived(featureFlagsManager.value.realtimeTranscoding && !playOriginalVideo && !preferSmallOriginal);
+  const originalPlaybackError = $derived(playOriginalVideo && originalFailedFor === assetId);
 
   $effect(() => {
     const id = assetId;
-    if (!featureFlagsManager.value.realtimeTranscoding || id === asset.id) {
+    if (playOriginalVideo || !featureFlagsManager.value.realtimeTranscoding || id === asset.id) {
       return;
     }
 
@@ -117,16 +122,12 @@
   });
 
   let assetFileUrl = $derived.by(() => {
-    if (preferSmallOriginal) {
+    if (playOriginalVideo || preferSmallOriginal) {
       return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey, edited: false });
     }
 
     if (useHls) {
       return getAssetHlsUrl(assetId);
-    }
-
-    if (playOriginalVideo) {
-      return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey });
     }
 
     return getAssetPlaybackUrl({ id: assetId, cacheKey });
@@ -464,9 +465,10 @@
             class="h-full object-contain"
             oncanplay={(e) => handleCanPlay(e.currentTarget)}
             onerror={(e) => {
-              // 解码、封装或原文件权限不兼容时，每个资产只回退一次 HLS。
-              if (preferSmallOriginal && e.currentTarget === videoPlayer) {
+              // 显式原片模式保留错误供用户处理；自动小文件策略仍只回退一次。
+              if ((playOriginalVideo || preferSmallOriginal) && e.currentTarget === videoPlayer) {
                 originalFailedFor = assetId;
+                isLoading = false;
               }
             }}
             onloadedmetadata={() => (hasLoadedMetadata = true)}
@@ -496,7 +498,7 @@
                 <span slot="title">{$t('media_chrome.playback_rate')}</span>
               </media-playback-rate-menu>
             </media-settings-menu-item>
-            {#if featureFlagsManager.value.realtimeTranscoding}
+            {#if useHls}
               <media-settings-menu-item class="mx-1 rounded-lg p-1 ps-2">
                 {$t('video_quality')}
                 <Icon slot="suffix" icon={mdiChevronRight} class="m-2" />
@@ -516,6 +518,10 @@
               <Icon slot="pause" icon={mdiPause} />
             </media-play-button>
             <media-time-display showduration class="rounded-lg p-2 outline-none"></media-time-display>
+
+            {#if playOriginalVideo || preferSmallOriginal}
+              <span class="p-2 text-sm">{$t('original')}</span>
+            {/if}
 
             <span class="grow"></span>
 
@@ -543,7 +549,13 @@
         </div>
       </media-controller>
 
-      {#if isLoading}
+      {#if originalPlaybackError}
+        <div role="alert" class="absolute max-w-md rounded-lg bg-black/80 p-4 text-center text-white">
+          {$t('original_video_playback_error')}
+        </div>
+      {/if}
+
+      {#if isLoading && !originalPlaybackError}
         <div class="absolute flex place-content-center place-items-center">
           <LoadingSpinner />
         </div>

@@ -32,14 +32,52 @@ describe('VideoNativeViewer small video playback', () => {
     vi.unstubAllGlobals();
   });
 
-  const mount = (asset = assetFactory.build({ exifInfo: { fileSizeInByte: 1024 } }), assetId = asset.id) =>
+  const mount = (
+    asset = assetFactory.build({ exifInfo: { fileSizeInByte: 1024 } }),
+    assetId = asset.id,
+    playOriginalVideo = false,
+  ) =>
     render(VideoNativeViewer, {
       asset,
       assetId,
       loopVideo: true,
       cacheKey: null,
-      playOriginalVideo: false,
+      playOriginalVideo,
     });
+
+  it.each([undefined, 1024, 100 * 1024 * 1024])('honors explicit original playback for size %s', async (size) => {
+    const asset = assetFactory.build({ exifInfo: { fileSizeInByte: size } });
+    const { container } = mount(asset, asset.id, true);
+    await waitFor(() => expect(container.querySelector('video')).not.toBeNull());
+    const video = container.querySelector('video')!;
+    expect(video.getAttribute('src')).toContain('/original?');
+    expect(video.getAttribute('src')).toContain('edited=false');
+    expect(container.querySelector('hls-video')).toBeNull();
+
+    await fireEvent.error(video);
+    await waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
+    expect(container.querySelector('hls-video')).toBeNull();
+    expect(video.getAttribute('src')).toContain('/original?');
+  });
+
+  it('allows manually switching to HLS after an explicit original error', async () => {
+    const asset = assetFactory.build({ exifInfo: { fileSizeInByte: 100 * 1024 * 1024 } });
+    const view = mount(asset, asset.id, true);
+    await waitFor(() => expect(view.container.querySelector('video')).not.toBeNull());
+    await fireEvent.error(view.container.querySelector('video')!);
+    await waitFor(() => expect(view.container.querySelector('[role="alert"]')).not.toBeNull());
+
+    await view.rerender({ playOriginalVideo: false });
+    await waitFor(() => expect(view.container.querySelector('hls-video')).not.toBeNull());
+    expect(view.container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('does not request motion metadata in explicit original mode', async () => {
+    const { container } = mount(undefined, 'motion-video', true);
+    await waitFor(() => expect(container.querySelector('video')).not.toBeNull());
+    expect(getAssetInfo).not.toHaveBeenCalled();
+    expect(container.querySelector('video')!.getAttribute('src')).toContain('/assets/motion-video/original?');
+  });
 
   it('requests the original directly and switches to HLS on a playback error', async () => {
     const { container } = mount();

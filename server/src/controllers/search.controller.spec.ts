@@ -125,6 +125,26 @@ describe(SearchController.name, () => {
       );
     });
 
+    it('should accept structured filters with numeric page pagination', async () => {
+      service.searchMetadata.mockResolvedValue({
+        albums: { items: [], count: 0 },
+        assets: { items: [], count: 0, nextPage: null },
+      } as never);
+
+      const { status } = await request(ctx.getHttpServer())
+        .post('/search/metadata')
+        .send({
+          page: 1,
+          size: 50,
+          filter: {
+            iso: { gt: 800 },
+            visibility: { eq: 'timeline' },
+          },
+        });
+
+      expect(status).toBe(200);
+    });
+
     it('should reject an unknown key in the filter', async () => {
       const { status, body } = await request(ctx.getHttpServer())
         .post('/search/metadata')

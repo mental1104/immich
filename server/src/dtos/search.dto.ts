@@ -315,9 +315,9 @@ const searchFilterBranchShape = {
   hasAlbums: BoolFilterSchema,
   hasPeople: BoolFilterSchema,
   hasTags: BoolFilterSchema,
-  city: StringFilterNullableSchema,
-  state: StringFilterNullableSchema,
-  country: StringFilterNullableSchema,
+  city: StringPatternFilterSchema,
+  state: StringPatternFilterSchema,
+  country: StringPatternFilterSchema,
   make: StringFilterNullableSchema,
   model: StringFilterNullableSchema,
   lensModel: StringFilterNullableSchema,
@@ -327,6 +327,10 @@ const searchFilterBranchShape = {
   ocr: StringSimilarityFilterSchema,
   rating: NumberFilterNullableSchema,
   fileSizeInBytes: NumberFilterSchema,
+  iso: NumberFilterSchema,
+  fNumber: NumberFilterSchema,
+  focalLength: NumberFilterSchema,
+  exposureTime: NumberFilterSchema,
   takenAt: DateFilterSchema,
   createdAt: DateFilterSchema,
   updatedAt: DateFilterSchema,
@@ -399,6 +403,11 @@ const withShapeExclusivity = <T extends z.ZodObject<z.ZodRawShape>>(schema: T) =
 
     for (const field of deprecatedFields) {
       if (values[field] === undefined) {
+        continue;
+      }
+
+      // The search page still uses numeric pages for V3 metadata results.
+      if (field === 'page' && values.filter !== undefined) {
         continue;
       }
 

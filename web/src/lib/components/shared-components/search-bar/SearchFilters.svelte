@@ -32,6 +32,7 @@
   import SearchTextSection from './SearchTextSection.svelte';
   import SearchDisplaySection from './SearchDisplaySection.svelte';
   import SearchRatingsSection from './SearchRatingsSection.svelte';
+  import SearchExifSection from './SearchExifSection.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import {
     getPeople,
@@ -56,6 +57,7 @@
     onClearAllSearchTerms: () => void;
     onActiveSelectionChange: (selectedId: string | undefined) => void;
     onSearch: () => void;
+    onKeepOpen: () => void;
   }
 
   let {
@@ -66,9 +68,11 @@
     onClearAllSearchTerms,
     onActiveSelectionChange,
     onSearch,
+    onKeepOpen,
   }: Props = $props();
 
   let searchHistory = $state<SearchHistorySection>();
+  let searchExifSection = $state<ReturnType<typeof SearchExifSection>>();
 
   let activeFilter = $state('type');
   let showAdvanced = $state(false);
@@ -102,6 +106,18 @@
   let resolutionTitle = $derived(
     resolutionPresets.find((preset) => preset.value === searchManager.filter.resolution)?.label,
   );
+  let canAddCondition = $derived(
+    searchManager.hasPendingCondition() ||
+      (activeFilter === 'exif' && (searchExifSection?.hasPendingCondition() ?? false)),
+  );
+  let exifTitle = $derived.by(() => {
+    const conditions = searchManager.filter.exifConditions;
+    if (conditions.length === 0) return undefined;
+    const first = conditions[0];
+    const label = { iso: 'ISO', fNumber: '光圈', exposureTime: '快门', focalLength: '焦段' }[first.field];
+    const operator = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=' }[first.operator];
+    return `${label} ${operator} ${first.value}${conditions.length > 1 ? ` +${conditions.length - 1}` : ''}`;
+  });
 
   let deviceTitle = $derived(selectedDeviceLabel(searchManager.filter.deviceModels));
   let cameraTitle = $derived(
@@ -169,6 +185,12 @@
       activeTitle: () => cameraTitle,
     },
     {
+      name: 'exif',
+      icon: mdiTune,
+      title: '曝光与镜头',
+      activeTitle: () => exifTitle,
+    },
+    {
       name: 'mediaCategory',
       icon: mdiShapeOutline,
       title: $t('media_categories'),
@@ -192,7 +214,19 @@
 
   const clear = () => {
     searchManager.reset();
+    searchExifSection?.clearPendingCondition();
     peopleTitle = tagsTitle = undefined;
+  };
+
+  const addCondition = () => {
+    if (activeFilter === 'exif' && searchExifSection?.hasPendingCondition()) {
+      if (!searchExifSection.addCondition()) return;
+    }
+
+    const active = filters.find((item) => item.name === activeFilter);
+    const label = active?.activeTitle() ?? (activeFilter === 'type' ? '筛选条件' : active?.title) ?? '筛选条件';
+    searchManager.addCurrentCondition(label);
+    onKeepOpen();
   };
 
   onMount(() => {
@@ -255,6 +289,24 @@
       />
       <div class="px-5">
         <Text class="py-5" fontWeight="medium" aria-hidden={true}>{$t('filter_by')}</Text>
+        {#if searchManager.addedConditions.length > 0}
+          <div class="mb-4 flex flex-wrap items-center gap-2" aria-label="已添加的筛选条件">
+            <span class="text-xs text-immich-fg/60 dark:text-immich-dark-fg/60">已添加条件</span>
+            {#each searchManager.addedConditions as label, index (`${label}-${index}`)}
+              <span
+                class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary dark:text-immich-dark-primary"
+              >
+                {label}
+                <button
+                  type="button"
+                  class="ms-1 rounded-full hover:bg-primary/15"
+                  aria-label={`移除${label}`}
+                  onclick={() => searchManager.removeAddedCondition(index)}>×</button
+                >
+              </span>
+            {/each}
+          </div>
+        {/if}
         <div class="flex flex-wrap gap-2">
           {#each filters as item (item.name)}
             <SearchButton
@@ -293,6 +345,8 @@
             <SearchDeviceSection />
           {:else if activeFilter === 'camera'}
             <SearchCameraSection />
+          {:else if activeFilter === 'exif'}
+            <SearchExifSection bind:this={searchExifSection} />
           {:else if activeFilter === 'mediaCategory'}
             <SearchMediaCategorySection />
           {:else if activeFilter === 'resolution'}
@@ -324,6 +378,13 @@
           leadingIcon={mdiTune}
           trailingIcon={showAdvanced ? mdiChevronUp : mdiChevronDown}
           onclick={() => (showAdvanced = !showAdvanced)}>{$t('advanced_filters')}</Button
+        >
+        <div class="flex-1"></div>
+        <Button
+          size="small"
+          variant="outline"
+          disabled={!canAddCondition}
+          onclick={addCondition}>添加条件</Button
         >
         <div class="flex-1"></div>
         <Button

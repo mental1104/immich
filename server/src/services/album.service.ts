@@ -72,6 +72,7 @@ export class AlbumService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [id] });
     await this.albumRepository.updateThumbnails();
     const album = await this.findOrFail(id, auth.user.id, { withAssets: false });
+    const tags = await this.albumRepository.getTags(id);
     const [albumMetadataForIds] = await this.albumRepository.getMetadataForIds([album.id]);
 
     const hasSharedUsers = album.albumUsers && album.albumUsers.length > 1;
@@ -79,7 +80,7 @@ export class AlbumService extends BaseService {
     const isShared = hasSharedUsers || hasSharedLink;
 
     return {
-      ...mapAlbum(album),
+      ...mapAlbum({ ...album, tags }),
       startDate: asDateTimeString(albumMetadataForIds?.startDate ?? undefined),
       endDate: asDateTimeString(albumMetadataForIds?.endDate ?? undefined),
       assetCount: albumMetadataForIds?.assetCount ?? 0,
@@ -148,6 +149,13 @@ export class AlbumService extends BaseService {
         throw new BadRequestException('Invalid album thumbnail');
       }
     }
+    if (dto.tagIds) {
+      const tagIds = [...new Set(dto.tagIds)];
+      if (!(await this.albumRepository.areTagsOwnedByUser(auth.user.id, tagIds))) {
+        throw new BadRequestException('Invalid album tag');
+      }
+      await this.albumRepository.setTags(id, tagIds);
+    }
     const updatedAlbum = await this.albumRepository.update(
       album.id,
       {
@@ -162,7 +170,8 @@ export class AlbumService extends BaseService {
       auth.user.id,
     );
 
-    return mapAlbum({ ...updatedAlbum, assets: album.assets });
+    const tags = await this.albumRepository.getTags(id);
+    return mapAlbum({ ...updatedAlbum, assets: album.assets, tags });
   }
 
   async delete(auth: AuthDto, id: string): Promise<void> {

@@ -453,6 +453,16 @@ export function searchAssetBuilderLegacy(kysely: Kysely<DB>, options: AssetSearc
         : qb.where('asset.visibility', '=', options.visibility!),
     )
     .$if(!!options.albumIds && options.albumIds.length > 0, (qb) => inAlbums(qb, options.albumIds!))
+    .$if(!!options.albumIdsAny?.length, (qb) =>
+      qb.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('album_asset')
+            .whereRef('album_asset.assetId', '=', 'asset.id')
+            .where('album_asset.albumId', 'in', options.albumIdsAny!),
+        ),
+      ),
+    )
     .$if(!!options.tagIds && options.tagIds.length > 0, (qb) => hasTags(qb, options.tagIds!))
     .$if(options.tagIds === null, (qb) =>
       qb.where((eb) => eb.not(eb.exists((eb) => eb.selectFrom('tag_asset').whereRef('assetId', '=', 'asset.id')))),
@@ -827,9 +837,9 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
     ...existsPredicates(eb, branch.hasAlbums, () => albumAssets(eb)),
     ...existsPredicates(eb, branch.hasPeople, () => visibleFaces(eb)),
     ...existsPredicates(eb, branch.hasTags, () => tagAssets(eb)),
-    ...comparisonPredicates(eb, 'asset_exif.city', branch.city),
-    ...comparisonPredicates(eb, 'asset_exif.state', branch.state),
-    ...comparisonPredicates(eb, 'asset_exif.country', branch.country),
+    ...stringPatternPredicates(eb, 'asset_exif.city', branch.city),
+    ...stringPatternPredicates(eb, 'asset_exif.state', branch.state),
+    ...stringPatternPredicates(eb, 'asset_exif.country', branch.country),
     ...comparisonPredicates(eb, 'asset_exif.make', branch.make),
     ...comparisonPredicates(eb, 'asset_exif.model', branch.model),
     ...comparisonPredicates(eb, 'asset_exif.lensModel', branch.lensModel),
@@ -850,6 +860,10 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
       : []),
     ...comparisonPredicates(eb, 'asset_exif.rating', branch.rating),
     ...comparisonPredicates(eb, 'asset_exif.fileSizeInByte', branch.fileSizeInBytes),
+    ...comparisonPredicates(eb, 'asset_exif.iso', branch.iso),
+    ...comparisonPredicates(eb, 'asset_exif.fNumber', branch.fNumber),
+    ...comparisonPredicates(eb, 'asset_exif.focalLength', branch.focalLength),
+    ...exposureTimePredicates(branch.exposureTime),
     ...comparisonPredicates(eb, 'asset.fileCreatedAt', branch.takenAt),
     ...comparisonPredicates(eb, 'asset.createdAt', branch.createdAt),
     ...comparisonPredicates(eb, 'asset.updatedAt', branch.updatedAt),
@@ -867,6 +881,25 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
           ),
         ]
       : []),
+  ];
+}
+
+/** 将 EXIF 快门值解析为秒，支持常见的分数与十进制格式。 */
+function exposureTimePredicates(filter: SearchFilterBranch['exposureTime'] = {}) {
+  const seconds = sql<number>`case
+    when "asset_exif"."exposureTime" ~ '^[0-9]+([.][0-9]+)?/[0-9]+([.][0-9]+)?$'
+      then split_part("asset_exif"."exposureTime", '/', 1)::numeric / nullif(split_part("asset_exif"."exposureTime", '/', 2)::numeric, 0)
+    when "asset_exif"."exposureTime" ~ '^[0-9]+([.][0-9]+)?$'
+      then "asset_exif"."exposureTime"::numeric
+    else null
+  end`;
+  return [
+    ...(filter.lt !== undefined ? [sql<SqlBool>`(${seconds}) < ${filter.lt}`] : []),
+    ...(filter.lte !== undefined ? [sql<SqlBool>`(${seconds}) <= ${filter.lte}`] : []),
+    ...(filter.gt !== undefined ? [sql<SqlBool>`(${seconds}) > ${filter.gt}`] : []),
+    ...(filter.gte !== undefined ? [sql<SqlBool>`(${seconds}) >= ${filter.gte}`] : []),
+    ...(filter.eq !== undefined ? [sql<SqlBool>`abs((${seconds}) - ${filter.eq}) < 0.000000001`] : []),
+    ...(filter.ne !== undefined ? [sql<SqlBool>`abs((${seconds}) - ${filter.ne}) >= 0.000000001`] : []),
   ];
 }
 

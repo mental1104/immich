@@ -123,6 +123,7 @@ export interface SearchTagOptions {
 
 export interface SearchAlbumOptions {
   albumIds?: string[];
+  albumIdsAny?: string[];
 }
 
 export interface SearchOrderOptions {
@@ -304,6 +305,18 @@ export class SearchRepository {
       .orderBy(sql`random()`)
       .limit(size)
       .execute();
+  }
+
+  async searchRandomPage(pagination: SearchPaginationOptions, options: AssetSearchOptions, seed: string) {
+    const items = await searchAssetBuilderLegacy(this.db, options)
+      .select(columns.searchAsset)
+      .orderBy(sql`md5(asset.id::text || ${seed})`)
+      .orderBy('asset.id', 'asc')
+      .limit(pagination.size + 1)
+      .offset((pagination.page - 1) * pagination.size)
+      .execute();
+
+    return paginationHelper(items, pagination.size);
   }
 
   // TODO(v4): remove with the deprecated flat-field search API
@@ -608,6 +621,23 @@ export class SearchRepository {
       .orderBy(sql`random()`)
       .limit(size)
       .execute();
+  }
+
+  async searchRandomPageV3(
+    pagination: PaginationOptions,
+    options: AssetSearchBuilderV3Options,
+    scope: AssetSearchScope,
+    seed: string,
+  ) {
+    const items = await searchAssetBuilder(this.db, options, scope)
+      .select(columns.searchAsset)
+      .orderBy(sql`md5(asset.id::text || ${seed})`)
+      .orderBy('asset.id', 'asc')
+      .limit(pagination.take + 1)
+      .offset(pagination.skip ?? 0)
+      .execute();
+
+    return paginationHelper(items, pagination.take);
   }
 
   // TODO(v4): drop the V3 suffix once the legacy methods are removed

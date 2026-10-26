@@ -856,6 +856,22 @@ export type ContributorCountResponseDto = {
     /** User ID */
     userId: string;
 };
+export type TagResponseDto = {
+    /** Tag color (hex) */
+    color?: string;
+    /** Creation date */
+    createdAt: string;
+    /** Tag ID */
+    id: string;
+    /** Tag name */
+    name: string;
+    /** Parent tag ID */
+    parentId?: string;
+    /** Last update date */
+    updatedAt: string;
+    /** Tag value (full path) */
+    value: string;
+};
 export type AlbumResponseDto = {
     /** Album name */
     albumName: string;
@@ -889,6 +905,8 @@ export type AlbumResponseDto = {
     startDate?: string;
     /** Last update date */
     updatedAt: string;
+    /** Tags associated with the album */
+    tags?: TagResponseDto[];
 };
 export type AlbumUserCreateDto = {
     role: AlbumUserRole;
@@ -936,6 +954,8 @@ export type UpdateAlbumDto = {
     /** Enable activity feed */
     isActivityEnabled?: boolean;
     order?: AssetOrder;
+    /** Tag IDs associated with the album */
+    tagIds?: string[];
 };
 export type BulkIdsDto = {
     /** IDs to process */
@@ -1048,7 +1068,7 @@ export type AssetMetadataUpsertItemDto = {
 };
 export type AssetMediaCreateDto = {
     /** Asset file data */
-    assetData: Blob;
+    assetData?: Blob;
     /** Duration in milliseconds (for videos) */
     duration?: number;
     /** File creation date */
@@ -1273,22 +1293,6 @@ export type AssetStackResponseDto = {
     id: string;
     /** Primary asset ID */
     primaryAssetId: string;
-};
-export type TagResponseDto = {
-    /** Tag color (hex) */
-    color?: string;
-    /** Creation date */
-    createdAt: string;
-    /** Tag ID */
-    id: string;
-    /** Tag name */
-    name: string;
-    /** Parent tag ID */
-    parentId?: string;
-    /** Last update date */
-    updatedAt: string;
-    /** Tag value (full path) */
-    value: string;
 };
 export type AssetTaskStatusResponseDto = {
     attempts: number;
@@ -2303,20 +2307,6 @@ export type StringFilter = {
     ne?: string;
     notIn?: string[];
 };
-export type StringFilterNullable = {
-    eq?: string | null;
-    "in"?: string[];
-    ne?: string | null;
-    notIn?: string[];
-};
-export type DateFilter = {
-    eq?: string;
-    gt?: string;
-    gte?: string;
-    lt?: string;
-    lte?: string;
-    ne?: string;
-};
 export type StringPatternFilter = {
     endsWith?: string;
     eq?: string | null;
@@ -2326,6 +2316,14 @@ export type StringPatternFilter = {
     notIn?: string[];
     notLike?: string;
     startsWith?: string;
+};
+export type DateFilter = {
+    eq?: string;
+    gt?: string;
+    gte?: string;
+    lt?: string;
+    lte?: string;
+    ne?: string;
 };
 export type NumberFilter = {
     eq?: number;
@@ -2343,6 +2341,12 @@ export type BoolFilter = {
 export type IdFilter = {
     eq?: string;
     ne?: string;
+};
+export type StringFilterNullable = {
+    eq?: string | null;
+    "in"?: string[];
+    ne?: string | null;
+    notIn?: string[];
 };
 export type IdFilterNullable = {
     eq?: string | null;
@@ -2387,8 +2391,8 @@ export type EnumFilterAssetVisibility = {
 export type SearchFilterBranch = {
     albumIds?: IdsFilter;
     checksum?: StringFilter;
-    city?: StringFilterNullable;
-    country?: StringFilterNullable;
+    city?: StringPatternFilter;
+    country?: StringPatternFilter;
     createdAt?: DateFilter;
     description?: StringPatternFilter;
     encodedVideoPath?: StringFilter;
@@ -2418,19 +2422,23 @@ export type SearchFilterBranch = {
     personIds?: IdsFilter;
     rating?: NumberFilterNullable;
     resolution?: MediaResolutionFilter;
-    state?: StringFilterNullable;
+    state?: StringPatternFilter;
     tagIds?: IdsFilter;
     takenAt?: DateFilter;
     trashedAt?: DateFilterNullable;
     "type"?: EnumFilterAssetType;
     updatedAt?: DateFilter;
     visibility?: EnumFilterAssetVisibility;
+    exposureTime?: NumberFilter;
+    fNumber?: NumberFilter;
+    focalLength?: NumberFilter;
+    iso?: NumberFilter;
 };
 export type SearchFilter = {
     albumIds?: IdsFilter;
     checksum?: StringFilter;
-    city?: StringFilterNullable;
-    country?: StringFilterNullable;
+    city?: StringPatternFilter;
+    country?: StringPatternFilter;
     createdAt?: DateFilter;
     description?: StringPatternFilter;
     encodedVideoPath?: StringFilter;
@@ -2461,13 +2469,17 @@ export type SearchFilter = {
     personIds?: IdsFilter;
     rating?: NumberFilterNullable;
     resolution?: MediaResolutionFilter;
-    state?: StringFilterNullable;
+    state?: StringPatternFilter;
     tagIds?: IdsFilter;
     takenAt?: DateFilter;
     trashedAt?: DateFilterNullable;
     "type"?: EnumFilterAssetType;
     updatedAt?: DateFilter;
     visibility?: EnumFilterAssetVisibility;
+    exposureTime?: NumberFilter;
+    fNumber?: NumberFilter;
+    focalLength?: NumberFilter;
+    iso?: NumberFilter;
 };
 export type SearchOrder = {
     direction?: AssetOrder;
@@ -4032,11 +4044,11 @@ export type SyncUserV1 = {
 /**
  * List all activities
  */
-export function getActivities({ albumId, assetId, level, $type, userId }: {
+export function getActivities({ albumId, assetId, $type, level, userId }: {
     albumId: string;
     assetId?: string;
-    level?: ReactionLevel;
     $type?: ReactionType;
+    level?: ReactionLevel;
     userId?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
@@ -4045,8 +4057,8 @@ export function getActivities({ albumId, assetId, level, $type, userId }: {
     }>(`/activities${QS.query(QS.explode({
         albumId,
         assetId,
-        level,
         "type": $type,
+        level,
         userId
     }))}`, {
         ...opts
@@ -4201,18 +4213,18 @@ export function downloadDatabaseBackup({ filename }: {
 /**
  * Get integrity report by type
  */
-export function getIntegrityReport({ cursor, limit, $type }: {
+export function getIntegrityReport({ $type, cursor, limit }: {
+    $type: IntegrityReport;
     cursor?: string;
     limit?: number;
-    $type: IntegrityReport;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: IntegrityReportResponseDto;
     }>(`/admin/integrity/report${QS.query(QS.explode({
+        "type": $type,
         cursor,
-        limit,
-        "type": $type
+        limit
     }))}`, {
         ...opts
     }));
@@ -4363,16 +4375,16 @@ export function sendTestEmailAdmin({ adminConfigSmtpDto }: {
 /**
  * Search users
  */
-export function searchUsersAdmin({ id, withDeleted }: {
-    id?: string;
+export function searchUsersAdmin({ withDeleted, id }: {
     withDeleted?: boolean;
+    id?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: UserAdminResponseDto[];
     }>(`/admin/users${QS.query(QS.explode({
-        id,
-        withDeleted
+        withDeleted,
+        id
     }))}`, {
         ...opts
     }));
@@ -4440,9 +4452,9 @@ export function updateUserAdmin({ id, userAdminUpdateDto }: {
 /**
  * Retrieve calendar heatmap activity
  */
-export function getUserCalendarHeatmapAdmin({ $from, id, to, $type }: {
-    $from?: string;
+export function getUserCalendarHeatmapAdmin({ id, $from, to, $type }: {
     id: string;
+    $from?: string;
     to?: string;
     $type?: CalendarHeatmapType;
 }, opts?: Oazapfts.RequestOpts) {
@@ -4516,19 +4528,19 @@ export function getUserSessionsAdmin({ id }: {
 /**
  * Retrieve user statistics
  */
-export function getUserStatisticsAdmin({ id, isFavorite, isTrashed, visibility }: {
+export function getUserStatisticsAdmin({ id, visibility, isFavorite, isTrashed }: {
     id: string;
+    visibility?: AssetVisibility;
     isFavorite?: boolean;
     isTrashed?: boolean;
-    visibility?: AssetVisibility;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: AssetStatsResponseDto;
     }>(`/admin/users/${encodeURIComponent(id)}/statistics${QS.query(QS.explode({
+        visibility,
         isFavorite,
-        isTrashed,
-        visibility
+        isTrashed
     }))}`, {
         ...opts
     }));
@@ -4536,22 +4548,22 @@ export function getUserStatisticsAdmin({ id, isFavorite, isTrashed, visibility }
 /**
  * List all albums
  */
-export function getAllAlbums({ assetId, id, isOwned, isShared, name }: {
-    assetId?: string;
+export function getAllAlbums({ id, name, isOwned, isShared, assetId }: {
     id?: string;
+    name?: string;
     isOwned?: boolean;
     isShared?: boolean;
-    name?: string;
+    assetId?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: AlbumResponseDto[];
     }>(`/albums${QS.query(QS.explode({
-        assetId,
         id,
+        name,
         isOwned,
         isShared,
-        name
+        assetId
     }))}`, {
         ...opts
     }));
@@ -4828,22 +4840,22 @@ export function rotateApiKey({ id }: {
 /**
  * Search asset files
  */
-export function searchAssetFiles({ assetId, isEdited, isProgressive, isTransparent, $type }: {
+export function searchAssetFiles({ assetId, $type, isEdited, isProgressive, isTransparent }: {
     assetId: string;
+    $type?: AssetFileType;
     isEdited?: boolean;
     isProgressive?: boolean;
     isTransparent?: boolean;
-    $type?: AssetFileType;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: AssetFileResponseDto[];
     }>(`/asset-files${QS.query(QS.explode({
         assetId,
+        "type": $type,
         isEdited,
         isProgressive,
-        isTransparent,
-        "type": $type
+        isTransparent
     }))}`, {
         ...opts
     }));
@@ -4900,10 +4912,10 @@ export function deleteAssets({ assetBulkDeleteDto }: {
 /**
  * Upload asset
  */
-export function uploadAsset({ key, slug, xImmichChecksum, assetMediaCreateDto }: {
+export function uploadAsset({ xImmichChecksum, key, slug, assetMediaCreateDto }: {
+    xImmichChecksum?: string;
     key?: string;
     slug?: string;
-    xImmichChecksum?: string;
     assetMediaCreateDto: AssetMediaCreateDto;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
@@ -5005,18 +5017,18 @@ export function updateBulkAssetMetadata({ assetMetadataBulkUpsertDto }: {
 /**
  * Get asset statistics
  */
-export function getAssetStatistics({ isFavorite, isTrashed, visibility }: {
+export function getAssetStatistics({ visibility, isFavorite, isTrashed }: {
+    visibility?: AssetVisibility;
     isFavorite?: boolean;
     isTrashed?: boolean;
-    visibility?: AssetVisibility;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: AssetStatsResponseDto;
     }>(`/assets/statistics${QS.query(QS.explode({
+        visibility,
         isFavorite,
-        isTrashed,
-        visibility
+        isTrashed
     }))}`, {
         ...opts
     }));
@@ -5166,9 +5178,9 @@ export function getAssetOcr({ id }: {
 /**
  * Download original asset
  */
-export function downloadAsset({ edited, id, key, slug }: {
-    edited?: boolean;
+export function downloadAsset({ id, edited, key, slug }: {
     id: string;
+    edited?: boolean;
     key?: string;
     slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
@@ -5186,20 +5198,20 @@ export function downloadAsset({ edited, id, key, slug }: {
 /**
  * View asset thumbnail
  */
-export function viewAsset({ edited, id, key, size, slug }: {
-    edited?: boolean;
+export function viewAsset({ id, size, edited, key, slug }: {
     id: string;
-    key?: string;
     size?: AssetMediaSize;
+    edited?: boolean;
+    key?: string;
     slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchBlob<{
         status: 200;
         data: Blob;
     }>(`/assets/${encodeURIComponent(id)}/thumbnail${QS.query(QS.explode({
+        size,
         edited,
         key,
-        size,
         slug
     }))}`, {
         ...opts
@@ -5226,8 +5238,9 @@ export function playAssetVideo({ id, key, slug }: {
 /**
  * Get HLS main playlist
  */
-export function getMainPlaylist({ id, key, slug }: {
+export function getMainPlaylist({ id, preview, key, slug }: {
     id: string;
+    preview?: boolean;
     key?: string;
     slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
@@ -5235,6 +5248,7 @@ export function getMainPlaylist({ id, key, slug }: {
         status: 200;
         data: string;
     }>(`/assets/${encodeURIComponent(id)}/video/stream/main.m3u8${QS.query(QS.explode({
+        preview,
         key,
         slug
     }))}`, {
@@ -5244,10 +5258,10 @@ export function getMainPlaylist({ id, key, slug }: {
 /**
  * End HLS streaming session
  */
-export function endSession({ id, key, sessionId, slug }: {
+export function endSession({ id, sessionId, key, slug }: {
     id: string;
-    key?: string;
     sessionId: string;
+    key?: string;
     slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchText(`/assets/${encodeURIComponent(id)}/video/stream/${encodeURIComponent(sessionId)}${QS.query(QS.explode({
@@ -5261,13 +5275,13 @@ export function endSession({ id, key, sessionId, slug }: {
 /**
  * Get HLS media playlist
  */
-export function getMediaPlaylist({ id, key, sessionId, slug, variantIndex, xImmichHlsPos }: {
+export function getMediaPlaylist({ id, sessionId, variantIndex, xImmichHlsPos, key, slug }: {
     id: string;
-    key?: string;
     sessionId: string;
-    slug?: string;
     variantIndex: number;
     xImmichHlsPos?: number;
+    key?: string;
+    slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchBlob<{
         status: 200;
@@ -5285,14 +5299,14 @@ export function getMediaPlaylist({ id, key, sessionId, slug, variantIndex, xImmi
 /**
  * Get HLS segment or init file
  */
-export function getSegment({ filename, id, key, sessionId, slug, variantIndex, xImmichHlsMsn }: {
-    filename: string;
+export function getSegment({ id, sessionId, variantIndex, filename, xImmichHlsMsn, key, slug }: {
     id: string;
-    key?: string;
     sessionId: string;
-    slug?: string;
     variantIndex: number;
+    filename: string;
     xImmichHlsMsn?: number;
+    key?: string;
+    slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchBlob<{
         status: 200;
@@ -5882,11 +5896,11 @@ export function getForkSearchPlaces({ name }: {
 /**
  * Retrieve map markers
  */
-export function getMapMarkers({ fileCreatedAfter, fileCreatedBefore, isArchived, isFavorite, withPartners, withSharedAlbums }: {
-    fileCreatedAfter?: string;
-    fileCreatedBefore?: string;
+export function getMapMarkers({ isArchived, isFavorite, fileCreatedAfter, fileCreatedBefore, withPartners, withSharedAlbums }: {
     isArchived?: boolean;
     isFavorite?: boolean;
+    fileCreatedAfter?: string;
+    fileCreatedBefore?: string;
     withPartners?: boolean;
     withSharedAlbums?: boolean;
 }, opts?: Oazapfts.RequestOpts) {
@@ -5894,10 +5908,10 @@ export function getMapMarkers({ fileCreatedAfter, fileCreatedBefore, isArchived,
         status: 200;
         data: MapMarkerResponseDto[];
     }>(`/map/markers${QS.query(QS.explode({
-        fileCreatedAfter,
-        fileCreatedBefore,
         isArchived,
         isFavorite,
+        fileCreatedAfter,
+        fileCreatedBefore,
         withPartners,
         withSharedAlbums
     }))}`, {
@@ -5924,30 +5938,30 @@ export function reverseGeocode({ lat, lon }: {
 /**
  * Retrieve memories
  */
-export function searchMemories({ $for, id, isSaved, isTrashed, isUpcoming, order, page, size, $type }: {
-    $for?: string;
+export function searchMemories({ id, $type, $for, isTrashed, isSaved, isUpcoming, size, page, order }: {
     id?: string;
-    isSaved?: boolean;
-    isTrashed?: boolean;
-    isUpcoming?: boolean;
-    order?: MemorySearchOrder;
-    page?: number;
-    size?: number;
     $type?: MemoryType;
+    $for?: string;
+    isTrashed?: boolean;
+    isSaved?: boolean;
+    isUpcoming?: boolean;
+    size?: number;
+    page?: number;
+    order?: MemorySearchOrder;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: MemoryResponseDto[];
     }>(`/memories${QS.query(QS.explode({
-        "for": $for,
         id,
-        isSaved,
+        "type": $type,
+        "for": $for,
         isTrashed,
+        isSaved,
         isUpcoming,
-        order,
-        page,
         size,
-        "type": $type
+        page,
+        order
     }))}`, {
         ...opts
     }));
@@ -5970,30 +5984,30 @@ export function createMemory({ memoryCreateDto }: {
 /**
  * Retrieve memories statistics
  */
-export function memoriesStatistics({ $for, id, isSaved, isTrashed, isUpcoming, order, page, size, $type }: {
-    $for?: string;
+export function memoriesStatistics({ id, $type, $for, isTrashed, isSaved, isUpcoming, size, page, order }: {
     id?: string;
-    isSaved?: boolean;
-    isTrashed?: boolean;
-    isUpcoming?: boolean;
-    order?: MemorySearchOrder;
-    page?: number;
-    size?: number;
     $type?: MemoryType;
+    $for?: string;
+    isTrashed?: boolean;
+    isSaved?: boolean;
+    isUpcoming?: boolean;
+    size?: number;
+    page?: number;
+    order?: MemorySearchOrder;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: MemoryStatisticsResponseDto;
     }>(`/memories/statistics${QS.query(QS.explode({
-        "for": $for,
         id,
-        isSaved,
+        "type": $type,
+        "for": $for,
         isTrashed,
+        isSaved,
         isUpcoming,
-        order,
-        page,
         size,
-        "type": $type
+        page,
+        order
     }))}`, {
         ...opts
     }));
@@ -6318,32 +6332,32 @@ export function deletePeople({ peopleDeleteDto }: {
 /**
  * Get all people
  */
-export function getAllPeople({ closestAssetId, closestPersonId, isFavorite, isHidden, name, page, sharedById, sharedWithId, size, withHidden }: {
-    closestAssetId?: string;
+export function getAllPeople({ withHidden, closestPersonId, closestAssetId, page, size, sharedById, sharedWithId, isFavorite, isHidden, name }: {
+    withHidden?: boolean;
     closestPersonId?: string;
+    closestAssetId?: string;
+    page?: number;
+    size?: number;
+    sharedById?: string;
+    sharedWithId?: string;
     isFavorite?: boolean;
     isHidden?: boolean;
     name?: string;
-    page?: number;
-    sharedById?: string;
-    sharedWithId?: string;
-    size?: number;
-    withHidden?: boolean;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: PeopleResponseDto;
     }>(`/people${QS.query(QS.explode({
-        closestAssetId,
+        withHidden,
         closestPersonId,
-        isFavorite,
-        isHidden,
-        name,
+        closestAssetId,
         page,
+        size,
         sharedById,
         sharedWithId,
-        size,
-        withHidden
+        isFavorite,
+        isHidden,
+        name
     }))}`, {
         ...opts
     }));
@@ -6408,22 +6422,22 @@ export function removeUsersFromPeople({ personUsersDeleteDto }: {
 /**
  * Get people access
  */
-export function getUsersForPeople({ direction, personId, role, sharedById, sharedWithId }: {
-    direction?: SharingDirection;
+export function getUsersForPeople({ personId, direction, sharedById, sharedWithId, role }: {
     personId?: string;
-    role?: PersonUserRole;
+    direction?: SharingDirection;
     sharedById?: string;
     sharedWithId?: string;
+    role?: PersonUserRole;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: PersonUsersResponseDto;
     }>(`/people/users${QS.query(QS.explode({
-        direction,
         personId,
-        role,
+        direction,
         sharedById,
-        sharedWithId
+        sharedWithId,
+        role
     }))}`, {
         ...opts
     }));
@@ -6543,24 +6557,24 @@ export function getPersonThumbnail({ id }: {
 /**
  * List all plugins
  */
-export function searchPlugins({ description, enabled, id, name, title, version }: {
-    description?: string;
-    enabled?: boolean;
+export function searchPlugins({ id, enabled, name, version, title, description }: {
     id?: string;
+    enabled?: boolean;
     name?: string;
-    title?: string;
     version?: string;
+    title?: string;
+    description?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: PluginResponseDto[];
     }>(`/plugins${QS.query(QS.explode({
-        description,
-        enabled,
         id,
+        enabled,
         name,
+        version,
         title,
-        version
+        description
     }))}`, {
         ...opts
     }));
@@ -6568,30 +6582,30 @@ export function searchPlugins({ description, enabled, id, name, title, version }
 /**
  * Retrieve plugin methods
  */
-export function searchPluginMethods({ description, enabled, id, name, pluginName, pluginVersion, title, trigger, $type }: {
-    description?: string;
-    enabled?: boolean;
+export function searchPluginMethods({ id, enabled, name, title, description, $type, trigger, pluginName, pluginVersion }: {
     id?: string;
+    enabled?: boolean;
     name?: string;
+    title?: string;
+    description?: string;
+    $type?: WorkflowType;
+    trigger?: WorkflowTrigger;
     pluginName?: string;
     pluginVersion?: string;
-    title?: string;
-    trigger?: WorkflowTrigger;
-    $type?: WorkflowType;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: PluginMethodResponseDto[];
     }>(`/plugins/methods${QS.query(QS.explode({
-        description,
-        enabled,
         id,
+        enabled,
         name,
-        pluginName,
-        pluginVersion,
         title,
+        description,
+        "type": $type,
         trigger,
-        "type": $type
+        pluginName,
+        pluginVersion
     }))}`, {
         ...opts
     }));
@@ -6736,96 +6750,96 @@ export function getExploreData(opts?: Oazapfts.RequestOpts) {
 /**
  * Search large assets
  */
-export function searchLargeAssets({ albumIds, city, country, createdAfter, createdBefore, deviceModels, isDeltaScreenshot, isEncoded, isFavorite, isInAlbum, isMotion, isNintendo3DsScreenshot, isNotInAlbum, isOffline, isPanorama, isPhoneVideo, isScreenshot, isSteamScreenshot, isSwitchScreenshot, lensModel, libraryId, make, minFileSize, model, ocr, orientation, personIds, rating, resolution, size, state, tagIds, takenAfter, takenBefore, trashedAfter, trashedBefore, $type, updatedAfter, updatedBefore, visibility, withDeleted, withExif }: {
-    albumIds?: string[];
-    city?: string | null;
-    country?: string | null;
-    createdAfter?: string;
-    createdBefore?: string;
-    deviceModels?: string[];
-    isDeltaScreenshot?: boolean;
+export function searchLargeAssets({ libraryId, $type, resolution, isEncoded, isFavorite, isMotion, isPanorama, isPhoneVideo, isScreenshot, isDeltaScreenshot, isSteamScreenshot, isSwitchScreenshot, isNintendo3DsScreenshot, isOffline, visibility, createdBefore, createdAfter, updatedBefore, updatedAfter, trashedBefore, trashedAfter, takenBefore, takenAfter, city, state, country, make, model, deviceModels, lensModel, isNotInAlbum, isInAlbum, orientation, personIds, tagIds, albumIds, rating, ocr, withDeleted, withExif, size, minFileSize }: {
+    libraryId?: string | null;
+    $type?: AssetTypeEnum;
+    resolution?: MediaResolution;
     isEncoded?: boolean;
     isFavorite?: boolean;
-    isInAlbum?: boolean;
     isMotion?: boolean;
-    isNintendo3DsScreenshot?: boolean;
-    isNotInAlbum?: boolean;
-    isOffline?: boolean;
     isPanorama?: boolean;
     isPhoneVideo?: boolean;
     isScreenshot?: boolean;
+    isDeltaScreenshot?: boolean;
     isSteamScreenshot?: boolean;
     isSwitchScreenshot?: boolean;
-    lensModel?: string | null;
-    libraryId?: string | null;
+    isNintendo3DsScreenshot?: boolean;
+    isOffline?: boolean;
+    visibility?: AssetVisibility;
+    createdBefore?: string;
+    createdAfter?: string;
+    updatedBefore?: string;
+    updatedAfter?: string;
+    trashedBefore?: string;
+    trashedAfter?: string;
+    takenBefore?: string;
+    takenAfter?: string;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
     make?: string | null;
-    minFileSize?: number;
     model?: string | null;
-    ocr?: string;
+    deviceModels?: string[];
+    lensModel?: string | null;
+    isNotInAlbum?: boolean;
+    isInAlbum?: boolean;
     orientation?: "landscape" | "portrait";
     personIds?: string[];
-    rating?: number | null;
-    resolution?: MediaResolution;
-    size?: number;
-    state?: string | null;
     tagIds?: string[] | null;
-    takenAfter?: string;
-    takenBefore?: string;
-    trashedAfter?: string;
-    trashedBefore?: string;
-    $type?: AssetTypeEnum;
-    updatedAfter?: string;
-    updatedBefore?: string;
-    visibility?: AssetVisibility;
+    albumIds?: string[];
+    rating?: number | null;
+    ocr?: string;
     withDeleted?: boolean;
     withExif?: boolean;
+    size?: number;
+    minFileSize?: number;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: AssetResponseDto[];
     }>(`/search/large-assets${QS.query(QS.explode({
-        albumIds,
-        city,
-        country,
-        createdAfter,
-        createdBefore,
-        deviceModels,
-        isDeltaScreenshot,
+        libraryId,
+        "type": $type,
+        resolution,
         isEncoded,
         isFavorite,
-        isInAlbum,
         isMotion,
-        isNintendo3dsScreenshot: isNintendo3DsScreenshot,
-        isNotInAlbum,
-        isOffline,
         isPanorama,
         isPhoneVideo,
         isScreenshot,
+        isDeltaScreenshot,
         isSteamScreenshot,
         isSwitchScreenshot,
-        lensModel,
-        libraryId,
+        isNintendo3dsScreenshot: isNintendo3DsScreenshot,
+        isOffline,
+        visibility,
+        createdBefore,
+        createdAfter,
+        updatedBefore,
+        updatedAfter,
+        trashedBefore,
+        trashedAfter,
+        takenBefore,
+        takenAfter,
+        city,
+        state,
+        country,
         make,
-        minFileSize,
         model,
-        ocr,
+        deviceModels,
+        lensModel,
+        isNotInAlbum,
+        isInAlbum,
         orientation,
         personIds,
-        rating,
-        resolution,
-        size,
-        state,
         tagIds,
-        takenAfter,
-        takenBefore,
-        trashedAfter,
-        trashedBefore,
-        "type": $type,
-        updatedAfter,
-        updatedBefore,
-        visibility,
+        albumIds,
+        rating,
+        ocr,
         withDeleted,
-        withExif
+        withExif,
+        size,
+        minFileSize
     }))}`, {
         ...opts,
         method: "POST"
@@ -6931,26 +6945,26 @@ export function searchAssetStatistics({ statisticsSearchDto }: {
 /**
  * Retrieve search suggestions
  */
-export function getSearchSuggestions({ country, includeNull, lensModel, make, model, state, $type }: {
+export function getSearchSuggestions({ $type, country, state, make, model, lensModel, includeNull }: {
+    $type: SearchSuggestionType;
     country?: string;
-    includeNull?: boolean;
-    lensModel?: string;
+    state?: string;
     make?: string;
     model?: string;
-    state?: string;
-    $type: SearchSuggestionType;
+    lensModel?: string;
+    includeNull?: boolean;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: string[];
     }>(`/search/suggestions${QS.query(QS.explode({
+        "type": $type,
         country,
-        includeNull,
-        lensModel,
+        state,
         make,
         model,
-        state,
-        "type": $type
+        lensModel,
+        includeNull
     }))}`, {
         ...opts
     }));
@@ -7412,9 +7426,9 @@ export function updateStack({ id, stackUpdateDto }: {
 /**
  * Remove an asset from a stack
  */
-export function removeAssetFromStack({ assetId, id }: {
-    assetId: string;
+export function removeAssetFromStack({ id, assetId }: {
     id: string;
+    assetId: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchText(`/stacks/${encodeURIComponent(id)}/assets/${encodeURIComponent(assetId)}`, {
         ...opts,
@@ -7692,48 +7706,48 @@ export function tagAssets({ id, bulkIdsDto }: {
 /**
  * Get time bucket
  */
-export function getTimeBucket({ albumId, albumLike, assetType, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, timeBucket, userId, visibility, withCoordinates, withPartners, withStacked }: {
+export function getTimeBucket({ userId, albumId, albumLike, assetType, personId, tagId, isFavorite, isTrashed, withStacked, withPartners, order, orderBy, visibility, withCoordinates, key, slug, bbox, timeBucket }: {
+    userId?: string;
     albumId?: string;
     albumLike?: AlbumLikeFilter;
     assetType?: AssetTypeEnum;
-    bbox?: string;
+    personId?: string;
+    tagId?: string;
     isFavorite?: boolean;
     isTrashed?: boolean;
-    key?: string;
+    withStacked?: boolean;
+    withPartners?: boolean;
     order?: AssetOrder;
     orderBy?: AssetOrderBy;
-    personId?: string;
-    slug?: string;
-    tagId?: string;
-    timeBucket: string;
-    userId?: string;
     visibility?: AssetVisibility;
     withCoordinates?: boolean;
-    withPartners?: boolean;
-    withStacked?: boolean;
+    key?: string;
+    slug?: string;
+    bbox?: string;
+    timeBucket: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: TimeBucketAssetResponseDto;
     }>(`/timeline/bucket${QS.query(QS.explode({
+        userId,
         albumId,
         albumLike,
         assetType,
-        bbox,
+        personId,
+        tagId,
         isFavorite,
         isTrashed,
-        key,
+        withStacked,
+        withPartners,
         order,
         orderBy,
-        personId,
-        slug,
-        tagId,
-        timeBucket,
-        userId,
         visibility,
         withCoordinates,
-        withPartners,
-        withStacked
+        key,
+        slug,
+        bbox,
+        timeBucket
     }))}`, {
         ...opts
     }));
@@ -7741,46 +7755,46 @@ export function getTimeBucket({ albumId, albumLike, assetType, bbox, isFavorite,
 /**
  * Get time buckets
  */
-export function getTimeBuckets({ albumId, albumLike, assetType, bbox, isFavorite, isTrashed, key, order, orderBy, personId, slug, tagId, userId, visibility, withCoordinates, withPartners, withStacked }: {
+export function getTimeBuckets({ userId, albumId, albumLike, assetType, personId, tagId, isFavorite, isTrashed, withStacked, withPartners, order, orderBy, visibility, withCoordinates, key, slug, bbox }: {
+    userId?: string;
     albumId?: string;
     albumLike?: AlbumLikeFilter;
     assetType?: AssetTypeEnum;
-    bbox?: string;
+    personId?: string;
+    tagId?: string;
     isFavorite?: boolean;
     isTrashed?: boolean;
-    key?: string;
+    withStacked?: boolean;
+    withPartners?: boolean;
     order?: AssetOrder;
     orderBy?: AssetOrderBy;
-    personId?: string;
-    slug?: string;
-    tagId?: string;
-    userId?: string;
     visibility?: AssetVisibility;
     withCoordinates?: boolean;
-    withPartners?: boolean;
-    withStacked?: boolean;
+    key?: string;
+    slug?: string;
+    bbox?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: TimeBucketsResponseDto[];
     }>(`/timeline/buckets${QS.query(QS.explode({
+        userId,
         albumId,
         albumLike,
         assetType,
-        bbox,
+        personId,
+        tagId,
         isFavorite,
         isTrashed,
-        key,
+        withStacked,
+        withPartners,
         order,
         orderBy,
-        personId,
-        slug,
-        tagId,
-        userId,
         visibility,
         withCoordinates,
-        withPartners,
-        withStacked
+        key,
+        slug,
+        bbox
     }))}`, {
         ...opts
     }));
@@ -8055,24 +8069,24 @@ export function getUniqueOriginalPaths(opts?: Oazapfts.RequestOpts) {
 /**
  * List all workflows
  */
-export function searchWorkflows({ description, enabled, id, logging, name, trigger }: {
+export function searchWorkflows({ id, trigger, name, description, enabled, logging }: {
+    id?: string;
+    trigger?: WorkflowTrigger;
+    name?: string;
     description?: string;
     enabled?: boolean;
-    id?: string;
     logging?: boolean;
-    name?: string;
-    trigger?: WorkflowTrigger;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: WorkflowResponseDto[];
     }>(`/workflows${QS.query(QS.explode({
+        id,
+        trigger,
+        name,
         description,
         enabled,
-        id,
-        logging,
-        name,
-        trigger
+        logging
     }))}`, {
         ...opts
     }));
@@ -8146,19 +8160,19 @@ export function updateWorkflow({ id, workflowUpdateDto }: {
 /**
  * Retrieve workflow logs
  */
-export function getWorkflowLogs({ before, id, limit, result }: {
-    before?: string;
+export function getWorkflowLogs({ id, result, before, limit }: {
     id: string;
-    limit?: number;
     result?: WorkflowResult;
+    before?: string;
+    limit?: number;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 200;
         data: WorkflowLogEntryDto[];
     }>(`/workflows/${encodeURIComponent(id)}/logs${QS.query(QS.explode({
+        result,
         before,
-        limit,
-        result
+        limit
     }))}`, {
         ...opts
     }));
@@ -8176,13 +8190,13 @@ export function getWorkflowForShare({ id }: {
         ...opts
     }));
 }
-export enum ReactionLevel {
-    Album = "album",
-    Asset = "asset"
-}
 export enum ReactionType {
     Comment = "comment",
     Like = "like"
+}
+export enum ReactionLevel {
+    Album = "album",
+    Asset = "asset"
 }
 export enum UserAvatarColor {
     Primary = "primary",
@@ -8623,14 +8637,14 @@ export enum ForkGeodataNameScope {
     State = "state",
     None = "none"
 }
+export enum MemoryType {
+    OnThisDay = "on_this_day",
+    Birthday = "birthday"
+}
 export enum MemorySearchOrder {
     Asc = "asc",
     Desc = "desc",
     Random = "random"
-}
-export enum MemoryType {
-    OnThisDay = "on_this_day",
-    Birthday = "birthday"
 }
 export enum PartnerDirection {
     SharedBy = "shared-by",

@@ -67,4 +67,22 @@ describe('SearchManager', () => {
     expect(query.isPhoneVideo).toBe(category === 'phone-video' ? true : undefined);
     expect(query.isScreenshot).toBe(category === 'screenshot' ? true : undefined);
   });
+
+  it('combines exposure and camera filters in the structured search filter', async () => {
+    searchManager.filter.camera.make = 'Canon';
+    searchManager.filter.camera.lensModel = 'RF 85mm F1.2 L USM';
+    searchManager.addExifCondition({ field: 'fNumber', operator: 'lte', value: 2.8 });
+    await searchManager.submit();
+
+    const target = String(vi.mocked(goto).mock.calls[0][0]);
+    const query = JSON.parse(new URL(target, 'https://test.invalid').searchParams.get('query')!);
+
+    expect(query.filter).toMatchObject({
+      fNumber: { lte: 2.8 },
+      make: { eq: 'Canon' },
+      lensModel: { eq: 'RF 85mm F1.2 L USM' },
+    });
+    expect(query.make).toBeUndefined();
+    expect(query.lensModel).toBeUndefined();
+  });
 });

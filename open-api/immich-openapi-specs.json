@@ -29,19 +29,19 @@
             }
           },
           {
-            "name": "level",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/ReactionLevel"
-            }
-          },
-          {
             "name": "type",
             "required": false,
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/ReactionType"
+            }
+          },
+          {
+            "name": "level",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ReactionLevel"
             }
           },
           {
@@ -719,6 +719,14 @@
         "operationId": "getIntegrityReport",
         "parameters": [
           {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/IntegrityReport"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -731,22 +739,14 @@
             "name": "limit",
             "required": false,
             "in": "query",
-            "description": "Number of items per page",
             "schema": {
-              "maximum": 9007199254740991,
-              "exclusiveMinimum": true,
               "default": 500,
-              "type": "integer",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "type",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/IntegrityReport"
-            }
+              "exclusiveMinimum": true,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "description": "Number of items per page"
           }
         ],
         "responses": {
@@ -1375,23 +1375,23 @@
         "operationId": "searchUsersAdmin",
         "parameters": [
           {
-            "name": "id",
-            "required": false,
-            "in": "query",
-            "description": "User ID filter",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
             "name": "withDeleted",
             "required": false,
             "in": "query",
             "description": "Include deleted users",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "User ID filter",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
           }
         ],
@@ -1718,18 +1718,6 @@
         "operationId": "getUserCalendarHeatmapAdmin",
         "parameters": [
           {
-            "name": "from",
-            "required": false,
-            "in": "query",
-            "description": "Start date in UTC",
-            "schema": {
-              "format": "date",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-              "example": "2024-01-01",
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -1738,6 +1726,18 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
               "type": "string"
             }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+              "type": "string",
+              "example": "2024-01-01"
+            },
+            "description": "Start date in UTC"
           },
           {
             "name": "to",
@@ -2085,6 +2085,14 @@
             }
           },
           {
+            "name": "visibility",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AssetVisibility"
+            }
+          },
+          {
             "name": "isFavorite",
             "required": false,
             "in": "query",
@@ -2097,18 +2105,10 @@
             "name": "isTrashed",
             "required": false,
             "in": "query",
-            "description": "Filter by trash status",
             "schema": {
               "type": "boolean"
-            }
-          },
-          {
-            "name": "visibility",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/AssetVisibility"
-            }
+            },
+            "description": "Filter by trash status"
           }
         ],
         "responses": {
@@ -2163,17 +2163,6 @@
         "operationId": "getAllAlbums",
         "parameters": [
           {
-            "name": "assetId",
-            "required": false,
-            "in": "query",
-            "description": "Filter albums containing this asset ID (ignores other parameters)",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": false,
             "in": "query",
@@ -2181,6 +2170,15 @@
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": false,
+            "in": "query",
+            "description": "Album name (exact match)",
+            "schema": {
               "type": "string"
             }
           },
@@ -2203,12 +2201,14 @@
             }
           },
           {
-            "name": "name",
+            "name": "assetId",
             "required": false,
             "in": "query",
-            "description": "Album name (exact match)",
+            "description": "Filter albums containing this asset ID (ignores other parameters)",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
           }
         ],
@@ -3482,6 +3482,15 @@
             }
           },
           {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Filter by type of file",
+            "schema": {
+              "$ref": "#/components/schemas/AssetFileType"
+            }
+          },
+          {
             "name": "isEdited",
             "required": false,
             "in": "query",
@@ -3506,15 +3515,6 @@
             "description": "The file is transparent",
             "schema": {
               "type": "boolean"
-            }
-          },
-          {
-            "name": "type",
-            "required": false,
-            "in": "query",
-            "description": "Filter by type of file",
-            "schema": {
-              "$ref": "#/components/schemas/AssetFileType"
             }
           }
         ],
@@ -3782,6 +3782,15 @@
         "operationId": "uploadAsset",
         "parameters": [
           {
+            "name": "x-immich-checksum",
+            "required": false,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "sha1 checksum that can be used for duplicate detection before the file is uploaded"
+          },
+          {
             "name": "key",
             "required": false,
             "in": "query",
@@ -3791,16 +3800,7 @@
           },
           {
             "name": "slug",
-            "required": false,
             "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "x-immich-checksum",
-            "in": "header",
-            "description": "sha1 checksum that can be used for duplicate detection before the file is uploaded",
             "required": false,
             "schema": {
               "type": "string"
@@ -4209,6 +4209,14 @@
         "operationId": "getAssetStatistics",
         "parameters": [
           {
+            "name": "visibility",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AssetVisibility"
+            }
+          },
+          {
             "name": "isFavorite",
             "required": false,
             "in": "query",
@@ -4221,18 +4229,10 @@
             "name": "isTrashed",
             "required": false,
             "in": "query",
-            "description": "Filter by trash status",
             "schema": {
               "type": "boolean"
-            }
-          },
-          {
-            "name": "visibility",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/AssetVisibility"
-            }
+            },
+            "description": "Filter by trash status"
           }
         ],
         "responses": {
@@ -4942,23 +4942,23 @@
         "operationId": "downloadAsset",
         "parameters": [
           {
-            "name": "edited",
-            "required": false,
-            "in": "query",
-            "description": "Return edited asset if available",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
             "schema": {
+              "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
+          },
+          {
+            "name": "edited",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Return edited asset if available"
           },
           {
             "name": "key",
@@ -5029,23 +5029,38 @@
         "operationId": "viewAsset",
         "parameters": [
           {
-            "name": "edited",
-            "required": false,
-            "in": "query",
-            "description": "Return edited asset if available",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
             "schema": {
+              "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AssetMediaSize"
+            },
+            "x-immich-history": [
+              {
+                "description": "Specifying 'original' is deprecated. Use the original endpoint directly instead",
+                "state": "Updated",
+                "version": "v3"
+              }
+            ]
+          },
+          {
+            "name": "edited",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Return edited asset if available"
           },
           {
             "name": "key",
@@ -5053,21 +5068,6 @@
             "in": "query",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "size",
-            "required": false,
-            "in": "query",
-            "x-immich-history": [
-              {
-                "version": "v3",
-                "state": "Updated",
-                "description": "Specifying 'original' is deprecated. Use the original endpoint directly instead"
-              }
-            ],
-            "schema": {
-              "$ref": "#/components/schemas/AssetMediaSize"
             }
           },
           {
@@ -5219,6 +5219,14 @@
             }
           },
           {
+            "name": "preview",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "key",
             "required": false,
             "in": "query",
@@ -5227,9 +5235,9 @@
             }
           },
           {
+            "in": "query",
             "name": "slug",
             "required": false,
-            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -5292,20 +5300,20 @@
             }
           },
           {
-            "name": "key",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "sessionId",
             "required": true,
             "in": "path",
             "schema": {
+              "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           },
@@ -5368,20 +5376,39 @@
             }
           },
           {
-            "name": "key",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "sessionId",
             "required": true,
             "in": "path",
             "schema": {
+              "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
+          {
+            "name": "variantIndex",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "x-immich-hls-pos",
+            "required": false,
+            "in": "header",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           },
@@ -5391,25 +5418,6 @@
             "in": "query",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "variantIndex",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "minimum": 0,
-              "maximum": 9007199254740991,
-              "type": "integer"
-            }
-          },
-          {
-            "name": "x-immich-hls-pos",
-            "required": false,
-            "in": "header",
-            "schema": {
-              "minimum": 0,
-              "type": "number"
             }
           }
         ],
@@ -5460,30 +5468,13 @@
         "operationId": "getSegment",
         "parameters": [
           {
-            "name": "filename",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "pattern": "^(init\\.mp4|seg_\\d+\\.m4s)$",
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
             "schema": {
-              "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "key",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           },
           {
@@ -5497,21 +5488,22 @@
             }
           },
           {
-            "name": "slug",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "variantIndex",
             "required": true,
             "in": "path",
             "schema": {
-              "minimum": 0,
+              "type": "integer",
               "maximum": 9007199254740991,
-              "type": "integer"
+              "minimum": 0
+            }
+          },
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^(init\\.mp4|seg_\\d+\\.m4s)$",
+              "type": "string"
             }
           },
           {
@@ -5519,9 +5511,25 @@
             "required": false,
             "in": "header",
             "schema": {
-              "minimum": 0,
+              "type": "integer",
               "maximum": 9007199254740991,
-              "type": "integer"
+              "minimum": 0
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8006,30 +8014,6 @@
         "operationId": "getMapMarkers",
         "parameters": [
           {
-            "name": "fileCreatedAfter",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets created after this date",
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "fileCreatedBefore",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets created before this date",
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
             "name": "isArchived",
             "required": false,
             "in": "query",
@@ -8045,6 +8029,30 @@
             "description": "Filter by favorite status",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "fileCreatedAfter",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets created after this date",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "fileCreatedBefore",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets created before this date",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
             }
           },
           {
@@ -8194,18 +8202,6 @@
         "operationId": "searchMemories",
         "parameters": [
           {
-            "name": "for",
-            "required": false,
-            "in": "query",
-            "description": "Filter by date",
-            "schema": {
-              "format": "date",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-              "example": "2024-01-01",
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": false,
             "in": "query",
@@ -8217,12 +8213,23 @@
             }
           },
           {
-            "name": "isSaved",
+            "name": "type",
             "required": false,
             "in": "query",
-            "description": "Filter by saved status",
             "schema": {
-              "type": "boolean"
+              "$ref": "#/components/schemas/MemoryType"
+            }
+          },
+          {
+            "name": "for",
+            "required": false,
+            "in": "query",
+            "description": "Filter by date",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
             }
           },
           {
@@ -8235,20 +8242,32 @@
             }
           },
           {
-            "name": "isUpcoming",
+            "name": "isSaved",
             "required": false,
             "in": "query",
-            "description": "Filter by memories that have not been shown yet",
+            "description": "Filter by saved status",
             "schema": {
               "type": "boolean"
             }
           },
           {
-            "name": "order",
+            "name": "isUpcoming",
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/MemorySearchOrder"
+              "type": "boolean"
+            },
+            "description": "Filter by memories that have not been shown yet"
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Number of memories to return",
+            "schema": {
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "type": "integer"
             }
           },
           {
@@ -8263,22 +8282,11 @@
             }
           },
           {
-            "name": "size",
-            "required": false,
-            "in": "query",
-            "description": "Number of memories to return",
-            "schema": {
-              "minimum": 1,
-              "maximum": 9007199254740991,
-              "type": "integer"
-            }
-          },
-          {
-            "name": "type",
+            "name": "order",
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/MemoryType"
+              "$ref": "#/components/schemas/MemorySearchOrder"
             }
           }
         ],
@@ -8394,18 +8402,6 @@
         "operationId": "memoriesStatistics",
         "parameters": [
           {
-            "name": "for",
-            "required": false,
-            "in": "query",
-            "description": "Filter by date",
-            "schema": {
-              "format": "date",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-              "example": "2024-01-01",
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": false,
             "in": "query",
@@ -8417,12 +8413,23 @@
             }
           },
           {
-            "name": "isSaved",
+            "name": "type",
             "required": false,
             "in": "query",
-            "description": "Filter by saved status",
             "schema": {
-              "type": "boolean"
+              "$ref": "#/components/schemas/MemoryType"
+            }
+          },
+          {
+            "name": "for",
+            "required": false,
+            "in": "query",
+            "description": "Filter by date",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
             }
           },
           {
@@ -8435,20 +8442,32 @@
             }
           },
           {
-            "name": "isUpcoming",
+            "name": "isSaved",
             "required": false,
             "in": "query",
-            "description": "Filter by memories that have not been shown yet",
+            "description": "Filter by saved status",
             "schema": {
               "type": "boolean"
             }
           },
           {
-            "name": "order",
+            "name": "isUpcoming",
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/MemorySearchOrder"
+              "type": "boolean"
+            },
+            "description": "Filter by memories that have not been shown yet"
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Number of memories to return",
+            "schema": {
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "type": "integer"
             }
           },
           {
@@ -8463,22 +8482,11 @@
             }
           },
           {
-            "name": "size",
-            "required": false,
-            "in": "query",
-            "description": "Number of memories to return",
-            "schema": {
-              "minimum": 1,
-              "maximum": 9007199254740991,
-              "type": "integer"
-            }
-          },
-          {
-            "name": "type",
+            "name": "order",
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/MemoryType"
+              "$ref": "#/components/schemas/MemorySearchOrder"
             }
           }
         ],
@@ -9861,14 +9869,12 @@
         "operationId": "getAllPeople",
         "parameters": [
           {
-            "name": "closestAssetId",
+            "name": "withHidden",
             "required": false,
             "in": "query",
-            "description": "Closest asset ID for similarity search",
+            "description": "Include hidden people",
             "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
+              "type": "boolean"
             }
           },
           {
@@ -9879,6 +9885,63 @@
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "closestAssetId",
+            "required": false,
+            "in": "query",
+            "description": "Closest asset ID for similarity search",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number for pagination",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "maximum": 9007199254740991,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sharedById",
+            "required": false,
+            "in": "query",
+            "description": "Only include people to which the user gave access",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "sharedWithId",
+            "required": false,
+            "in": "query",
+            "description": "Only include people to which the user was given access",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
             }
           },
@@ -9907,61 +9970,6 @@
             "description": "Filter by person name",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number for pagination",
-            "schema": {
-              "minimum": 1,
-              "maximum": 9007199254740991,
-              "default": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "name": "sharedById",
-            "required": false,
-            "in": "query",
-            "description": "Only include people to which the user gave access",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "sharedWithId",
-            "required": false,
-            "in": "query",
-            "description": "Only include people to which the user was given access",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "size",
-            "required": false,
-            "in": "query",
-            "description": "Number of items per page",
-            "schema": {
-              "minimum": 1,
-              "maximum": 1000,
-              "default": 500,
-              "type": "integer"
-            }
-          },
-          {
-            "name": "withHidden",
-            "required": false,
-            "in": "query",
-            "description": "Include hidden people",
-            "schema": {
-              "type": "boolean"
             }
           }
         ],
@@ -10241,31 +10249,22 @@
         "operationId": "getUsersForPeople",
         "parameters": [
           {
+            "name": "personId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "description": "Person ID"
+          },
+          {
             "name": "direction",
             "required": false,
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/SharingDirection"
-            }
-          },
-          {
-            "name": "personId",
-            "required": false,
-            "in": "query",
-            "description": "Person ID",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "role",
-            "required": false,
-            "in": "query",
-            "description": "Role of user",
-            "schema": {
-              "$ref": "#/components/schemas/PersonUserRole"
             }
           },
           {
@@ -10288,6 +10287,15 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "description": "Role of user",
+            "schema": {
+              "$ref": "#/components/schemas/PersonUserRole"
             }
           }
         ],
@@ -10862,12 +10870,15 @@
         "operationId": "searchPlugins",
         "parameters": [
           {
-            "name": "description",
+            "name": "id",
             "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
-            }
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            },
+            "description": "Plugin ID"
           },
           {
             "name": "enabled",
@@ -10879,18 +10890,15 @@
             }
           },
           {
-            "name": "id",
+            "name": "name",
             "required": false,
             "in": "query",
-            "description": "Plugin ID",
             "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
               "type": "string"
             }
           },
           {
-            "name": "name",
+            "name": "version",
             "required": false,
             "in": "query",
             "schema": {
@@ -10906,7 +10914,7 @@
             }
           },
           {
-            "name": "version",
+            "name": "description",
             "required": false,
             "in": "query",
             "schema": {
@@ -10959,12 +10967,15 @@
         "operationId": "searchPluginMethods",
         "parameters": [
           {
-            "name": "description",
+            "name": "id",
             "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
-            }
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            },
+            "description": "Plugin method ID"
           },
           {
             "name": "enabled",
@@ -10976,23 +10987,46 @@
             }
           },
           {
-            "name": "id",
-            "required": false,
-            "in": "query",
-            "description": "Plugin method ID",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
             "name": "name",
             "required": false,
             "in": "query",
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "title",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "description",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Workflow types",
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowType"
+            }
+          },
+          {
+            "name": "trigger",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowTrigger"
+            },
+            "description": "Workflow trigger"
           },
           {
             "name": "pluginName",
@@ -11010,32 +11044,6 @@
             "description": "Plugin version",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "title",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "trigger",
-            "required": false,
-            "in": "query",
-            "description": "Workflow trigger",
-            "schema": {
-              "$ref": "#/components/schemas/WorkflowTrigger"
-            }
-          },
-          {
-            "name": "type",
-            "required": false,
-            "in": "query",
-            "description": "Workflow types",
-            "schema": {
-              "$ref": "#/components/schemas/WorkflowType"
             }
           }
         ],
@@ -11653,40 +11661,10 @@
         "operationId": "searchLargeAssets",
         "parameters": [
           {
-            "name": "albumIds",
+            "name": "libraryId",
             "required": false,
             "in": "query",
-            "description": "Filter by album IDs",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
-              }
-            }
-          },
-          {
-            "name": "city",
-            "required": false,
-            "in": "query",
-            "description": "Filter by city name",
+            "description": "Library ID to filter by",
             "x-immich-history": [
               {
                 "version": "v1",
@@ -11705,14 +11683,15 @@
             "deprecated": true,
             "schema": {
               "type": "string",
-              "nullable": true
+              "format": "uuid",
+              "nullable": true,
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
           },
           {
-            "name": "country",
+            "name": "type",
             "required": false,
             "in": "query",
-            "description": "Filter by country name",
             "x-immich-history": [
               {
                 "version": "v1",
@@ -11730,90 +11709,17 @@
             "x-immich-state": "Deprecated",
             "deprecated": true,
             "schema": {
-              "type": "string",
-              "nullable": true
+              "$ref": "#/components/schemas/AssetTypeEnum"
             }
           },
           {
-            "name": "createdAfter",
+            "name": "resolution",
             "required": false,
             "in": "query",
-            "description": "Filter by creation date (after)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
+            "description": "Filter exact standard frame sizes in either orientation (fork extension)",
             "deprecated": true,
             "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "createdBefore",
-            "required": false,
-            "in": "query",
-            "description": "Filter by creation date (before)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "deviceModels",
-            "required": false,
-            "in": "query",
-            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
-            "deprecated": true,
-            "schema": {
-              "minItems": 1,
-              "maxItems": 50,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "minLength": 1
-              }
-            }
-          },
-          {
-            "name": "isDeltaScreenshot",
-            "required": false,
-            "in": "query",
-            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
-            "deprecated": true,
-            "schema": {
-              "type": "boolean"
+              "$ref": "#/components/schemas/MediaResolution"
             }
           },
           {
@@ -11867,99 +11773,29 @@
             }
           },
           {
-            "name": "isInAlbum",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets in any album (fork extension)",
-            "deprecated": true,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
             "name": "isMotion",
             "required": false,
             "in": "query",
             "description": "Filter by motion photo status",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            },
             "x-immich-history": [
               {
-                "version": "v1",
-                "state": "Added"
+                "state": "Added",
+                "version": "v1"
               },
               {
-                "version": "v2",
-                "state": "Stable"
+                "state": "Stable",
+                "version": "v2"
               },
               {
-                "version": "v3.2.0",
-                "state": "Deprecated"
+                "state": "Deprecated",
+                "version": "v3.2.0"
               }
             ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "isNintendo3dsScreenshot",
-            "required": false,
-            "in": "query",
-            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
-            "deprecated": true,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "isNotInAlbum",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets not in any album",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "isOffline",
-            "required": false,
-            "in": "query",
-            "description": "Filter by offline status",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "type": "boolean"
-            }
+            "x-immich-state": "Deprecated"
           },
           {
             "name": "isPanorama",
@@ -11992,6 +11828,16 @@
             }
           },
           {
+            "name": "isDeltaScreenshot",
+            "required": false,
+            "in": "query",
+            "description": "Filter landscape 1680x1120 Delta GBA screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "isSteamScreenshot",
             "required": false,
             "in": "query",
@@ -12012,10 +11858,293 @@
             }
           },
           {
-            "name": "lensModel",
+            "name": "isNintendo3dsScreenshot",
             "required": false,
             "in": "query",
-            "description": "Filter by lens model",
+            "description": "Filter landscape 400x240 Nintendo 3DS screenshot images (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "isOffline",
+            "required": false,
+            "in": "query",
+            "description": "Filter by offline status",
+            "x-immich-history": [
+              {
+                "version": "v1",
+                "state": "Added"
+              },
+              {
+                "version": "v2",
+                "state": "Stable"
+              },
+              {
+                "version": "v3.2.0",
+                "state": "Deprecated"
+              }
+            ],
+            "x-immich-state": "Deprecated",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "visibility",
+            "required": false,
+            "in": "query",
+            "deprecated": true,
+            "schema": {
+              "$ref": "#/components/schemas/AssetVisibility"
+            },
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "createdBefore",
+            "required": false,
+            "in": "query",
+            "description": "Filter by creation date (before)",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "createdAfter",
+            "required": false,
+            "in": "query",
+            "description": "Filter by creation date (after)",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "updatedBefore",
+            "required": false,
+            "in": "query",
+            "description": "Filter by update date (before)",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "updatedAfter",
+            "required": false,
+            "in": "query",
+            "description": "Filter by update date (after)",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "trashedBefore",
+            "required": false,
+            "in": "query",
+            "description": "Filter by trash date (before)",
+            "x-immich-history": [
+              {
+                "version": "v1",
+                "state": "Added"
+              },
+              {
+                "version": "v2",
+                "state": "Stable"
+              },
+              {
+                "version": "v3.2.0",
+                "state": "Deprecated"
+              }
+            ],
+            "x-immich-state": "Deprecated",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "trashedAfter",
+            "required": false,
+            "in": "query",
+            "description": "Filter by trash date (after)",
+            "x-immich-history": [
+              {
+                "version": "v1",
+                "state": "Added"
+              },
+              {
+                "version": "v2",
+                "state": "Stable"
+              },
+              {
+                "version": "v3.2.0",
+                "state": "Deprecated"
+              }
+            ],
+            "x-immich-state": "Deprecated",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "example": "2024-01-01T00:00:00.000Z"
+            }
+          },
+          {
+            "name": "takenBefore",
+            "required": false,
+            "in": "query",
+            "description": "Filter by taken date (before)",
+            "x-immich-history": [
+              {
+                "version": "v1",
+                "state": "Added"
+              },
+              {
+                "version": "v2",
+                "state": "Stable"
+              },
+              {
+                "version": "v3.2.0",
+                "state": "Deprecated"
+              }
+            ],
+            "x-immich-state": "Deprecated",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "takenAfter",
+            "required": false,
+            "in": "query",
+            "description": "Filter by taken date (after)",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "deprecated": true,
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "city",
+            "required": false,
+            "in": "query",
+            "description": "Filter by city name",
             "x-immich-history": [
               {
                 "version": "v1",
@@ -12038,10 +12167,10 @@
             }
           },
           {
-            "name": "libraryId",
+            "name": "state",
             "required": false,
             "in": "query",
-            "description": "Library ID to filter by",
+            "description": "Filter by state/province name",
             "x-immich-history": [
               {
                 "version": "v1",
@@ -12060,10 +12189,34 @@
             "deprecated": true,
             "schema": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
               "nullable": true
             }
+          },
+          {
+            "name": "country",
+            "required": false,
+            "in": "query",
+            "description": "Filter by country name",
+            "deprecated": true,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
           },
           {
             "name": "make",
@@ -12089,17 +12242,6 @@
             "schema": {
               "type": "string",
               "nullable": true
-            }
-          },
-          {
-            "name": "minFileSize",
-            "required": false,
-            "in": "query",
-            "description": "Minimum file size in bytes",
-            "schema": {
-              "minimum": 0,
-              "maximum": 9007199254740991,
-              "type": "integer"
             }
           },
           {
@@ -12129,10 +12271,52 @@
             }
           },
           {
-            "name": "ocr",
+            "name": "deviceModels",
             "required": false,
             "in": "query",
-            "description": "Filter by OCR text content",
+            "description": "Match any device model alias; structured searches use filter.model.in (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "name": "lensModel",
+            "required": false,
+            "in": "query",
+            "description": "Filter by lens model",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "deprecated": true,
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated"
+          },
+          {
+            "name": "isNotInAlbum",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets not in any album",
             "x-immich-history": [
               {
                 "version": "v1",
@@ -12150,7 +12334,17 @@
             "x-immich-state": "Deprecated",
             "deprecated": true,
             "schema": {
-              "type": "string"
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "isInAlbum",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets in any album (fork extension)",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -12191,96 +12385,10 @@
             "schema": {
               "type": "array",
               "items": {
-                "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+                "type": "string"
               }
-            }
-          },
-          {
-            "name": "rating",
-            "required": false,
-            "in": "query",
-            "description": "Filter by rating [1-5], or null for unrated",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v2.6.0",
-                "state": "Updated",
-                "description": "Using -1 as a rating is deprecated and will be removed in the next major version."
-              },
-              {
-                "version": "v3",
-                "state": "Updated",
-                "description": "Using -1 as a rating is no longer valid."
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 5,
-              "nullable": true
-            }
-          },
-          {
-            "name": "resolution",
-            "required": false,
-            "in": "query",
-            "description": "Filter exact standard frame sizes in either orientation (fork extension)",
-            "deprecated": true,
-            "schema": {
-              "$ref": "#/components/schemas/MediaResolution"
-            }
-          },
-          {
-            "name": "size",
-            "required": false,
-            "in": "query",
-            "description": "Number of results to return",
-            "schema": {
-              "minimum": 1,
-              "maximum": 1000,
-              "default": 250,
-              "type": "integer"
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "description": "Filter by state/province name",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "type": "string",
-              "nullable": true
             }
           },
           {
@@ -12307,18 +12415,18 @@
             "schema": {
               "type": "array",
               "items": {
-                "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+                "type": "string"
               },
               "nullable": true
             }
           },
           {
-            "name": "takenAfter",
+            "name": "albumIds",
             "required": false,
             "in": "query",
-            "description": "Filter by taken date (after)",
+            "description": "Filter by album IDs",
             "x-immich-history": [
               {
                 "version": "v1",
@@ -12336,198 +12444,75 @@
             "x-immich-state": "Deprecated",
             "deprecated": true,
             "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
+              "type": "array",
+              "items": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "rating",
+            "required": false,
+            "in": "query",
+            "x-immich-history": [
+              {
+                "version": "v1",
+                "state": "Added"
+              },
+              {
+                "version": "v2",
+                "state": "Stable"
+              },
+              {
+                "version": "v2.6.0",
+                "state": "Updated",
+                "description": "Using -1 as a rating is deprecated and will be removed in the next major version."
+              },
+              {
+                "description": "Using -1 as a rating is no longer valid.",
+                "state": "Updated",
+                "version": "v3"
+              },
+              {
+                "state": "Deprecated",
+                "version": "v3.2.0"
+              }
+            ],
+            "x-immich-state": "Deprecated",
+            "deprecated": true,
+            "schema": {
+              "maximum": 5,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            },
+            "description": "Filter by rating [1-5], or null for unrated"
+          },
+          {
+            "name": "ocr",
+            "required": false,
+            "in": "query",
+            "description": "Filter by OCR text content",
+            "x-immich-history": [
+              {
+                "version": "v1",
+                "state": "Added"
+              },
+              {
+                "version": "v2",
+                "state": "Stable"
+              },
+              {
+                "version": "v3.2.0",
+                "state": "Deprecated"
+              }
+            ],
+            "x-immich-state": "Deprecated",
+            "deprecated": true,
+            "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "takenBefore",
-            "required": false,
-            "in": "query",
-            "description": "Filter by taken date (before)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "trashedAfter",
-            "required": false,
-            "in": "query",
-            "description": "Filter by trash date (after)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "trashedBefore",
-            "required": false,
-            "in": "query",
-            "description": "Filter by trash date (before)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "type",
-            "required": false,
-            "in": "query",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "$ref": "#/components/schemas/AssetTypeEnum"
-            }
-          },
-          {
-            "name": "updatedAfter",
-            "required": false,
-            "in": "query",
-            "description": "Filter by update date (after)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "updatedBefore",
-            "required": false,
-            "in": "query",
-            "description": "Filter by update date (before)",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "visibility",
-            "required": false,
-            "in": "query",
-            "x-immich-history": [
-              {
-                "version": "v1",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              },
-              {
-                "version": "v3.2.0",
-                "state": "Deprecated"
-              }
-            ],
-            "x-immich-state": "Deprecated",
-            "deprecated": true,
-            "schema": {
-              "$ref": "#/components/schemas/AssetVisibility"
             }
           },
           {
@@ -12559,9 +12544,32 @@
             "name": "withExif",
             "required": false,
             "in": "query",
-            "description": "Include EXIF data in response",
             "schema": {
               "type": "boolean"
+            },
+            "description": "Include EXIF data in response"
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Number of results to return",
+            "schema": {
+              "type": "integer",
+              "default": 250,
+              "maximum": 1000,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "minFileSize",
+            "required": false,
+            "in": "query",
+            "description": "Minimum file size in bytes",
+            "schema": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0
             }
           }
         ],
@@ -13020,6 +13028,14 @@
         "operationId": "getSearchSuggestions",
         "parameters": [
           {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/SearchSuggestionType"
+            }
+          },
+          {
             "name": "country",
             "required": false,
             "in": "query",
@@ -13029,30 +13045,10 @@
             }
           },
           {
-            "name": "includeNull",
+            "name": "state",
             "required": false,
             "in": "query",
-            "description": "Include null values in suggestions",
-            "x-immich-history": [
-              {
-                "version": "v1.111.0",
-                "state": "Added"
-              },
-              {
-                "version": "v2",
-                "state": "Stable"
-              }
-            ],
-            "x-immich-state": "Stable",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "lensModel",
-            "required": false,
-            "in": "query",
-            "description": "Filter by lens model",
+            "description": "Filter by state/province",
             "schema": {
               "type": "string"
             }
@@ -13076,21 +13072,33 @@
             }
           },
           {
-            "name": "state",
+            "name": "lensModel",
             "required": false,
             "in": "query",
-            "description": "Filter by state/province",
+            "description": "Filter by lens model",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "type",
-            "required": true,
+            "name": "includeNull",
+            "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/SearchSuggestionType"
-            }
+              "type": "boolean"
+            },
+            "description": "Include null values in suggestions",
+            "x-immich-history": [
+              {
+                "state": "Added",
+                "version": "v1.111.0"
+              },
+              {
+                "state": "Stable",
+                "version": "v2"
+              }
+            ],
+            "x-immich-state": "Stable"
           }
         ],
         "responses": {
@@ -15103,7 +15111,7 @@
         "operationId": "removeAssetFromStack",
         "parameters": [
           {
-            "name": "assetId",
+            "name": "id",
             "required": true,
             "in": "path",
             "schema": {
@@ -15113,7 +15121,7 @@
             }
           },
           {
-            "name": "id",
+            "name": "assetId",
             "required": true,
             "in": "path",
             "schema": {
@@ -16380,15 +16388,26 @@
         "operationId": "getTimeBucket",
         "parameters": [
           {
-            "name": "albumId",
+            "name": "userId",
             "required": false,
             "in": "query",
-            "description": "Filter assets belonging to a specific album",
+            "description": "Filter assets by specific user ID",
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
               "type": "string"
             }
+          },
+          {
+            "name": "albumId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "description": "Filter assets belonging to a specific album"
           },
           {
             "name": "albumLike",
@@ -16408,23 +16427,35 @@
             }
           },
           {
-            "name": "bbox",
+            "name": "personId",
             "required": false,
             "in": "query",
-            "description": "Bounding box coordinates as west,south,east,north (WGS84)",
+            "description": "Filter assets containing a specific person (face recognition)",
             "schema": {
-              "example": "11.075683,49.416711,11.117589,49.454875",
-              "type": "string"
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
+          {
+            "name": "tagId",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets with a specific tag",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
           },
           {
             "name": "isFavorite",
             "required": false,
             "in": "query",
-            "description": "Filter by favorite status (true for favorites only, false for non-favorites only)",
             "schema": {
               "type": "boolean"
-            }
+            },
+            "description": "Filter by favorite status (true for favorites only, false for non-favorites only)"
           },
           {
             "name": "isTrashed",
@@ -16436,21 +16467,31 @@
             }
           },
           {
-            "name": "key",
+            "name": "withStacked",
             "required": false,
             "in": "query",
+            "description": "Include stacked assets in the response. When true, only primary assets from stacks are returned.",
             "schema": {
-              "type": "string"
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "withPartners",
+            "required": false,
+            "in": "query",
+            "description": "Include assets shared by partners",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
             "name": "order",
             "required": false,
             "in": "query",
-            "description": "Sort order for assets within time buckets (ASC for oldest first, DESC for newest first)",
             "schema": {
               "$ref": "#/components/schemas/AssetOrder"
-            }
+            },
+            "description": "Sort order for assets within time buckets (ASC for oldest first, DESC for newest first)"
           },
           {
             "name": "orderBy",
@@ -16459,57 +16500,6 @@
             "description": "Date to group and order assets by (takenAt for date taken, createdAt for date added to Immich)",
             "schema": {
               "$ref": "#/components/schemas/AssetOrderBy"
-            }
-          },
-          {
-            "name": "personId",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets containing a specific person (face recognition)",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "slug",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tagId",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets with a specific tag",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "timeBucket",
-            "required": true,
-            "in": "query",
-            "description": "Time bucket identifier in YYYY-MM-DDT00:00:00.000Z format",
-            "schema": {
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets by specific user ID",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
             }
           },
           {
@@ -16531,21 +16521,39 @@
             }
           },
           {
-            "name": "withPartners",
+            "name": "key",
             "required": false,
             "in": "query",
-            "description": "Include assets shared by partners",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "withStacked",
+            "name": "slug",
             "required": false,
             "in": "query",
-            "description": "Include stacked assets in the response. When true, only primary assets from stacks are returned.",
             "schema": {
-              "type": "boolean"
+              "type": "string"
+            }
+          },
+          {
+            "name": "bbox",
+            "required": false,
+            "in": "query",
+            "description": "Bounding box coordinates as west,south,east,north (WGS84)",
+            "schema": {
+              "type": "string",
+              "example": "11.075683,49.416711,11.117589,49.454875"
+            }
+          },
+          {
+            "name": "timeBucket",
+            "required": true,
+            "in": "query",
+            "description": "Time bucket identifier in YYYY-MM-DDT00:00:00.000Z format",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z"
             }
           }
         ],
@@ -16596,15 +16604,26 @@
         "operationId": "getTimeBuckets",
         "parameters": [
           {
-            "name": "albumId",
+            "name": "userId",
             "required": false,
             "in": "query",
-            "description": "Filter assets belonging to a specific album",
+            "description": "Filter assets by specific user ID",
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
               "type": "string"
             }
+          },
+          {
+            "name": "albumId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "description": "Filter assets belonging to a specific album"
           },
           {
             "name": "albumLike",
@@ -16624,23 +16643,35 @@
             }
           },
           {
-            "name": "bbox",
+            "name": "personId",
             "required": false,
             "in": "query",
-            "description": "Bounding box coordinates as west,south,east,north (WGS84)",
+            "description": "Filter assets containing a specific person (face recognition)",
             "schema": {
-              "example": "11.075683,49.416711,11.117589,49.454875",
-              "type": "string"
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
+          {
+            "name": "tagId",
+            "required": false,
+            "in": "query",
+            "description": "Filter assets with a specific tag",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
             }
           },
           {
             "name": "isFavorite",
             "required": false,
             "in": "query",
-            "description": "Filter by favorite status (true for favorites only, false for non-favorites only)",
             "schema": {
               "type": "boolean"
-            }
+            },
+            "description": "Filter by favorite status (true for favorites only, false for non-favorites only)"
           },
           {
             "name": "isTrashed",
@@ -16652,21 +16683,31 @@
             }
           },
           {
-            "name": "key",
+            "name": "withStacked",
             "required": false,
             "in": "query",
+            "description": "Include stacked assets in the response. When true, only primary assets from stacks are returned.",
             "schema": {
-              "type": "string"
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "withPartners",
+            "required": false,
+            "in": "query",
+            "description": "Include assets shared by partners",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
             "name": "order",
             "required": false,
             "in": "query",
-            "description": "Sort order for assets within time buckets (ASC for oldest first, DESC for newest first)",
             "schema": {
               "$ref": "#/components/schemas/AssetOrder"
-            }
+            },
+            "description": "Sort order for assets within time buckets (ASC for oldest first, DESC for newest first)"
           },
           {
             "name": "orderBy",
@@ -16675,47 +16716,6 @@
             "description": "Date to group and order assets by (takenAt for date taken, createdAt for date added to Immich)",
             "schema": {
               "$ref": "#/components/schemas/AssetOrderBy"
-            }
-          },
-          {
-            "name": "personId",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets containing a specific person (face recognition)",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "slug",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tagId",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets with a specific tag",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "required": false,
-            "in": "query",
-            "description": "Filter assets by specific user ID",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
             }
           },
           {
@@ -16737,21 +16737,29 @@
             }
           },
           {
-            "name": "withPartners",
+            "name": "key",
             "required": false,
             "in": "query",
-            "description": "Include assets shared by partners",
             "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
-            "name": "withStacked",
+            "name": "slug",
             "required": false,
             "in": "query",
-            "description": "Include stacked assets in the response. When true, only primary assets from stacks are returned.",
             "schema": {
-              "type": "boolean"
+              "type": "string"
+            }
+          },
+          {
+            "name": "bbox",
+            "required": false,
+            "in": "query",
+            "description": "Bounding box coordinates as west,south,east,north (WGS84)",
+            "schema": {
+              "type": "string",
+              "example": "11.075683,49.416711,11.117589,49.454875"
             }
           }
         ],
@@ -17966,6 +17974,35 @@
         "operationId": "searchWorkflows",
         "parameters": [
           {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "Workflow ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
+          {
+            "name": "trigger",
+            "required": false,
+            "in": "query",
+            "description": "Workflow trigger type",
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowTrigger"
+            }
+          },
+          {
+            "name": "name",
+            "required": false,
+            "in": "query",
+            "description": "Workflow name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "description",
             "required": false,
             "in": "query",
@@ -17984,41 +18021,12 @@
             }
           },
           {
-            "name": "id",
-            "required": false,
-            "in": "query",
-            "description": "Workflow ID",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          },
-          {
             "name": "logging",
             "required": false,
             "in": "query",
             "description": "Workflow logs run results",
             "schema": {
               "type": "boolean"
-            }
-          },
-          {
-            "name": "name",
-            "required": false,
-            "in": "query",
-            "description": "Workflow name",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "trigger",
-            "required": false,
-            "in": "query",
-            "description": "Workflow trigger type",
-            "schema": {
-              "$ref": "#/components/schemas/WorkflowTrigger"
             }
           }
         ],
@@ -18322,18 +18330,6 @@
         "operationId": "getWorkflowLogs",
         "parameters": [
           {
-            "name": "before",
-            "required": false,
-            "in": "query",
-            "description": "Filter by runs before a date/time",
-            "schema": {
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "example": "2024-01-01T00:00:00.000Z",
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -18344,25 +18340,37 @@
             }
           },
           {
+            "name": "result",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowResult"
+            },
+            "description": "Filter by run result"
+          },
+          {
+            "name": "before",
+            "required": false,
+            "in": "query",
+            "description": "Filter by runs before a date/time",
+            "schema": {
+              "type": "string",
+              "example": "2024-01-01T00:00:00.000Z",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
             "description": "Maximum number of logs",
             "schema": {
-              "maximum": 9007199254740991,
-              "exclusiveMinimum": true,
               "default": 50,
-              "type": "integer",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "result",
-            "required": false,
-            "in": "query",
-            "description": "Filter by run result",
-            "schema": {
-              "$ref": "#/components/schemas/WorkflowResult"
+              "exclusiveMinimum": true,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],
@@ -18727,11 +18735,11 @@
           }
         },
         "required": [
-          "assetId",
-          "createdAt",
           "id",
-          "type",
-          "user"
+          "createdAt",
+          "user",
+          "assetId",
+          "type"
         ],
         "type": "object"
       },
@@ -18818,8 +18826,8 @@
           }
         },
         "required": [
-          "cronExpression",
           "enabled",
+          "cronExpression",
           "keepLastAmount"
         ],
         "type": "object"
@@ -18897,25 +18905,25 @@
         "required": [
           "backup",
           "ffmpeg",
-          "image",
           "integrityChecks",
           "job",
-          "library",
           "logging",
           "machineLearning",
           "map",
+          "reverseGeocoding",
           "metadata",
-          "newVersionCheck",
-          "nightlyTasks",
-          "notifications",
           "oauth",
           "passwordLogin",
-          "reverseGeocoding",
-          "server",
           "storageTemplate",
-          "templates",
-          "theme",
+          "image",
+          "newVersionCheck",
+          "nightlyTasks",
           "trash",
+          "theme",
+          "library",
+          "notifications",
+          "templates",
+          "server",
           "user"
         ],
         "type": "object"
@@ -19044,28 +19052,28 @@
           }
         },
         "required": [
-          "accel",
-          "accelDecode",
+          "crf",
+          "threads",
+          "preset",
+          "targetVideoCodec",
+          "acceptedVideoCodecs",
+          "targetAudioCodec",
           "acceptedAudioCodecs",
           "acceptedContainers",
-          "acceptedVideoCodecs",
-          "bframes",
-          "cqMode",
-          "crf",
-          "gopSize",
-          "maxBitrate",
-          "preferredHwDevice",
-          "preset",
-          "realtime",
-          "refs",
-          "targetAudioCodec",
           "targetResolution",
-          "targetVideoCodec",
+          "maxBitrate",
+          "bframes",
+          "refs",
+          "gopSize",
           "temporalAQ",
-          "threads",
-          "tonemap",
+          "cqMode",
+          "twoPass",
+          "preferredHwDevice",
           "transcode",
-          "twoPass"
+          "accel",
+          "accelDecode",
+          "tonemap",
+          "realtime"
         ],
         "type": "object"
       },
@@ -19092,8 +19100,8 @@
         },
         "required": [
           "enabled",
-          "resolutions",
-          "videoCodecs"
+          "videoCodecs",
+          "resolutions"
         ],
         "type": "object"
       },
@@ -19142,10 +19150,10 @@
         },
         "required": [
           "enabled",
-          "maxDistance",
-          "minFaces",
+          "modelName",
           "minScore",
-          "modelName"
+          "maxDistance",
+          "minFaces"
         ],
         "type": "object"
       },
@@ -19225,11 +19233,11 @@
           }
         },
         "required": [
-          "colorspace",
-          "extractEmbedded",
-          "fullsize",
+          "thumbnail",
           "preview",
-          "thumbnail"
+          "fullsize",
+          "colorspace",
+          "extractEmbedded"
         ],
         "type": "object"
       },
@@ -19247,9 +19255,9 @@
           }
         },
         "required": [
-          "checksumFiles",
           "missingFiles",
-          "untrackedFiles"
+          "untrackedFiles",
+          "checksumFiles"
         ],
         "type": "object"
       },
@@ -19279,10 +19287,10 @@
           }
         },
         "required": [
-          "cronExpression",
           "enabled",
-          "percentageLimit",
-          "timeLimit"
+          "cronExpression",
+          "timeLimit",
+          "percentageLimit"
         ],
         "type": "object"
       },
@@ -19299,8 +19307,8 @@
           }
         },
         "required": [
-          "cronExpression",
-          "enabled"
+          "enabled",
+          "cronExpression"
         ],
         "type": "object"
       },
@@ -19353,21 +19361,21 @@
           }
         },
         "required": [
-          "backgroundTask",
-          "editor",
-          "faceDetection",
-          "integrityCheck",
-          "library",
+          "thumbnailGeneration",
           "metadataExtraction",
+          "videoConversion",
+          "faceDetection",
+          "smartSearch",
+          "backgroundTask",
           "migration",
-          "notifications",
-          "ocr",
           "search",
           "sidecar",
-          "smartSearch",
-          "thumbnailGeneration",
-          "videoConversion",
-          "workflow"
+          "library",
+          "notifications",
+          "ocr",
+          "workflow",
+          "editor",
+          "integrityCheck"
         ],
         "type": "object"
       },
@@ -19412,8 +19420,8 @@
           }
         },
         "required": [
-          "cronExpression",
-          "enabled"
+          "enabled",
+          "cronExpression"
         ],
         "type": "object"
       },
@@ -19464,8 +19472,8 @@
         },
         "required": [
           "enabled",
-          "interval",
-          "timeout"
+          "timeout",
+          "interval"
         ],
         "type": "object"
       },
@@ -19500,13 +19508,13 @@
           }
         },
         "required": [
+          "enabled",
+          "urls",
           "availabilityChecks",
           "clip",
           "duplicateDetection",
-          "enabled",
           "facialRecognition",
-          "ocr",
-          "urls"
+          "ocr"
         ],
         "type": "object"
       },
@@ -19528,9 +19536,9 @@
           }
         },
         "required": [
-          "darkStyle",
           "enabled",
-          "lightStyle"
+          "lightStyle",
+          "darkStyle"
         ],
         "type": "object"
       },
@@ -19556,8 +19564,8 @@
           }
         },
         "required": [
-          "channel",
-          "enabled"
+          "enabled",
+          "channel"
         ],
         "type": "object"
       },
@@ -19590,11 +19598,11 @@
           }
         },
         "required": [
-          "clusterNewFaces",
-          "databaseCleanup",
-          "generateMemories",
-          "missingThumbnails",
           "startTime",
+          "databaseCleanup",
+          "missingThumbnails",
+          "clusterNewFaces",
+          "generateMemories",
           "syncQuotaUsage"
         ],
         "type": "object"
@@ -19707,27 +19715,27 @@
           }
         },
         "required": [
-          "allowInsecureRequests",
           "autoLaunch",
           "autoRegister",
           "buttonText",
           "clientId",
           "clientSecret",
+          "tokenEndpointAuthMethod",
+          "timeout",
+          "allowInsecureRequests",
           "defaultStorageQuota",
           "enabled",
-          "endSessionEndpoint",
           "issuerUrl",
-          "mobileOverrideEnabled",
-          "mobileRedirectUri",
-          "profileSigningAlgorithm",
-          "prompt",
-          "roleClaim",
           "scope",
+          "prompt",
+          "endSessionEndpoint",
           "signingAlgorithm",
+          "profileSigningAlgorithm",
           "storageLabelClaim",
           "storageQuotaClaim",
-          "timeout",
-          "tokenEndpointAuthMethod"
+          "roleClaim",
+          "mobileOverrideEnabled",
+          "mobileRedirectUri"
         ],
         "type": "object"
       },
@@ -19764,10 +19772,10 @@
         },
         "required": [
           "enabled",
+          "modelName",
           "maxResolution",
           "minDetectionScore",
-          "minRecognitionScore",
-          "modelName"
+          "minRecognitionScore"
         ],
         "type": "object"
       },
@@ -19873,12 +19881,12 @@
           }
         },
         "required": [
-          "host",
           "ignoreCert",
-          "password",
+          "host",
           "port",
           "secure",
-          "username"
+          "username",
+          "password"
         ],
         "type": "object"
       },
@@ -19920,9 +19928,9 @@
           }
         },
         "required": [
+          "welcomeTemplate",
           "albumInviteTemplate",
-          "albumUpdateTemplate",
-          "welcomeTemplate"
+          "albumUpdateTemplate"
         ],
         "type": "object"
       },
@@ -19963,8 +19971,8 @@
           }
         },
         "required": [
-          "days",
-          "enabled"
+          "enabled",
+          "days"
         ],
         "type": "object"
       },
@@ -20100,20 +20108,27 @@
             "description": "Last update date",
             "format": "date-time",
             "type": "string"
+          },
+          "tags": {
+            "description": "Tags associated with the album",
+            "items": {
+              "$ref": "#/components/schemas/TagResponseDto"
+            },
+            "type": "array"
           }
         },
         "required": [
-          "albumName",
-          "albumThumbnailAssetId",
-          "albumUsers",
-          "assetCount",
-          "createdAt",
-          "description",
-          "hasSharedLink",
           "id",
-          "isActivityEnabled",
+          "albumName",
+          "description",
+          "createdAt",
+          "updatedAt",
+          "albumThumbnailAssetId",
           "shared",
-          "updatedAt"
+          "albumUsers",
+          "hasSharedLink",
+          "assetCount",
+          "isActivityEnabled"
         ],
         "type": "object"
       },
@@ -20139,9 +20154,9 @@
           }
         },
         "required": [
-          "notShared",
           "owned",
-          "shared"
+          "shared",
+          "notShared"
         ],
         "type": "object"
       },
@@ -20177,8 +20192,8 @@
           }
         },
         "required": [
-          "role",
-          "userId"
+          "userId",
+          "role"
         ],
         "type": "object"
       },
@@ -20192,8 +20207,8 @@
           }
         },
         "required": [
-          "role",
-          "user"
+          "user",
+          "role"
         ],
         "type": "object"
       },
@@ -20341,13 +20356,13 @@
           }
         },
         "required": [
-          "apiKey",
-          "createdAt",
           "id",
           "name",
+          "createdAt",
+          "updatedAt",
           "permissions",
           "secret",
-          "updatedAt"
+          "apiKey"
         ],
         "type": "object"
       },
@@ -20386,11 +20401,11 @@
           }
         },
         "required": [
-          "createdAt",
           "id",
           "name",
-          "permissions",
-          "updatedAt"
+          "createdAt",
+          "updatedAt",
+          "permissions"
         ],
         "type": "object"
       },
@@ -20543,8 +20558,8 @@
           }
         },
         "required": [
-          "checksum",
-          "id"
+          "id",
+          "checksum"
         ],
         "type": "object"
       },
@@ -20587,8 +20602,8 @@
           }
         },
         "required": [
-          "action",
-          "id"
+          "id",
+          "action"
         ],
         "type": "object"
       },
@@ -20701,8 +20716,8 @@
         },
         "required": [
           "action",
-          "id",
-          "parameters"
+          "parameters",
+          "id"
         ],
         "type": "object"
       },
@@ -20802,14 +20817,14 @@
           }
         },
         "required": [
-          "assetId",
-          "height",
-          "imageHeight",
-          "imageWidth",
           "personId",
-          "width",
+          "assetId",
+          "imageWidth",
+          "imageHeight",
           "x",
-          "y"
+          "y",
+          "width",
+          "height"
         ],
         "type": "object"
       },
@@ -20883,13 +20898,13 @@
           }
         },
         "required": [
+          "id",
+          "imageHeight",
+          "imageWidth",
           "boundingBoxX1",
           "boundingBoxX2",
           "boundingBoxY1",
           "boundingBoxY2",
-          "id",
-          "imageHeight",
-          "imageWidth",
           "person"
         ],
         "type": "object"
@@ -20931,8 +20946,8 @@
           }
         },
         "required": [
-          "assetId",
-          "personId"
+          "personId",
+          "assetId"
         ],
         "type": "object"
       },
@@ -20979,14 +20994,14 @@
           }
         },
         "required": [
-          "createdAt",
           "id",
+          "createdAt",
+          "updatedAt",
+          "type",
+          "path",
           "isEdited",
           "isProgressive",
-          "isTransparent",
-          "path",
-          "type",
-          "updatedAt"
+          "isTransparent"
         ],
         "type": "object"
       },
@@ -21085,7 +21100,8 @@
           "assetData": {
             "description": "Asset file data",
             "format": "binary",
-            "type": "string"
+            "type": "string",
+            "x-immich-required": true
           },
           "duration": {
             "description": "Duration in milliseconds (for videos)",
@@ -21138,7 +21154,6 @@
           }
         },
         "required": [
-          "assetData",
           "fileCreatedAt",
           "fileModifiedAt"
         ],
@@ -21157,8 +21172,8 @@
           }
         },
         "required": [
-          "id",
-          "status"
+          "status",
+          "id"
         ],
         "type": "object"
       },
@@ -21240,10 +21255,10 @@
           }
         },
         "required": [
-          "assetId",
           "key",
+          "value",
           "updatedAt",
-          "value"
+          "assetId"
         ],
         "type": "object"
       },
@@ -21308,8 +21323,8 @@
         },
         "required": [
           "key",
-          "updatedAt",
-          "value"
+          "value",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -21656,28 +21671,28 @@
           }
         },
         "required": [
-          "checksum",
-          "createdAt",
+          "id",
+          "type",
+          "thumbhash",
+          "localDateTime",
           "duration",
+          "hasMetadata",
+          "width",
+          "height",
+          "createdAt",
+          "ownerId",
+          "originalPath",
+          "originalFileName",
           "fileCreatedAt",
           "fileModifiedAt",
-          "hasMetadata",
-          "height",
-          "id",
-          "isArchived",
-          "isEdited",
-          "isFavorite",
-          "isOffline",
-          "isTrashed",
-          "localDateTime",
-          "originalFileName",
-          "originalPath",
-          "ownerId",
-          "thumbhash",
-          "type",
           "updatedAt",
+          "isFavorite",
+          "isArchived",
+          "isTrashed",
+          "isOffline",
           "visibility",
-          "width"
+          "checksum",
+          "isEdited"
         ],
         "type": "object"
       },
@@ -21703,9 +21718,9 @@
           }
         },
         "required": [
-          "assetCount",
           "id",
-          "primaryAssetId"
+          "primaryAssetId",
+          "assetCount"
         ],
         "type": "object"
       },
@@ -21732,8 +21747,8 @@
         },
         "required": [
           "images",
-          "total",
-          "videos"
+          "videos",
+          "total"
         ],
         "type": "object"
       },
@@ -21785,15 +21800,15 @@
           }
         },
         "required": [
+          "taskName",
+          "status",
           "attempts",
-          "completedAt",
-          "errorMessage",
-          "failedAt",
           "generation",
           "queuedAt",
           "startedAt",
-          "status",
-          "taskName"
+          "completedAt",
+          "failedAt",
+          "errorMessage"
         ],
         "type": "object"
       },
@@ -21859,9 +21874,9 @@
           }
         },
         "required": [
-          "isElevated",
+          "pinCode",
           "password",
-          "pinCode"
+          "isElevated"
         ],
         "type": "object"
       },
@@ -21990,8 +22005,8 @@
         },
         "required": [
           "from",
-          "series",
           "to",
+          "series",
           "totalCount"
         ],
         "type": "object"
@@ -22045,8 +22060,8 @@
           }
         },
         "required": [
-          "newPassword",
-          "password"
+          "password",
+          "newPassword"
         ],
         "type": "object"
       },
@@ -22093,10 +22108,10 @@
           }
         },
         "required": [
-          "clusterGroupId",
-          "createdAt",
           "id",
-          "userId"
+          "clusterGroupId",
+          "userId",
+          "createdAt"
         ],
         "type": "object"
       },
@@ -22124,8 +22139,8 @@
           }
         },
         "required": [
-          "assetCount",
-          "userId"
+          "userId",
+          "assetCount"
         ],
         "type": "object"
       },
@@ -22242,9 +22257,9 @@
           }
         },
         "required": [
+          "userId",
           "profileChangedAt",
-          "profileImagePath",
-          "userId"
+          "profileImagePath"
         ],
         "type": "object"
       },
@@ -22276,10 +22291,10 @@
           }
         },
         "required": [
-          "height",
-          "width",
           "x",
-          "y"
+          "y",
+          "width",
+          "height"
         ],
         "type": "object"
       },
@@ -22342,7 +22357,8 @@
           "file": {
             "description": "Database backup file",
             "format": "binary",
-            "type": "string"
+            "type": "string",
+            "contentEncoding": "binary"
           }
         },
         "type": "object"
@@ -22475,8 +22491,8 @@
           }
         },
         "required": [
-          "assetIds",
-          "size"
+          "size",
+          "assetIds"
         ],
         "type": "object"
       },
@@ -22548,8 +22564,8 @@
           }
         },
         "required": [
-          "archives",
-          "totalSize"
+          "totalSize",
+          "archives"
         ],
         "type": "object"
       },
@@ -22643,8 +22659,8 @@
           }
         },
         "required": [
-          "assets",
           "duplicateId",
+          "assets",
           "suggestedKeepAssetIds"
         ],
         "type": "object"
@@ -22665,9 +22681,9 @@
           }
         },
         "required": [
+          "enabled",
           "albumInvite",
-          "albumUpdate",
-          "enabled"
+          "albumUpdate"
         ],
         "type": "object"
       },
@@ -22979,14 +22995,14 @@
           }
         },
         "required": [
-          "aliases",
-          "country",
           "geonameId",
           "kind",
-          "localizedName",
-          "name",
           "scope",
-          "state"
+          "name",
+          "country",
+          "state",
+          "localizedName",
+          "aliases"
         ],
         "type": "object"
       },
@@ -23031,9 +23047,9 @@
           }
         },
         "required": [
+          "name",
           "latitude",
-          "longitude",
-          "name"
+          "longitude"
         ],
         "type": "object"
       },
@@ -23337,15 +23353,15 @@
           }
         },
         "required": [
-          "assetCount",
-          "createdAt",
-          "exclusionPatterns",
           "id",
-          "importPaths",
-          "name",
           "ownerId",
-          "refreshedAt",
-          "updatedAt"
+          "name",
+          "assetCount",
+          "importPaths",
+          "exclusionPatterns",
+          "createdAt",
+          "updatedAt",
+          "refreshedAt"
         ],
         "type": "object"
       },
@@ -23378,9 +23394,9 @@
         },
         "required": [
           "photos",
+          "videos",
           "total",
-          "usage",
-          "videos"
+          "usage"
         ],
         "type": "object"
       },
@@ -23397,8 +23413,8 @@
           }
         },
         "required": [
-          "activationKey",
-          "licenseKey"
+          "licenseKey",
+          "activationKey"
         ],
         "type": "object"
       },
@@ -23479,13 +23495,13 @@
         },
         "required": [
           "accessToken",
-          "isAdmin",
-          "isOnboarded",
+          "userId",
+          "userEmail",
           "name",
           "profileImagePath",
+          "isAdmin",
           "shouldChangePassword",
-          "userEmail",
-          "userId"
+          "isOnboarded"
         ],
         "type": "object"
       },
@@ -23501,8 +23517,8 @@
           }
         },
         "required": [
-          "redirectUri",
-          "successful"
+          "successful",
+          "redirectUri"
         ],
         "type": "object"
       },
@@ -23563,10 +23579,10 @@
           }
         },
         "required": [
-          "files",
           "folder",
           "readable",
-          "writable"
+          "writable",
+          "files"
         ],
         "type": "object"
       },
@@ -23600,8 +23616,8 @@
           }
         },
         "required": [
-          "action",
-          "active"
+          "active",
+          "action"
         ],
         "type": "object"
       },
@@ -23661,12 +23677,12 @@
           }
         },
         "required": [
-          "city",
-          "country",
           "id",
           "lat",
           "lon",
-          "state"
+          "city",
+          "state",
+          "country"
         ],
         "type": "object"
       },
@@ -23690,8 +23706,8 @@
         },
         "required": [
           "city",
-          "country",
-          "state"
+          "state",
+          "country"
         ],
         "type": "object"
       },
@@ -23733,8 +23749,8 @@
           }
         },
         "required": [
-          "duration",
           "enabled",
+          "duration",
           "sidebarWeb"
         ],
         "type": "object"
@@ -23831,9 +23847,9 @@
           }
         },
         "required": [
+          "type",
           "data",
-          "memoryAt",
-          "type"
+          "memoryAt"
         ],
         "type": "object"
       },
@@ -23942,15 +23958,15 @@
           }
         },
         "required": [
-          "assets",
-          "createdAt",
-          "data",
           "id",
-          "isSaved",
+          "createdAt",
+          "updatedAt",
           "memoryAt",
           "ownerId",
           "type",
-          "updatedAt"
+          "data",
+          "isSaved",
+          "assets"
         ],
         "type": "object"
       },
@@ -25096,11 +25112,11 @@
           }
         },
         "required": [
-          "createdAt",
           "id",
+          "createdAt",
           "level",
-          "title",
-          "type"
+          "type",
+          "title"
         ],
         "type": "object"
       },
@@ -25414,12 +25430,12 @@
           }
         },
         "required": [
-          "avatarColor",
-          "email",
           "id",
           "name",
-          "profileChangedAt",
-          "profileImagePath"
+          "email",
+          "profileImagePath",
+          "avatarColor",
+          "profileChangedAt"
         ],
         "type": "object"
       },
@@ -25526,9 +25542,9 @@
           }
         },
         "required": [
+          "total",
           "hidden",
-          "people",
-          "total"
+          "people"
         ],
         "type": "object"
       },
@@ -25655,12 +25671,12 @@
           }
         },
         "required": [
-          "avatarColor",
-          "email",
           "id",
           "name",
-          "profileChangedAt",
+          "email",
           "profileImagePath",
+          "avatarColor",
+          "profileChangedAt",
           "role"
         ],
         "type": "object"
@@ -25694,8 +25710,8 @@
           }
         },
         "required": [
-          "role",
-          "sharedWithIds"
+          "sharedWithIds",
+          "role"
         ],
         "type": "object"
       },
@@ -25948,10 +25964,10 @@
           }
         },
         "required": [
-          "birthDate",
+          "sharedById",
           "name",
-          "role",
-          "sharedById"
+          "birthDate",
+          "role"
         ],
         "type": "object"
       },
@@ -26049,14 +26065,14 @@
           }
         },
         "required": [
-          "birthDate",
           "id",
-          "isHidden",
           "name",
+          "birthDate",
+          "thumbnailPath",
+          "isHidden",
           "otherPeople",
           "sharedBy",
-          "sharedWith",
-          "thumbnailPath"
+          "sharedWith"
         ],
         "type": "object"
       },
@@ -26288,9 +26304,9 @@
           }
         },
         "required": [
+          "name",
           "latitude",
-          "longitude",
-          "name"
+          "longitude"
         ],
         "type": "object"
       },
@@ -26335,13 +26351,13 @@
           }
         },
         "required": [
-          "description",
-          "hostFunctions",
           "key",
           "name",
           "title",
+          "description",
           "types",
-          "uiHints"
+          "uiHints",
+          "hostFunctions"
         ],
         "type": "object"
       },
@@ -26390,15 +26406,15 @@
           }
         },
         "required": [
-          "author",
-          "createdAt",
-          "description",
           "id",
-          "methods",
           "name",
           "title",
+          "description",
+          "author",
+          "version",
+          "createdAt",
           "updatedAt",
-          "version"
+          "methods"
         ],
         "type": "object"
       },
@@ -26436,11 +26452,11 @@
           }
         },
         "required": [
-          "description",
           "key",
-          "steps",
           "title",
+          "description",
           "trigger",
+          "steps",
           "uiHints"
         ],
         "type": "object"
@@ -26451,7 +26467,10 @@
             "additionalProperties": {},
             "description": "Step configuration",
             "nullable": true,
-            "type": "object"
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "enabled": {
             "description": "Whether the step is enabled",
@@ -26463,8 +26482,8 @@
           }
         },
         "required": [
-          "config",
-          "method"
+          "method",
+          "config"
         ],
         "type": "object"
       },
@@ -26487,8 +26506,8 @@
         "required": [
           "oauth",
           "passwordLogin",
-          "server",
-          "theme"
+          "theme",
+          "server"
         ],
         "type": "object"
       },
@@ -26562,8 +26581,8 @@
           }
         },
         "required": [
-          "hideBuyButtonUntil",
-          "showSupportBadge"
+          "showSupportBadge",
+          "hideBuyButtonUntil"
         ],
         "type": "object"
       },
@@ -26648,8 +26667,8 @@
           }
         },
         "required": [
-          "data",
           "name",
+          "data",
           "timestamp"
         ],
         "type": "object"
@@ -26780,8 +26799,8 @@
           }
         },
         "required": [
-          "isPaused",
           "name",
+          "isPaused",
           "statistics"
         ],
         "type": "object"
@@ -26796,8 +26815,8 @@
           }
         },
         "required": [
-          "jobCounts",
-          "queueStatus"
+          "queueStatus",
+          "jobCounts"
         ],
         "type": "object"
       },
@@ -26843,10 +26862,10 @@
         "required": [
           "active",
           "completed",
-          "delayed",
           "failed",
-          "paused",
-          "waiting"
+          "delayed",
+          "waiting",
+          "paused"
         ],
         "type": "object"
       },
@@ -26943,27 +26962,27 @@
           }
         },
         "required": [
-          "backgroundTask",
-          "backupDatabase",
-          "duplicateDetection",
-          "editor",
-          "faceDetection",
-          "facialRecognition",
-          "integrityCheck",
-          "library",
+          "thumbnailGeneration",
           "metadataExtraction",
-          "migration",
+          "videoMetadataExtraction",
           "nikonPairing",
-          "notifications",
-          "ocr",
-          "search",
-          "sidecar",
+          "videoConversion",
           "smartSearch",
           "storageTemplateMigration",
-          "thumbnailGeneration",
-          "videoConversion",
-          "videoMetadataExtraction",
-          "workflow"
+          "migration",
+          "backgroundTask",
+          "search",
+          "duplicateDetection",
+          "faceDetection",
+          "facialRecognition",
+          "sidecar",
+          "library",
+          "notifications",
+          "backupDatabase",
+          "ocr",
+          "workflow",
+          "editor",
+          "integrityCheck"
         ],
         "type": "object"
       },
@@ -27774,10 +27793,10 @@
           }
         },
         "required": [
-          "checkedAt",
           "isAvailable",
-          "releaseVersion",
+          "checkedAt",
           "serverVersion",
+          "releaseVersion",
           "type"
         ],
         "type": "object"
@@ -27808,8 +27827,8 @@
           }
         },
         "required": [
-          "lastImportFileName",
-          "lastUpdate"
+          "lastUpdate",
+          "lastImportFileName"
         ],
         "type": "object"
       },
@@ -27855,10 +27874,10 @@
           }
         },
         "required": [
+          "total",
           "count",
-          "facets",
           "items",
-          "total"
+          "facets"
         ],
         "type": "object"
       },
@@ -27929,12 +27948,12 @@
           }
         },
         "required": [
+          "total",
           "count",
-          "facets",
           "items",
-          "nextCursor",
+          "facets",
           "nextPage",
-          "total"
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -27949,8 +27968,8 @@
           }
         },
         "required": [
-          "data",
-          "value"
+          "value",
+          "data"
         ],
         "type": "object"
       },
@@ -28006,8 +28025,8 @@
           }
         },
         "required": [
-          "counts",
-          "fieldName"
+          "fieldName",
+          "counts"
         ],
         "type": "object"
       },
@@ -28021,10 +28040,10 @@
             "$ref": "#/components/schemas/StringFilter"
           },
           "city": {
-            "$ref": "#/components/schemas/StringFilterNullable"
+            "$ref": "#/components/schemas/StringPatternFilter"
           },
           "country": {
-            "$ref": "#/components/schemas/StringFilterNullable"
+            "$ref": "#/components/schemas/StringPatternFilter"
           },
           "createdAt": {
             "$ref": "#/components/schemas/DateFilter"
@@ -28121,7 +28140,7 @@
             "$ref": "#/components/schemas/MediaResolutionFilter"
           },
           "state": {
-            "$ref": "#/components/schemas/StringFilterNullable"
+            "$ref": "#/components/schemas/StringPatternFilter"
           },
           "tagIds": {
             "$ref": "#/components/schemas/IdsFilter"
@@ -28140,6 +28159,18 @@
           },
           "visibility": {
             "$ref": "#/components/schemas/EnumFilterAssetVisibility"
+          },
+          "exposureTime": {
+            "$ref": "#/components/schemas/NumberFilter"
+          },
+          "fNumber": {
+            "$ref": "#/components/schemas/NumberFilter"
+          },
+          "focalLength": {
+            "$ref": "#/components/schemas/NumberFilter"
+          },
+          "iso": {
+            "$ref": "#/components/schemas/NumberFilter"
           }
         },
         "type": "object"
@@ -28154,10 +28185,10 @@
             "$ref": "#/components/schemas/StringFilter"
           },
           "city": {
-            "$ref": "#/components/schemas/StringFilterNullable"
+            "$ref": "#/components/schemas/StringPatternFilter"
           },
           "country": {
-            "$ref": "#/components/schemas/StringFilterNullable"
+            "$ref": "#/components/schemas/StringPatternFilter"
           },
           "createdAt": {
             "$ref": "#/components/schemas/DateFilter"
@@ -28247,7 +28278,7 @@
             "$ref": "#/components/schemas/MediaResolutionFilter"
           },
           "state": {
-            "$ref": "#/components/schemas/StringFilterNullable"
+            "$ref": "#/components/schemas/StringPatternFilter"
           },
           "tagIds": {
             "$ref": "#/components/schemas/IdsFilter"
@@ -28266,6 +28297,18 @@
           },
           "visibility": {
             "$ref": "#/components/schemas/EnumFilterAssetVisibility"
+          },
+          "exposureTime": {
+            "$ref": "#/components/schemas/NumberFilter"
+          },
+          "fNumber": {
+            "$ref": "#/components/schemas/NumberFilter"
+          },
+          "focalLength": {
+            "$ref": "#/components/schemas/NumberFilter"
+          },
+          "iso": {
+            "$ref": "#/components/schemas/NumberFilter"
           }
         },
         "type": "object"
@@ -28421,9 +28464,9 @@
           }
         },
         "required": [
-          "licensed",
           "version",
-          "versionUrl"
+          "versionUrl",
+          "licensed"
         ],
         "type": "object"
       },
@@ -28517,18 +28560,18 @@
           }
         },
         "required": [
-          "externalDomain",
+          "oauthButtonText",
+          "loginPageMessage",
+          "trashDays",
+          "userDeleteDelay",
           "isInitialized",
           "isOnboarded",
-          "loginPageMessage",
-          "maintenanceMode",
+          "externalDomain",
+          "publicUsers",
           "mapDarkStyleUrl",
           "mapLightStyleUrl",
-          "minFaces",
-          "oauthButtonText",
-          "publicUsers",
-          "trashDays",
-          "userDeleteDelay"
+          "maintenanceMode",
+          "minFaces"
         ],
         "type": "object"
       },
@@ -28600,22 +28643,22 @@
           }
         },
         "required": [
-          "configFile",
+          "smartSearch",
           "duplicateDetection",
-          "email",
+          "configFile",
           "facialRecognition",
-          "importFaces",
           "map",
+          "trash",
+          "reverseGeocoding",
+          "importFaces",
           "oauth",
           "oauthAutoLaunch",
-          "ocr",
           "passwordLogin",
-          "realtimeTranscoding",
-          "reverseGeocoding",
-          "search",
           "sidecar",
-          "smartSearch",
-          "trash"
+          "search",
+          "email",
+          "ocr",
+          "realtimeTranscoding"
         ],
         "type": "object"
       },
@@ -28644,9 +28687,9 @@
           }
         },
         "required": [
+          "video",
           "image",
-          "sidecar",
-          "video"
+          "sidecar"
         ],
         "type": "object"
       },
@@ -28704,11 +28747,11 @@
         },
         "required": [
           "photos",
+          "videos",
           "usage",
-          "usageByUser",
           "usagePhotos",
           "usageVideos",
-          "videos"
+          "usageByUser"
         ],
         "type": "object"
       },
@@ -28751,13 +28794,13 @@
           }
         },
         "required": [
-          "diskAvailable",
-          "diskAvailableRaw",
           "diskSize",
-          "diskSizeRaw",
-          "diskUsagePercentage",
           "diskUse",
-          "diskUseRaw"
+          "diskAvailable",
+          "diskSizeRaw",
+          "diskUseRaw",
+          "diskAvailableRaw",
+          "diskUsagePercentage"
         ],
         "type": "object"
       },
@@ -28782,8 +28825,8 @@
           }
         },
         "required": [
-          "createdAt",
           "id",
+          "createdAt",
           "version"
         ],
         "type": "object"
@@ -28896,15 +28939,15 @@
           }
         },
         "required": [
-          "appVersion",
-          "createdAt",
-          "current",
-          "deviceOS",
-          "deviceType",
           "id",
+          "createdAt",
+          "updatedAt",
+          "current",
+          "deviceType",
+          "deviceOS",
+          "appVersion",
           "isPendingSyncReset",
-          "token",
-          "updatedAt"
+          "token"
         ],
         "type": "object"
       },
@@ -28951,14 +28994,14 @@
           }
         },
         "required": [
-          "appVersion",
-          "createdAt",
-          "current",
-          "deviceOS",
-          "deviceType",
           "id",
-          "isPendingSyncReset",
-          "updatedAt"
+          "createdAt",
+          "updatedAt",
+          "current",
+          "deviceType",
+          "deviceOS",
+          "appVersion",
+          "isPendingSyncReset"
         ],
         "type": "object"
       },
@@ -29193,19 +29236,19 @@
           }
         },
         "required": [
-          "allowDownload",
-          "allowUpload",
-          "assets",
-          "createdAt",
-          "description",
-          "expiresAt",
           "id",
-          "key",
+          "description",
           "password",
-          "showMetadata",
-          "slug",
+          "userId",
+          "key",
           "type",
-          "userId"
+          "createdAt",
+          "expiresAt",
+          "assets",
+          "allowUpload",
+          "allowDownload",
+          "showMetadata",
+          "slug"
         ],
         "type": "object"
       },
@@ -29277,8 +29320,8 @@
         },
         "required": [
           "email",
-          "name",
-          "password"
+          "password",
+          "name"
         ],
         "type": "object"
       },
@@ -30078,9 +30121,9 @@
           }
         },
         "required": [
-          "assets",
           "id",
-          "primaryAssetId"
+          "primaryAssetId",
+          "assets"
         ],
         "type": "object"
       },
@@ -30936,8 +30979,8 @@
           }
         },
         "required": [
-          "ack",
-          "type"
+          "type",
+          "ack"
         ],
         "type": "object"
       },
@@ -31058,8 +31101,8 @@
         },
         "required": [
           "albumId",
-          "role",
-          "userId"
+          "userId",
+          "role"
         ],
         "type": "object"
       },
@@ -31113,15 +31156,15 @@
           }
         },
         "required": [
-          "createdAt",
-          "description",
           "id",
-          "isActivityEnabled",
-          "name",
-          "order",
           "ownerId",
+          "name",
+          "description",
+          "createdAt",
+          "updatedAt",
           "thumbnailAssetId",
-          "updatedAt"
+          "isActivityEnabled",
+          "order"
         ],
         "type": "object"
       },
@@ -31169,14 +31212,14 @@
           }
         },
         "required": [
-          "createdAt",
-          "description",
           "id",
-          "isActivityEnabled",
           "name",
-          "order",
+          "description",
+          "createdAt",
+          "updatedAt",
           "thumbnailAssetId",
-          "updatedAt"
+          "isActivityEnabled",
+          "order"
         ],
         "type": "object"
       },
@@ -31238,9 +31281,9 @@
           }
         },
         "required": [
-          "action",
-          "assetId",
           "id",
+          "assetId",
+          "action",
           "parameters",
           "sequence"
         ],
@@ -31398,30 +31441,30 @@
         },
         "required": [
           "assetId",
-          "city",
-          "country",
-          "dateTimeOriginal",
           "description",
-          "exifImageHeight",
           "exifImageWidth",
-          "exposureTime",
-          "fNumber",
+          "exifImageHeight",
           "fileSizeInByte",
-          "focalLength",
-          "fps",
-          "iso",
+          "orientation",
+          "dateTimeOriginal",
+          "modifyDate",
+          "timeZone",
           "latitude",
-          "lensModel",
           "longitude",
+          "projectionType",
+          "city",
+          "state",
+          "country",
           "make",
           "model",
-          "modifyDate",
-          "orientation",
+          "lensModel",
+          "fNumber",
+          "focalLength",
+          "iso",
+          "exposureTime",
           "profileDescription",
-          "projectionType",
           "rating",
-          "state",
-          "timeZone"
+          "fps"
         ],
         "type": "object"
       },
@@ -31500,15 +31543,15 @@
           }
         },
         "required": [
-          "assetId",
-          "boundingBoxX1",
-          "boundingBoxX2",
-          "boundingBoxY1",
-          "boundingBoxY2",
           "id",
-          "imageHeight",
-          "imageWidth",
+          "assetId",
           "personId",
+          "imageWidth",
+          "imageHeight",
+          "boundingBoxX1",
+          "boundingBoxY1",
+          "boundingBoxX2",
+          "boundingBoxY2",
           "sourceType"
         ],
         "type": "object"
@@ -31586,18 +31629,18 @@
           }
         },
         "required": [
-          "assetId",
-          "boundingBoxX1",
-          "boundingBoxX2",
-          "boundingBoxY1",
-          "boundingBoxY2",
-          "deletedAt",
           "id",
-          "imageHeight",
-          "imageWidth",
-          "isVisible",
+          "assetId",
           "personId",
-          "sourceType"
+          "imageWidth",
+          "imageHeight",
+          "boundingBoxX1",
+          "boundingBoxY1",
+          "boundingBoxX2",
+          "boundingBoxY2",
+          "sourceType",
+          "deletedAt",
+          "isVisible"
         ],
         "type": "object"
       },
@@ -31664,9 +31707,9 @@
           }
         },
         "required": [
+          "id",
           "assetId",
-          "deletedAt",
-          "id"
+          "deletedAt"
         ],
         "type": "object"
       },
@@ -31744,20 +31787,20 @@
           }
         },
         "required": [
-          "assetId",
-          "boxScore",
           "id",
-          "isVisible",
-          "text",
-          "textScore",
+          "assetId",
           "x1",
-          "x2",
-          "x3",
-          "x4",
           "y1",
+          "x2",
           "y2",
+          "x3",
           "y3",
-          "y4"
+          "x4",
+          "y4",
+          "boxScore",
+          "textScore",
+          "text",
+          "isVisible"
         ],
         "type": "object"
       },
@@ -31878,26 +31921,26 @@
           }
         },
         "required": [
+          "id",
+          "ownerId",
+          "originalFileName",
+          "thumbhash",
           "checksum",
-          "createdAt",
-          "deletedAt",
-          "duration",
           "fileCreatedAt",
           "fileModifiedAt",
-          "height",
-          "id",
-          "isEdited",
-          "isFavorite",
-          "libraryId",
-          "livePhotoVideoId",
+          "createdAt",
           "localDateTime",
-          "originalFileName",
-          "ownerId",
-          "stackId",
-          "thumbhash",
+          "duration",
           "type",
+          "deletedAt",
+          "isFavorite",
           "visibility",
-          "width"
+          "livePhotoVideoId",
+          "stackId",
+          "libraryId",
+          "width",
+          "height",
+          "isEdited"
         ],
         "type": "object"
       },
@@ -32020,26 +32063,26 @@
           }
         },
         "required": [
+          "id",
+          "ownerId",
+          "originalFileName",
+          "thumbhash",
           "checksum",
-          "createdAt",
-          "deletedAt",
-          "duration",
           "fileCreatedAt",
           "fileModifiedAt",
-          "height",
-          "id",
-          "isEdited",
-          "isFavorite",
-          "libraryId",
-          "livePhotoVideoId",
+          "createdAt",
           "localDateTime",
-          "originalFileName",
-          "ownerId",
-          "stackId",
-          "thumbhash",
+          "duration",
           "type",
+          "deletedAt",
+          "isFavorite",
           "visibility",
-          "width"
+          "livePhotoVideoId",
+          "stackId",
+          "libraryId",
+          "width",
+          "height",
+          "isEdited"
         ],
         "type": "object"
       },
@@ -32119,18 +32162,18 @@
           }
         },
         "required": [
-          "deletedAt",
-          "email",
-          "hasProfileImage",
           "id",
-          "isAdmin",
           "name",
-          "oauthId",
-          "pinCode",
+          "email",
+          "deletedAt",
+          "hasProfileImage",
           "profileChangedAt",
+          "isAdmin",
+          "pinCode",
+          "oauthId",
+          "storageLabel",
           "quotaSizeInBytes",
-          "quotaUsageInBytes",
-          "storageLabel"
+          "quotaUsageInBytes"
         ],
         "type": "object"
       },
@@ -32211,18 +32254,18 @@
           }
         },
         "required": [
-          "deletedAt",
-          "email",
-          "hasProfileImage",
           "id",
-          "isAdmin",
           "name",
-          "oauthId",
-          "pinCode",
+          "email",
+          "deletedAt",
+          "hasProfileImage",
           "profileChangedAt",
+          "isAdmin",
+          "pinCode",
+          "oauthId",
+          "storageLabel",
           "quotaSizeInBytes",
-          "quotaUsageInBytes",
-          "storageLabel"
+          "quotaUsageInBytes"
         ],
         "type": "object"
       },
@@ -32315,8 +32358,8 @@
           }
         },
         "required": [
-          "assetId",
-          "memoryId"
+          "memoryId",
+          "assetId"
         ],
         "type": "object"
       },
@@ -32336,8 +32379,8 @@
           }
         },
         "required": [
-          "assetId",
-          "memoryId"
+          "memoryId",
+          "assetId"
         ],
         "type": "object"
       },
@@ -32436,18 +32479,18 @@
           }
         },
         "required": [
-          "createdAt",
-          "data",
-          "deletedAt",
-          "hideAt",
           "id",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "ownerId",
+          "type",
+          "data",
           "isSaved",
           "memoryAt",
-          "ownerId",
           "seenAt",
           "showAt",
-          "type",
-          "updatedAt"
+          "hideAt"
         ],
         "type": "object"
       },
@@ -32532,18 +32575,18 @@
           }
         },
         "required": [
-          "createdAt",
-          "data",
-          "deletedAt",
-          "hideAt",
           "id",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "ownerId",
+          "type",
+          "data",
           "isSaved",
           "memoryAt",
-          "ownerId",
           "seenAt",
           "showAt",
-          "type",
-          "updatedAt"
+          "hideAt"
         ],
         "type": "object"
       },
@@ -32588,9 +32631,9 @@
           }
         },
         "required": [
-          "inTimeline",
           "sharedById",
-          "sharedWithId"
+          "sharedWithId",
+          "inTimeline"
         ],
         "type": "object"
       },
@@ -32668,16 +32711,16 @@
           }
         },
         "required": [
-          "birthDate",
-          "color",
-          "createdAt",
-          "faceAssetId",
           "id",
-          "isFavorite",
-          "isHidden",
-          "name",
+          "createdAt",
+          "updatedAt",
           "ownerId",
-          "updatedAt"
+          "name",
+          "birthDate",
+          "isHidden",
+          "isFavorite",
+          "color",
+          "faceAssetId"
         ],
         "type": "object"
       },
@@ -32772,11 +32815,11 @@
           }
         },
         "required": [
-          "createdAt",
           "id",
-          "ownerId",
+          "createdAt",
+          "updatedAt",
           "primaryAssetId",
-          "updatedAt"
+          "ownerId"
         ],
         "type": "object"
       },
@@ -32826,8 +32869,8 @@
           }
         },
         "required": [
-          "key",
-          "userId"
+          "userId",
+          "key"
         ],
         "type": "object"
       },
@@ -32849,8 +32892,8 @@
           }
         },
         "required": [
-          "key",
           "userId",
+          "key",
           "value"
         ],
         "type": "object"
@@ -32900,11 +32943,11 @@
           }
         },
         "required": [
-          "deletedAt",
-          "email",
-          "hasProfileImage",
           "id",
           "name",
+          "email",
+          "deletedAt",
+          "hasProfileImage",
           "profileChangedAt"
         ],
         "type": "object"
@@ -32969,14 +33012,14 @@
           }
         },
         "required": [
+          "yearOptions",
+          "monthOptions",
+          "weekOptions",
           "dayOptions",
           "hourOptions",
           "minuteOptions",
-          "monthOptions",
-          "presetOptions",
           "secondOptions",
-          "weekOptions",
-          "yearOptions"
+          "presetOptions"
         ],
         "type": "object"
       },
@@ -33002,8 +33045,8 @@
           }
         },
         "required": [
-          "assetIds",
-          "tagIds"
+          "tagIds",
+          "assetIds"
         ],
         "type": "object"
       },
@@ -33083,11 +33126,11 @@
           }
         },
         "required": [
-          "createdAt",
           "id",
           "name",
-          "updatedAt",
-          "value"
+          "value",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -33176,8 +33219,8 @@
           }
         },
         "required": [
-          "html",
-          "name"
+          "name",
+          "html"
         ],
         "type": "object"
       },
@@ -33283,7 +33326,6 @@
           "livePhotoVideoFileSize": {
             "description": "Array of live photo video file sizes in bytes (null when no motion video exists)",
             "items": {
-              "format": "double",
               "nullable": true,
               "type": "number"
             },
@@ -33359,20 +33401,20 @@
           }
         },
         "required": [
-          "createdAt",
-          "duration",
-          "fileCreatedAt",
           "id",
-          "isFavorite",
-          "isImage",
-          "isTrashed",
-          "livePhotoVideoId",
-          "localOffsetHours",
           "ownerId",
-          "projectionType",
           "ratio",
+          "isFavorite",
+          "visibility",
+          "isTrashed",
+          "isImage",
           "thumbhash",
-          "visibility"
+          "createdAt",
+          "fileCreatedAt",
+          "localOffsetHours",
+          "duration",
+          "projectionType",
+          "livePhotoVideoId"
         ],
         "type": "object"
       },
@@ -33392,8 +33434,8 @@
           }
         },
         "required": [
-          "count",
-          "timeBucket"
+          "timeBucket",
+          "count"
         ],
         "type": "object"
       },
@@ -33482,6 +33524,15 @@
           },
           "order": {
             "$ref": "#/components/schemas/AssetOrder"
+          },
+          "tagIds": {
+            "description": "Tag IDs associated with the album",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -33638,14 +33689,14 @@
           }
         },
         "required": [
+          "userId",
+          "userName",
           "photos",
-          "quotaSizeInBytes",
+          "videos",
           "usage",
           "usagePhotos",
           "usageVideos",
-          "userId",
-          "userName",
-          "videos"
+          "quotaSizeInBytes"
         ],
         "type": "object"
       },
@@ -33707,8 +33758,8 @@
         },
         "required": [
           "email",
-          "name",
-          "password"
+          "password",
+          "name"
         ],
         "type": "object"
       },
@@ -33829,24 +33880,24 @@
           }
         },
         "required": [
+          "id",
+          "name",
+          "email",
+          "profileImagePath",
           "avatarColor",
+          "profileChangedAt",
           "clusterGroupId",
+          "storageLabel",
+          "shouldChangePassword",
+          "isAdmin",
           "createdAt",
           "deletedAt",
-          "email",
-          "id",
-          "isAdmin",
-          "license",
-          "name",
+          "updatedAt",
           "oauthId",
-          "profileChangedAt",
-          "profileImagePath",
           "quotaSizeInBytes",
           "quotaUsageInBytes",
-          "shouldChangePassword",
           "status",
-          "storageLabel",
-          "updatedAt"
+          "license"
         ],
         "type": "object"
       },
@@ -33971,15 +34022,15 @@
         },
         "required": [
           "ffmpeg",
-          "image",
           "machineLearning",
           "map",
+          "reverseGeocoding",
           "oauth",
           "passwordLogin",
-          "reverseGeocoding",
-          "server",
-          "theme",
+          "image",
           "trash",
+          "theme",
+          "server",
           "user"
         ],
         "type": "object"
@@ -34030,8 +34081,8 @@
         },
         "required": [
           "enabled",
-          "resolutions",
-          "videoCodecs"
+          "videoCodecs",
+          "resolutions"
         ],
         "type": "object"
       },
@@ -34093,9 +34144,9 @@
           }
         },
         "required": [
-          "fullsize",
+          "thumbnail",
           "preview",
-          "thumbnail"
+          "fullsize"
         ],
         "type": "object"
       },
@@ -34119,9 +34170,9 @@
           }
         },
         "required": [
+          "enabled",
           "clip",
           "duplicateDetection",
-          "enabled",
           "facialRecognition",
           "ocr"
         ],
@@ -34145,9 +34196,9 @@
           }
         },
         "required": [
-          "darkStyle",
           "enabled",
-          "lightStyle"
+          "lightStyle",
+          "darkStyle"
         ],
         "type": "object"
       },
@@ -34257,8 +34308,8 @@
           }
         },
         "required": [
-          "days",
-          "enabled"
+          "enabled",
+          "days"
         ],
         "type": "object"
       },
@@ -34296,9 +34347,9 @@
           }
         },
         "required": [
-          "activatedAt",
+          "licenseKey",
           "activationKey",
-          "licenseKey"
+          "activatedAt"
         ],
         "type": "object"
       },
@@ -34352,17 +34403,17 @@
         },
         "required": [
           "albums",
-          "cast",
-          "download",
-          "emailNotifications",
           "folders",
           "memories",
           "people",
-          "purchase",
           "ratings",
-          "recentlyAdded",
           "sharedLinks",
-          "tags"
+          "tags",
+          "emailNotifications",
+          "download",
+          "purchase",
+          "cast",
+          "recentlyAdded"
         ],
         "type": "object"
       },
@@ -34442,12 +34493,12 @@
           }
         },
         "required": [
-          "avatarColor",
-          "email",
           "id",
           "name",
-          "profileChangedAt",
-          "profileImagePath"
+          "email",
+          "profileImagePath",
+          "avatarColor",
+          "profileChangedAt"
         ],
         "type": "object"
       },
@@ -34676,8 +34727,8 @@
           }
         },
         "required": [
-          "at",
           "id",
+          "at",
           "result"
         ],
         "type": "object"
@@ -34729,15 +34780,15 @@
           }
         },
         "required": [
-          "createdAt",
-          "description",
-          "enabled",
           "id",
-          "logging",
-          "name",
-          "steps",
           "trigger",
-          "updatedAt"
+          "name",
+          "description",
+          "createdAt",
+          "updatedAt",
+          "enabled",
+          "logging",
+          "steps"
         ],
         "type": "object"
       },
@@ -34775,10 +34826,10 @@
           }
         },
         "required": [
-          "description",
+          "trigger",
           "name",
-          "steps",
-          "trigger"
+          "description",
+          "steps"
         ],
         "type": "object"
       },
@@ -34788,7 +34839,10 @@
             "additionalProperties": {},
             "description": "Step configuration",
             "nullable": true,
-            "type": "object"
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "enabled": {
             "description": "Step is enabled",
@@ -34800,8 +34854,8 @@
           }
         },
         "required": [
-          "config",
-          "method"
+          "method",
+          "config"
         ],
         "type": "object"
       },
@@ -34811,7 +34865,10 @@
             "additionalProperties": {},
             "description": "Step configuration",
             "nullable": true,
-            "type": "object"
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "enabled": {
             "description": "Step is enabled",
@@ -34823,8 +34880,8 @@
           }
         },
         "required": [
-          "config",
-          "method"
+          "method",
+          "config"
         ],
         "type": "object"
       },

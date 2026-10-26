@@ -223,6 +223,33 @@ export class AlbumRepository {
       .execute();
   }
 
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.STRING] })
+  async searchIdsByText(ownerId: string, search: string): Promise<string[]> {
+    const escapedSearch = search.replace(/[\\%_]/g, '\\$&');
+    const pattern = `%${escapedSearch}%`;
+
+    const albums = await this.buildAlbumBaseQuery(ownerId, {})
+      .select('album.id')
+      .where((eb) =>
+        eb.or([
+          eb('album.albumName', 'ilike', pattern),
+          eb('album.description', 'ilike', pattern),
+          eb('album.customGroupName', 'ilike', pattern),
+          eb.exists(
+            eb
+              .selectFrom('album_tag')
+              .innerJoin('tag', 'tag.id', 'album_tag.tagId')
+              .whereRef('album_tag.albumId', '=', 'album.id')
+              .where('tag.value', 'ilike', pattern),
+          ),
+        ]),
+      )
+      .orderBy('album.createdAt', 'desc')
+      .execute();
+
+    return albums.map(({ id }) => id);
+  }
+
   @GenerateSql({ params: [DummyValue.UUID, { isOwned: true, isShared: true }] })
   async getAllIds(ownerId: string, options: { isOwned?: boolean; isShared?: boolean } = {}): Promise<string[]> {
     const rows = await this.buildAlbumBaseQuery(ownerId, options)
@@ -367,6 +394,42 @@ export class AlbumRepository {
       .returning(withSharedLink)
       .returning(withAlbumUsers(authUserId))
       .executeTakeFirstOrThrow();
+  }
+
+  getTags(albumId: string) {
+    return this.db
+      .selectFrom('album_tag')
+      .innerJoin('tag', 'tag.id', 'album_tag.tagId')
+      .selectAll('tag')
+      .where('album_tag.albumId', '=', albumId)
+      .orderBy('tag.value')
+      .execute();
+  }
+
+  async setTags(id: string, tagIds: string[]): Promise<void> {
+    await this.db.transaction().execute(async (tx) => {
+      await tx.deleteFrom('album_tag').where('albumId', '=', id).execute();
+      if (tagIds.length > 0) {
+        await tx
+          .insertInto('album_tag')
+          .values(tagIds.map((tagId) => ({ albumId: id, tagId })))
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+      }
+    });
+  }
+
+  async areTagsOwnedByUser(userId: string, tagIds: string[]): Promise<boolean> {
+    if (tagIds.length === 0) {
+      return true;
+    }
+    const tags = await this.db
+      .selectFrom('tag')
+      .select('tag.id')
+      .where('tag.userId', '=', userId)
+      .where('tag.id', 'in', tagIds)
+      .execute();
+    return tags.length === new Set(tagIds).size;
   }
 
   async delete(id: string): Promise<void> {

@@ -82,6 +82,14 @@ export type SearchFilter = {
   /** 构图方向；缺省时不按方向过滤。 */
   orientation?: 'landscape' | 'portrait';
   rating?: number | null;
+  /** 曝光与镜头参数的结构化数值条件。 */
+  exifConditions: SearchExifCondition[];
+};
+
+export type SearchExifCondition = {
+  field: 'iso' | 'fNumber' | 'exposureTime' | 'focalLength';
+  operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq';
+  value: number;
 };
 
 export type PeopleFilter = {
