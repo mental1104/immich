@@ -13,7 +13,7 @@ export type PipelineQueue =
 export type PipelineNode = { queue: PipelineQueue; x: number; y: number; taskName?: string };
 export type PipelineEdge = { from: QueueName; to: QueueName; conditional?: boolean };
 export const PIPELINE_NODE_WIDTH = 190;
-export const PIPELINE_NODE_HEIGHT = 118;
+export const PIPELINE_NODE_HEIGHT = 150;
 export const PIPELINE_WIDTH = 1280;
 export const PIPELINE_HEIGHT = 610;
 
