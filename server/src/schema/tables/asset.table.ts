@@ -55,6 +55,11 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
   expression: `date_trunc('MONTH'::text, ("localDateTime" AT TIME ZONE 'UTC'::text)) AT TIME ZONE 'UTC'::text`,
 })
 @Index({ columns: ['originalPath', 'libraryId'] })
+@Index({
+  name: 'fork_asset_content_checksum_idx',
+  columns: ['ownerId', 'contentChecksum'],
+  where: '"contentChecksum" IS NOT NULL',
+})
 @Index({ columns: ['id', 'stackId'] })
 @Index({
   name: 'asset_originalFilename_trigram_idx',
@@ -66,7 +71,7 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
   columns: ['id'],
   where: `visibility = 'timeline' AND "deletedAt" IS NULL`,
 })
-// For all assets, each originalpath must be unique per user and library
+/** 资产持久化模型；外部库路径身份与可空内容指纹分开维护，允许不同路径保留相同内容。 */
 export class AssetTable {
   @PrimaryGeneratedColumn()
   id!: Generated<string>;
@@ -94,6 +99,10 @@ export class AssetTable {
 
   @Column({ type: 'bytea', index: true })
   checksum!: Buffer; // sha1 checksum
+
+  /** 外部文件的内容 SHA-1；路径 checksum 仍用于保留同内容不同路径的独立资产身份。 */
+  @Column({ type: 'bytea', nullable: true })
+  contentChecksum!: Buffer | null;
 
   @Column({ enum: asset_checksum_algorithm_enum })
   checksumAlgorithm!: ChecksumAlgorithm;

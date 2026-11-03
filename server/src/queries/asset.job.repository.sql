@@ -309,6 +309,7 @@ select
   "asset"."id",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."isExternal",
@@ -323,6 +324,7 @@ select
   "asset"."width",
   "asset"."height",
   "asset"."isEdited",
+  asset.is_raw as "isRaw",
   (
     select
       coalesce(json_agg(agg), '[]')
@@ -516,7 +518,8 @@ select
   "asset"."libraryId",
   "asset"."originalPath",
   "asset"."status",
-  "asset"."fileModifiedAt"
+  "asset"."fileModifiedAt",
+  "asset"."contentChecksum"
 from
   "asset"
 where

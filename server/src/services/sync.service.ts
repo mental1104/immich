@@ -18,6 +18,7 @@ import { SyncQueryOptions } from 'src/repositories/sync.repository.js';
 import { SessionSyncCheckpointTable } from 'src/schema/tables/sync-checkpoint.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import { hexOrBufferToBase64 } from 'src/utils/bytes.js';
+import { getIphoneBackupConfig, logIphoneBackupAudit } from 'src/utils/iphone-backup.js';
 import { ClientDisconnectedError, waitForDrain } from 'src/utils/response.js';
 import { SerializeOptions, fromAck, serialize, toAck } from 'src/utils/sync.js';
 
@@ -100,6 +101,7 @@ const throwSessionRequired = () => {
 };
 
 @Injectable()
+/** 按既有检查点流式下发用户数据；可选验收日志只表示服务端写出，不冒充客户端确认。 */
 export class SyncService extends BaseService {
   getAcks(auth: AuthDto) {
     const sessionId = auth.session?.id;
@@ -331,6 +333,13 @@ export class SyncService extends BaseService {
     throw new BadRequestException('SyncRequestType.AssetsV1 is deprecated, use SyncRequestType.AssetsV2 instead');
   }
 
+  /**
+   * 下发当前用户的删除与更新记录，并可记录目标库资产已写入响应流。
+   * @param options 当前用户和本轮同步上界。
+   * @param response 可施加背压的响应流，断开时沿用原有失败语义。
+   * @param checkpointMap 客户端已确认的检查点，不在此方法中修改。
+   * @returns 下发完成的 Promise；写出日志不表示客户端已经匹配或跳过照片。
+   */
   private async syncAssetsV2(options: SyncQueryOptions, response: Writable, checkpointMap: CheckpointMap) {
     const deleteType = SyncEntityType.AssetDeleteV1;
     const deletes = this.syncRepository.asset.getDeletes({ ...options, ack: checkpointMap[deleteType] });
@@ -342,6 +351,12 @@ export class SyncService extends BaseService {
     const upserts = this.syncRepository.asset.getUpserts({ ...options, ack: checkpointMap[upsertType] });
     for await (const { updateId, ...data } of upserts) {
       await send(response, { type: upsertType, ids: [updateId], data: mapSyncAssetV2(data) });
+      if (
+        process.env.IMMICH_FORK_IPHONE_BACKUP_AUDIT === 'true' &&
+        getIphoneBackupConfig()?.libraryId === data.libraryId
+      ) {
+        logIphoneBackupAudit(this.logger, { event: 'sync_asset_sent', assetId: data.id, libraryId: data.libraryId! });
+      }
     }
   }
 

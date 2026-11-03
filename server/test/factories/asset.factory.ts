@@ -21,6 +21,7 @@ import {
 import { UserFactory } from 'test/factories/user.factory.js';
 import { newSha1, newUuid, newUuidV7 } from 'test/small.factory.js';
 
+/** 构造完整资产测试数据，包含默认未计算的外部文件内容指纹。 */
 export class AssetFactory {
   #owner!: UserFactory;
   #assetExif?: AssetExifFactory;
@@ -38,6 +39,11 @@ export class AssetFactory {
     return AssetFactory.from(dto).build();
   }
 
+  /**
+   * 合并调用者覆盖值与完整资产默认值，不创建数据库记录。
+   * @param dto 要覆盖的资产字段；缺省时生成独立测试资产。
+   * @returns 可继续构造关联数据的工厂实例。
+   */
   static from(dto: AssetLike = {}) {
     const id = dto.id ?? newUuid();
 
@@ -53,6 +59,7 @@ export class AssetFactory {
       updateId: newUuidV7(),
       status: AssetStatus.Active,
       checksum: newSha1(),
+      contentChecksum: null,
       checksumAlgorithm: ChecksumAlgorithm.sha1File,
       duplicateId: null,
       duration: null,

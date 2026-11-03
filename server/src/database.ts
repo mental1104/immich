@@ -1,4 +1,4 @@
-import { Selectable, ShallowDehydrateObject } from 'kysely';
+import { Selectable, ShallowDehydrateObject, sql } from 'kysely';
 import type { UserMetadataItem } from 'src/types.js';
 import { MapAsset } from 'src/dtos/asset-response.dto.js';
 import { PersonUserRole } from 'src/dtos/person.dto.js';
@@ -299,6 +299,7 @@ export const columns = {
     'asset.id',
     'asset.checksum',
     'asset.checksumAlgorithm',
+    'asset.contentChecksum',
     'asset.fileCreatedAt',
     'asset.fileModifiedAt',
     'asset.isExternal',
@@ -323,6 +324,7 @@ export const columns = {
     'asset.status',
     'asset.checksum',
     'asset.checksumAlgorithm',
+    'asset.contentChecksum',
     'asset.duplicateId',
     'asset.duration',
     'asset.fileCreatedAt',
@@ -425,7 +427,10 @@ export const columns = {
     'asset.ownerId',
     'asset.originalFileName',
     'asset.thumbhash',
-    'asset.checksum',
+    // 内容指纹只用于客户端匹配；离线文件不能作为已完成备份下发。
+    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."contentChecksum", "asset"."checksum") end`.as(
+      'checksum',
+    ),
     'asset.fileCreatedAt',
     'asset.fileModifiedAt',
     'asset.createdAt',
@@ -447,7 +452,9 @@ export const columns = {
     'asset.ownerId',
     'asset.originalFileName',
     'asset.thumbhash',
-    'asset.checksum',
+    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."contentChecksum", "asset"."checksum") end`.as(
+      'checksum',
+    ),
     'asset.fileCreatedAt',
     'asset.fileModifiedAt',
     'asset.createdAt',
@@ -468,7 +475,9 @@ export const columns = {
     'asset.ownerId',
     'asset.originalFileName',
     'asset.thumbhash',
-    'asset.checksum',
+    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."contentChecksum", "asset"."checksum") end`.as(
+      'checksum',
+    ),
     'asset.fileCreatedAt',
     'asset.fileModifiedAt',
     'asset.localDateTime',

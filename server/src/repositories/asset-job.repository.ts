@@ -275,6 +275,11 @@ export class AssetJobRepository {
   }
 
   @GenerateSql({ params: [[DummyValue.UUID]] })
+  /**
+   * 读取库扫描所需的原片状态及可空内容指纹，不读取文件内容。
+   * @param ids 当前扫描批次的资产 UUID 列表。
+   * @returns 已存在资产的扫描字段，缺失 ID 不返回。
+   */
   getForSyncAssets(ids: string[]) {
     return this.db
       .selectFrom('asset')
@@ -285,6 +290,7 @@ export class AssetJobRepository {
         'asset.originalPath',
         'asset.status',
         'asset.fileModifiedAt',
+        'asset.contentChecksum',
       ])
       .where('asset.id', '=', anyUuid(ids))
       .execute();

@@ -62,7 +62,10 @@ select
   "asset"."ownerId",
   "asset"."originalFileName",
   "asset"."thumbhash",
-  "asset"."checksum",
+  case
+    when "asset"."isOffline" then "asset"."checksum"
+    else coalesce("asset"."contentChecksum", "asset"."checksum")
+  end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."createdAt",
@@ -99,7 +102,10 @@ select
   "asset"."ownerId",
   "asset"."originalFileName",
   "asset"."thumbhash",
-  "asset"."checksum",
+  case
+    when "asset"."isOffline" then "asset"."checksum"
+    else coalesce("asset"."contentChecksum", "asset"."checksum")
+  end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."createdAt",
@@ -138,7 +144,10 @@ select
   "asset"."ownerId",
   "asset"."originalFileName",
   "asset"."thumbhash",
-  "asset"."checksum",
+  case
+    when "asset"."isOffline" then "asset"."checksum"
+    else coalesce("asset"."contentChecksum", "asset"."checksum")
+  end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."createdAt",
@@ -416,7 +425,10 @@ select
   "asset"."ownerId",
   "asset"."originalFileName",
   "asset"."thumbhash",
-  "asset"."checksum",
+  case
+    when "asset"."isOffline" then "asset"."checksum"
+    else coalesce("asset"."contentChecksum", "asset"."checksum")
+  end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."createdAt",
@@ -865,7 +877,10 @@ select
   "asset"."ownerId",
   "asset"."originalFileName",
   "asset"."thumbhash",
-  "asset"."checksum",
+  case
+    when "asset"."isOffline" then "asset"."checksum"
+    else coalesce("asset"."contentChecksum", "asset"."checksum")
+  end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."localDateTime",
@@ -918,7 +933,10 @@ select
   "asset"."ownerId",
   "asset"."originalFileName",
   "asset"."thumbhash",
-  "asset"."checksum",
+  case
+    when "asset"."isOffline" then "asset"."checksum"
+    else coalesce("asset"."contentChecksum", "asset"."checksum")
+  end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
   "asset"."localDateTime",

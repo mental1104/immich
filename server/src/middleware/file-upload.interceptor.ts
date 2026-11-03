@@ -16,6 +16,7 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { StorageRepository } from 'src/repositories/storage.repository.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
 import { asUploadRequest, mapToUploadFile } from 'src/utils/asset.util.js';
+import { logIphoneBackupAudit } from 'src/utils/iphone-backup.js';
 
 export function getFile(files: UploadFiles, property: 'assetData' | 'sidecarData') {
   const file = files[property]?.[0];
@@ -37,6 +38,7 @@ interface Callback<T> {
 }
 
 @Injectable()
+/** 接收已鉴权的 multipart 文件并计算内容哈希；可选验收日志记录原片流开始及失败时的接收量。 */
 export class FileUploadInterceptor implements NestInterceptor {
   private handlers: {
     userProfile: RequestHandler;
@@ -94,6 +96,13 @@ export class FileUploadInterceptor implements NestInterceptor {
     }
   }
 
+  /**
+   * 将单个文件流写入暂存目录，并在完成后提供服务端内容哈希。
+   * @param request 已经过上传鉴权的请求，沿用原有取消和错误清理。
+   * @param file 当前 multipart 文件；原片才记录备份字节日志。
+   * @param callback Multer 完成回调，接收错误或文件路径、字节数与哈希。
+   * @returns 无返回值；实际写入和错误通过流及回调传播。
+   */
   private handleFile(request: AuthRequest, file: Express.Multer.File, callback: Callback<Partial<ImmichFile>>) {
     request.on('error', (error) => {
       if ('code' in error && error.code === 'ECONNRESET') {
@@ -106,6 +115,12 @@ export class FileUploadInterceptor implements NestInterceptor {
 
     try {
       (file as ImmichMulterFile).uuid = randomUUID();
+      if (file.fieldname === UploadFieldName.ASSET_DATA) {
+        logIphoneBackupAudit(this.logger, {
+          event: 'upload_stream_started',
+          uploadId: (file as ImmichMulterFile).uuid,
+        });
+      }
 
       const uploadRequest = asUploadRequest(request, file);
 
@@ -126,10 +141,24 @@ export class FileUploadInterceptor implements NestInterceptor {
 
       pipeline(file.stream, writeStream, (error) => {
         if (error) {
+          if (file.fieldname === UploadFieldName.ASSET_DATA) {
+            logIphoneBackupAudit(this.logger, {
+              event: 'upload_stream_failed',
+              uploadId: (file as ImmichMulterFile).uuid,
+              mediaBytes: size,
+            });
+          }
           hash?.destroy();
           return callback(error);
         }
         if (size === 0) {
+          if (file.fieldname === UploadFieldName.ASSET_DATA) {
+            logIphoneBackupAudit(this.logger, {
+              event: 'upload_stream_failed',
+              uploadId: (file as ImmichMulterFile).uuid,
+              mediaBytes: 0,
+            });
+          }
           return callback(new BadRequestException('File is empty'));
         }
         callback(null, {

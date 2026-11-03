@@ -320,8 +320,8 @@ limit
 -- AssetRepository.getByChecksums
 select
   "id",
-  "checksum",
-  "deletedAt"
+  "deletedAt",
+  "checksum"
 from
   "asset"
 where
@@ -335,8 +335,10 @@ from
   "asset"
 where
   "ownerId" = $1::uuid
-  and "checksum" = $2
-  and "libraryId" is null
+  and (
+    "checksum" = $2
+    and "libraryId" is null
+  )
 limit
   $3
 

@@ -73,6 +73,7 @@ export const newStorageRepositoryMock = (): Mocked<RepositoryInterface<StorageRe
     walk: vitest.fn().mockImplementation(async function* () {}),
     rename: vitest.fn(),
     copyFile: vitest.fn(),
+    publishFile: vitest.fn(),
     utimes: vitest.fn(),
     watch: vitest.fn().mockImplementation(makeMockWatcher({})),
     watchDir: vitest.fn().mockImplementation(() => ({ close: vitest.fn(), on: vitest.fn() })),

@@ -307,7 +307,7 @@ describe(AssetMediaService.name, () => {
         size: 42,
       };
 
-      mocks.asset.create.mockResolvedValue(assetEntity);
+      mocks.asset.create.mockResolvedValue({ ...assetEntity, contentChecksum: null });
 
       await expect(
         sut.uploadAsset(
@@ -342,7 +342,7 @@ describe(AssetMediaService.name, () => {
         size: 42,
       };
 
-      mocks.asset.create.mockResolvedValue(assetEntity);
+      mocks.asset.create.mockResolvedValue({ ...assetEntity, contentChecksum: null });
 
       await expect(sut.uploadAsset(authStub.user1, createDto, file)).resolves.toEqual({
         id: 'id_1',

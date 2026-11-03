@@ -33,12 +33,19 @@ import {
 import { AssetSyncResult } from 'src/repositories/library.repository.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { BaseService } from 'src/services/base.service.js';
+import {
+  getIphoneBackupConfig,
+  isIphoneBackupFingerprintingEnabled,
+  isWithinDirectory,
+  logIphoneBackupAudit,
+} from 'src/utils/iphone-backup.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, findOrFail, handlePromiseError } from 'src/utils/misc.js';
 
 const DEFERRED_VIDEO_SIZE_BYTES = 3 * 1024 ** 3;
 
 @Injectable()
+/** 管理外部库扫描与状态更新；目标备份库的导入与上传发布使用同一数据库锁。 */
 export class LibraryService extends BaseService {
   private watchLibraries = false;
   private lock = false;
@@ -253,7 +260,24 @@ export class LibraryService extends BaseService {
   }
 
   @OnJob({ name: JobName.LibrarySyncFiles, queue: QueueName.Library })
+  /**
+   * 导入扫描发现的文件；目标备份库与上传串行建档，避免发布文件被重复扫描成第二条资产。
+   * @param job 待导入路径及所属 Library ID。
+   * @returns 导入状态；失败沿用已有任务重试机制。
+   */
   async handleSyncFiles(job: JobOf<JobName.LibrarySyncFiles>): Promise<JobStatus> {
+    if (getIphoneBackupConfig()?.libraryId === job.libraryId) {
+      return this.databaseRepository.withLock(DatabaseLock.ForkIphoneBackup, () => this.importFiles(job));
+    }
+    return this.importFiles(job);
+  }
+
+  /**
+   * 在调用者已经取得必要锁后执行原有文件导入。
+   * @param job 扫描批次，不修改其路径列表。
+   * @returns 原有导入结果；同路径重复任务由既有 checksum 唯一约束忽略。
+   */
+  private async importFiles(job: JobOf<JobName.LibrarySyncFiles>): Promise<JobStatus> {
     const library = await this.libraryRepository.get(job.libraryId);
     // We need to check if the library still exists as it could have been deleted after the scan was queued
     if (!library) {
@@ -272,12 +296,37 @@ export class LibraryService extends BaseService {
         try {
           const asset = await this.processEntity(path, library.ownerId, job.libraryId);
           if (asset) {
+            if (getIphoneBackupConfig()?.libraryId === job.libraryId) {
+              const existing = await this.assetRepository.getByLibraryIdAndOriginalPath(
+                job.libraryId,
+                asset.originalPath,
+              );
+              if (existing) {
+                // 文件监听同样会发现既有路径；更新内容映射而不创建第二个资产。
+                if (asset.contentChecksum && !existing.contentChecksum?.equals(asset.contentChecksum)) {
+                  await this.assetRepository.update({ id: existing.id, contentChecksum: asset.contentChecksum });
+                  await this.jobRepository.queue({
+                    name: JobName.AssetExtractMetadata,
+                    data: { id: existing.id, force: true },
+                  });
+                }
+                return;
+              }
+            }
             assetImports.push(asset);
           } else {
             deferredCount++;
           }
         } catch (error) {
           this.logger.error(`Error processing ${path} for library ${job.libraryId}: ${error}`);
+          if (getIphoneBackupConfig()?.libraryId === job.libraryId) {
+            const existing = await this.assetRepository.getByLibraryIdAndOriginalPath(job.libraryId, path);
+            if (existing?.contentChecksum) {
+              await this.assetRepository.update({ id: existing.id, contentChecksum: null });
+            }
+            // 不能用忽略指纹错误来完成首轮备份准备；保持任务失败并允许重试。
+            throw error;
+          }
         }
       }),
     );
@@ -287,6 +336,11 @@ export class LibraryService extends BaseService {
     }
 
     const assetIds = await this.assetRepository.createAll(assetImports);
+    if (isIphoneBackupFingerprintingEnabled(job.libraryId)) {
+      for (const assetId of assetIds) {
+        logIphoneBackupAudit(this.logger, { event: 'fingerprint_ready', assetId, libraryId: job.libraryId });
+      }
+    }
 
     const progressMessage =
       job.progressCounter && job.totalAssets
@@ -410,6 +464,13 @@ export class LibraryService extends BaseService {
     return JobStatus.Success;
   }
 
+  /**
+   * 读取外部文件属性；只为指定备份库增加内容指纹，路径身份保持不变。
+   * @param filePath 扫描获得的原片绝对路径。
+   * @param ownerId 所属用户 UUID。
+   * @param libraryId 当前扫描库 UUID。
+   * @returns 新资产字段；现有策略延后处理的文件返回 undefined。
+   */
   private async processEntity(filePath: string, ownerId: string, libraryId: string) {
     const assetPath = path.normalize(filePath);
     // Keep these files discoverable on later scans, but avoid creating assets that would enqueue heavy processing.
@@ -426,6 +487,9 @@ export class LibraryService extends BaseService {
       ownerId,
       libraryId,
       checksum: this.cryptoRepository.hashSha1(`path:${assetPath}`),
+      contentChecksum: isIphoneBackupFingerprintingEnabled(libraryId)
+        ? await this.readContentChecksum(assetPath, stat)
+        : null,
       checksumAlgorithm: ChecksumAlgorithm.sha1Path,
       originalPath: assetPath,
 
@@ -437,6 +501,21 @@ export class LibraryService extends BaseService {
       isExternal: true,
       livePhotoVideoId: null,
     };
+  }
+
+  /**
+   * 流式计算内容 SHA-1，并确认读取期间文件大小和修改时间未变。
+   * @param filePath 外部原片路径，仅进行读取。
+   * @param before 哈希前的文件状态。
+   * @returns 稳定文件的内容指纹；文件变化或读取失败时抛错，不发布可疑指纹。
+   */
+  private async readContentChecksum(filePath: string, before: Stats): Promise<Buffer> {
+    const checksum = await this.cryptoRepository.hashFile(filePath);
+    const after = await this.storageRepository.stat(filePath);
+    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
+      throw new Error('External file changed while hashing');
+    }
+    return checksum;
   }
 
   async queuePostSyncJobs(assetIds: string[]) {
@@ -495,6 +574,11 @@ export class LibraryService extends BaseService {
   }
 
   @OnJob({ name: JobName.LibrarySyncAssets, queue: QueueName.Library })
+  /**
+   * 检查既有资产状态，并在显式扫描目标库时补齐或更新内容指纹。
+   * @param job 库扫描批次，包含导入范围和排除规则。
+   * @returns 扫描结果；指纹读取失败时任务失败，不能保留旧指纹假装成功。
+   */
   async handleSyncAssets(job: JobOf<JobName.LibrarySyncAssets>): Promise<JobStatus> {
     const assets = await this.assetJobRepository.getForSyncAssets(job.assetIds);
 
@@ -514,6 +598,36 @@ export class LibraryService extends BaseService {
       const asset = assets[i];
       const stat = stats[i];
       const action = this.checkExistingAsset(asset, stat);
+      if (
+        !isIphoneBackupFingerprintingEnabled(job.libraryId) &&
+        asset.contentChecksum &&
+        (!stat || action === AssetSyncResult.UPDATE)
+      ) {
+        // 停用备份路由后仍撤销变化文件的旧指纹，不能让客户端继续匹配过期内容。
+        await this.assetRepository.update({ id: asset.id, contentChecksum: null });
+      }
+      if (isIphoneBackupFingerprintingEnabled(job.libraryId)) {
+        const accessible =
+          stat &&
+          asset.status !== AssetStatus.Deleted &&
+          job.importPaths.some((root) => isWithinDirectory(root, asset.originalPath)) &&
+          job.exclusionPatterns.every((pattern) => !picomatch.isMatch(asset.originalPath, pattern, { nocase: true }));
+        if (!accessible) {
+          if (asset.contentChecksum) {
+            await this.assetRepository.update({ id: asset.id, contentChecksum: null });
+          }
+        } else if (!asset.contentChecksum || action === AssetSyncResult.UPDATE) {
+          // 先撤销可能失效的匹配，再顺序读取，避免一次对整批原片发起并行磁盘扫描。
+          await this.assetRepository.update({ id: asset.id, contentChecksum: null });
+          const contentChecksum = await this.readContentChecksum(asset.originalPath, stat);
+          await this.assetRepository.update({ id: asset.id, contentChecksum });
+          logIphoneBackupAudit(this.logger, {
+            event: 'fingerprint_ready',
+            assetId: asset.id,
+            libraryId: job.libraryId,
+          });
+        }
+      }
       switch (action) {
         case AssetSyncResult.DO_NOTHING: {
           break;

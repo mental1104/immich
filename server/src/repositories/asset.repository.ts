@@ -54,6 +54,7 @@ import {
   withTagId,
   withTags,
 } from 'src/utils/database.js';
+import { getIphoneBackupConfig } from 'src/utils/iphone-backup.js';
 import { globToPostgresRegex } from 'src/utils/misc.js';
 
 export type AssetStats = Record<AssetType, number>;
@@ -176,6 +177,7 @@ const withBoundingBox = <T>(qb: SelectQueryBuilder<DB, 'asset' | 'asset_exif', T
 };
 
 @Injectable()
+/** 读写资产记录；上传内容匹配始终限制在当前用户及显式配置的目标库内。 */
 export class AssetRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
 
@@ -671,23 +673,78 @@ export class AssetRepository {
   }
 
   @GenerateSql({ params: [DummyValue.UUID, [DummyValue.BUFFER]] })
+  /**
+   * 为上传预检读取当前用户的内容匹配；外部库只参与显式启用的目标库。
+   * @param userId 当前已鉴权用户 UUID，匹配不跨用户。
+   * @param checksums 文件内容 SHA-1 列表，不修改调用者输入。
+   * @returns 普通上传及在线目标外部库的匹配记录，checksum 统一为内容指纹。
+   */
   getByChecksums(userId: string, checksums: Buffer[]) {
+    const backup = getIphoneBackupConfig();
     return this.db
       .selectFrom('asset')
-      .select(['id', 'checksum', 'deletedAt'])
+      .select(['id', 'deletedAt'])
+      .select(backup ? sql<Buffer>`coalesce("contentChecksum", "checksum")`.as('checksum') : 'checksum')
       .where('ownerId', '=', asUuid(userId))
-      .where('checksum', 'in', checksums)
+      .where((eb) =>
+        eb.or([
+          eb('checksum', 'in', checksums),
+          ...(backup
+            ? [
+                eb.and([
+                  eb('libraryId', '=', asUuid(backup.libraryId)),
+                  eb('isOffline', '=', false),
+                  eb('contentChecksum', 'in', checksums),
+                  eb.exists(
+                    eb
+                      .selectFrom('library')
+                      .select('library.id')
+                      .whereRef('library.id', '=', 'asset.libraryId')
+                      .where('library.deletedAt', 'is', null),
+                  ),
+                ]),
+              ]
+            : []),
+        ]),
+      )
       .execute();
   }
 
   @GenerateSql({ params: [DummyValue.UUID, DummyValue.BUFFER] })
+  /**
+   * 读取当前用户可复用的上传资产或目标外部库资产；不返回离线、已删除外部资产。
+   * @param ownerId 当前用户 UUID。
+   * @param checksum 待上传文件的内容 SHA-1。
+   * @returns 已有资产 UUID；没有匹配时返回 undefined。
+   */
   async getUploadAssetIdByChecksum(ownerId: string, checksum: Buffer): Promise<string | undefined> {
+    const backup = getIphoneBackupConfig();
     const asset = await this.db
       .selectFrom('asset')
       .select('id')
       .where('ownerId', '=', asUuid(ownerId))
-      .where('checksum', '=', checksum)
-      .where('libraryId', 'is', null)
+      .where((eb) =>
+        eb.or([
+          eb.and([eb('checksum', '=', checksum), eb('libraryId', 'is', null)]),
+          ...(backup
+            ? [
+                eb.and([
+                  eb('contentChecksum', '=', checksum),
+                  eb('libraryId', '=', asUuid(backup.libraryId)),
+                  eb('isOffline', '=', false),
+                  eb('deletedAt', 'is', null),
+                  eb.exists(
+                    eb
+                      .selectFrom('library')
+                      .select('library.id')
+                      .whereRef('library.id', '=', 'asset.libraryId')
+                      .where('library.deletedAt', 'is', null),
+                  ),
+                ]),
+              ]
+            : []),
+        ]),
+      )
       .limit(1)
       .executeTakeFirst();
 

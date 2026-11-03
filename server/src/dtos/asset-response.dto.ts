@@ -133,6 +133,7 @@ export const AssetResponseSchema = SanitizedAssetResponseSchema.extend(
 
 export class AssetResponseDto extends createZodDto(AssetResponseSchema) {}
 
+/** API 资产映射输入；内部内容指纹只用于选择兼容的客户端 checksum，不增加响应字段。 */
 export type MapAsset = {
   createdAt: Date;
   updatedAt: Date;
@@ -141,6 +142,8 @@ export type MapAsset = {
   updateId: string;
   status: AssetStatus;
   checksum: Buffer<ArrayBufferLike>;
+  /** 可选外部文件内容指纹；旧查询缺少该字段时保留原来的路径 checksum。 */
+  contentChecksum?: Buffer<ArrayBufferLike> | null;
   checksumAlgorithm: ChecksumAlgorithm;
   duplicateId: string | null;
   duration: number | null;
@@ -255,7 +258,7 @@ export function mapAsset(entity: MaybeDehydrated<MapAsset>, options: AssetMapOpt
     livePhotoVideoId: entity.livePhotoVideoId,
     tags: entity.tags?.map((tag) => mapTag(tag)),
     people: peopleFromFaces(entity.faces),
-    checksum: hexOrBufferToBase64(entity.checksum)!,
+    checksum: hexOrBufferToBase64((!entity.isOffline && entity.contentChecksum) || entity.checksum)!,
     stack: withStack ? mapStack(entity) : undefined,
     isOffline: entity.isOffline,
     hasMetadata: true,

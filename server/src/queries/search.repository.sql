@@ -10,6 +10,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -29,7 +30,30 @@ select
   "asset"."thumbhash",
   "asset"."type",
   "asset"."width",
-  "asset"."height"
+  "asset"."height",
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "stack"."id",
+          "stack"."primaryAssetId",
+          (
+            select
+              count(*) as "assetCount"
+            from
+              "asset" as "stackedAsset"
+            where
+              "stackedAsset"."stackId" = "stack"."id"
+              and "stackedAsset"."deletedAt" is null
+          ) as "assetCount"
+        from
+          "stack"
+        where
+          "stack"."id" = "asset"."stackId"
+      ) as obj
+  ) as "stack"
 from
   "asset"
   inner join "asset_exif" on "asset"."id" = "asset_exif"."assetId"
@@ -70,6 +94,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -114,6 +139,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -164,6 +190,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -183,7 +210,30 @@ select
   "asset"."thumbhash",
   "asset"."type",
   "asset"."width",
-  "asset"."height"
+  "asset"."height",
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "stack"."id",
+          "stack"."primaryAssetId",
+          (
+            select
+              count(*) as "assetCount"
+            from
+              "asset" as "stackedAsset"
+            where
+              "stackedAsset"."stackId" = "stack"."id"
+              and "stackedAsset"."deletedAt" is null
+          ) as "assetCount"
+        from
+          "stack"
+        where
+          "stack"."id" = "asset"."stackId"
+      ) as obj
+  ) as "stack"
 from
   "asset"
   inner join "asset_exif" on "asset"."id" = "asset_exif"."assetId"
@@ -328,6 +378,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -431,6 +482,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -479,6 +531,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -539,6 +592,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -587,6 +641,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -635,6 +690,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -683,6 +739,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -731,6 +788,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -779,6 +837,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -834,6 +893,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -888,6 +948,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -950,6 +1011,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1004,6 +1066,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1060,6 +1123,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1121,6 +1185,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1175,6 +1240,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1230,6 +1296,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1281,6 +1348,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1329,6 +1397,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1380,6 +1449,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1429,6 +1499,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1477,6 +1548,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1537,6 +1609,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1601,6 +1674,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1649,6 +1723,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1694,6 +1769,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1742,6 +1818,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1795,6 +1872,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",
@@ -1851,6 +1929,7 @@ select
   "asset"."status",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
+  "asset"."contentChecksum",
   "asset"."duplicateId",
   "asset"."duration",
   "asset"."fileCreatedAt",

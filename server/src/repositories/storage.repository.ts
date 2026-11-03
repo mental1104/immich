@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import archiver from 'archiver';
 import { ChokidarOptions, watch as chokidarWatch } from 'chokidar';
 import fastGlob from 'fast-glob';
+import { randomUUID } from 'node:crypto';
 import {
   Dirent,
   ReadOptionsWithBuffer,
@@ -50,6 +51,7 @@ export interface DiskUsage {
 }
 
 @Injectable()
+/** 封装文件系统操作；备份发布只创建新目标，不承担资产数据库事务。 */
 export class StorageRepository {
   constructor(private logger: LoggingRepository) {
     this.logger.setContext(StorageRepository.name);
@@ -69,6 +71,28 @@ export class StorageRepository {
 
   copyFile(source: string, target: string) {
     return fs.copyFile(source, target);
+  }
+
+  /**
+   * 在目标目录完成复制后原子发布文件，已有目标绝不覆盖；扫描器不会看到半个文件。
+   * @param source 已上传完整的暂存文件，成功后仍由调用者负责清理。
+   * @param target 最终绝对路径，父目录须已存在。
+   * @returns 发布完成；目标已存在时抛出 EEXIST，失败时清理本次临时文件。
+   */
+  async publishFile(source: string, target: string): Promise<void> {
+    const temporary = `${target}.${randomUUID()}.tmp`;
+    try {
+      await fs.copyFile(source, temporary, constants.COPYFILE_EXCL);
+      // hard link 的创建不会替换现有文件，且源临时文件此时已经完整写入。
+      await fs.link(temporary, target);
+    } finally {
+      await fs.unlink(temporary).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') {
+          // 发布结果不能因临时硬链接清理失败被误报；残留 .tmp 不会被外部库扫描。
+          this.logger.warn(`Unable to remove backup temporary file: ${error.code}`);
+        }
+      });
+    }
   }
 
   stat(filepath: string) {
