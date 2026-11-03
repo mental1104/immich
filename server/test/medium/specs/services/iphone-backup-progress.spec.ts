@@ -1,9 +1,9 @@
 import { Queue } from 'bullmq';
 import { Kysely } from 'kysely';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { IphoneBackupCommandDto } from 'src/dtos/iphone-backup.dto.js';
 import { ImmichWorker } from 'src/enum.js';
@@ -489,5 +489,29 @@ describe('iPhone fingerprint progress', () => {
     await waitFor('idle');
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(await api.getProgress()).toMatchObject({ ready: 1, pending: 1, batch: { completed: 1, reason: 'limit' } });
+  });
+
+  it('finishes the filenames in one directory before moving to another regardless of UUID order', async () => {
+    await addSamples(2);
+    const rows = await db.selectFrom('asset').select('id').where('libraryId', '=', libraryId).orderBy('id').execute();
+    const layout = ['b/001.jpg', 'a/003.jpg', 'a/001.jpg', 'a/002.jpg'];
+    for (const [index, row] of rows.entries()) {
+      const originalPath = join(root, layout[index]);
+      await mkdir(dirname(originalPath), { recursive: true });
+      await writeFile(originalPath, `synthetic-layout-${index}`);
+      await db
+        .updateTable('asset')
+        .set({ originalPath, checksum: createHash('sha1').update(originalPath).digest() })
+        .where('id', '=', row.id)
+        .execute();
+    }
+    const candidates = await repository.candidates(libraryId, 4);
+    expect(candidates.map(({ originalPath }) => originalPath)).toEqual(
+      ['a/001.jpg', 'a/002.jpg', 'a/003.jpg', 'b/001.jpg'].map((path) => join(root, path)),
+    );
+    await api.command({ command: 'start', limit: 4 });
+    await startWorker();
+    await waitFor('completed');
+    expect(await repository.counts(libraryId)).toEqual({ total: 4, ready: 4, pending: 0 });
   });
 });

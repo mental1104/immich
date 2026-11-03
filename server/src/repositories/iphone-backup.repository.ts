@@ -44,12 +44,15 @@ export class IphoneBackupRepository {
     return { total, ready, pending: total - ready };
   }
 
-  /** @param libraryId 唯一目标库。 @param limit 本批最多处理数量。 @returns 优先图片、稳定排序的缺失指纹快照。 */
+  /** @param libraryId 唯一目标库。 @param limit 本批最多处理数量。 @returns 优先图片、按完整路径连续访问同目录的快照；同路径按 ID 稳定排序。 */
   candidates(libraryId: string, limit: number): Promise<IphoneBackupCandidate[]> {
+    // UUID 与磁盘位置无关；先连续处理同目录文件，减少跨目录跳转和元数据访问。
+    // 路径顺序不承诺 Btrfs 数据块物理相邻，也不移动或整理原片。
     return this.assets(libraryId)
       .select(['id', 'originalPath', 'updateId'])
       .where('contentChecksum', 'is', null)
       .orderBy('type')
+      .orderBy('originalPath')
       .orderBy('id')
       .limit(limit)
       .execute();
