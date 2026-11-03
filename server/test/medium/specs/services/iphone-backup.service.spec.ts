@@ -1,5 +1,6 @@
+import { schemaFromCode } from '@immich/sql-tools';
 import { ExifDateTime } from 'exiftool-vendored';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -153,6 +154,17 @@ describe('iPhone external library backup', () => {
       name: JobName.AssetExtractMetadata,
       data: expect.objectContaining({ id: result.id }),
     });
+  });
+
+  it('registers the partial index definition expected by the upstream schema checker', async () => {
+    const expected = schemaFromCode({ overrides: true, namingStrategy: 'default' }).overrides.find(
+      (item) => item.name === 'index_fork_asset_content_checksum_idx',
+    );
+    assert(expected);
+    const actual = await sql<{
+      value: typeof expected.value;
+    }>`SELECT "value" FROM "migration_overrides" WHERE "name" = ${expected.name}`.execute(database);
+    expect(actual.rows[0].value).toEqual(expected.value);
   });
 
   it('serializes simultaneous duplicate uploads and keeps one external record and one file', async () => {
