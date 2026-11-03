@@ -237,8 +237,10 @@ describe('external library client checksum compatibility', () => {
       namingStrategy: 'default',
       uuidFunction: (version) => (version === 7 ? `${immich_uuid_v7.name}()` : 'uuid_generate_v4()'),
     });
-    for (const definition of source.overrides.filter((item) => item.name.startsWith('function_fork_iphone'))) {
-      expect(target.overrides.find((item) => item.name === definition.name)?.value).toEqual(definition.value);
+    for (const definition of source.overrides) {
+      if (definition.name.startsWith('function_fork_iphone')) {
+        expect(target.overrides.find((item) => item.name === definition.name)?.value).toEqual(definition.value);
+      }
     }
     const drift = schemaDiff(source, target)
       .asHuman()
