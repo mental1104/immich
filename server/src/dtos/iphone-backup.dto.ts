@@ -1,10 +1,10 @@
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 
-/** 管理员显式启动有限批次；不允许从请求指定其他库、文件路径或开启手机上传。 */
+/** 管理员显式启动单批或持续准备；不允许从请求指定其他库、文件路径或开启手机上传。 */
 export class IphoneBackupCommandDto extends createZodDto(
   z.object({
-    command: z.enum(['start', 'pause', 'resume', 'retry']),
+    command: z.enum(['start', 'continue', 'pause', 'resume', 'retry']),
     limit: z.int().min(1).max(1000).default(1000),
   }),
 ) {}
@@ -22,6 +22,7 @@ export interface IphoneBackupBatchProgress {
 export interface IphoneBackupProgress {
   enabled: boolean;
   uploadsEnabled: boolean;
+  continuous: boolean;
   total: number;
   ready: number;
   pending: number;

@@ -4,6 +4,7 @@ import { getBaseUrl } from '@immich/sdk';
 export interface IphoneBackupProgress {
   enabled: boolean;
   uploadsEnabled: boolean;
+  continuous: boolean;
   total: number;
   ready: number;
   pending: number;
@@ -18,11 +19,11 @@ export interface IphoneBackupProgress {
 }
 
 /** 只控制有界后台批次，不提供上传开关。 */
-export type IphoneBackupCommand = 'start' | 'pause' | 'resume' | 'retry';
+export type IphoneBackupCommand = 'start' | 'continue' | 'pause' | 'resume' | 'retry';
 
 /**
  * 读取或更新 Fork 匹配准备状态，沿用同源登录 Cookie。
- * @param command 省略时只读取状态；命令每次最多处理 1000 张、8 GiB。
+ * @param command 省略时只读取状态；每批最多处理 1000 张、8 GiB，continue 显式开启接续。
  * @returns 服务端状态；鉴权、网络或非成功响应抛错，页面保留上次数据并标记过期。
  */
 export async function requestIphoneBackupProgress(command?: IphoneBackupCommand): Promise<IphoneBackupProgress> {

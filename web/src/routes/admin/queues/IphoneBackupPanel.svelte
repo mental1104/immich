@@ -30,6 +30,7 @@
     })}
     · {$t(`iphone_backup.state.${progress.state}`)}
   </p>
+  {#if progress.continuous}<p class="text-sm text-immich-primary">{$t('iphone_backup.continuous')}</p>{/if}
   {#if stale}<p class="text-sm text-red-600" role="alert">{$t('iphone_backup.stale')}</p>{/if}
   {#if progress.batch}
     <p class="text-sm text-gray-600 dark:text-gray-300">
@@ -48,6 +49,19 @@
       type="button"
       class="rounded-lg bg-immich-primary px-4 py-2 text-sm text-white disabled:opacity-50"
       disabled={busy || stale || progress.pending === 0 || ['running', 'queued', 'failed'].includes(progress.state)}
+      onclick={() => oncommand(progress.continuous && progress.state === 'paused' ? 'resume' : 'continue')}
+      >{$t(
+        progress.continuous && progress.state === 'paused' ? 'iphone_backup.resume' : 'iphone_backup.continue',
+      )}</button
+    >
+    <button
+      type="button"
+      class="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
+      disabled={busy ||
+        stale ||
+        progress.continuous ||
+        progress.pending === 0 ||
+        ['running', 'queued', 'failed'].includes(progress.state)}
       onclick={() => oncommand(progress.state === 'paused' ? 'resume' : 'start')}>{$t('iphone_backup.start')}</button
     >
     <button

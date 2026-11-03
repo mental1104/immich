@@ -1025,6 +1025,7 @@ export enum DatabaseLock {
   VersionCheck = 800,
   HlsSessionCleanup = 850,
   ForkIphoneBackup = 851,
+  ForkIphoneBackupPreparation = 852,
 }
 
 export enum MaintenanceAction {

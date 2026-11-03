@@ -18,6 +18,7 @@ describe('iPhone backup progress panel', () => {
   const progress: IphoneBackupProgress = {
     enabled: true,
     uploadsEnabled: false,
+    continuous: false,
     total: 162_662,
     ready: 24,
     pending: 162_638,
@@ -44,6 +45,28 @@ describe('iPhone backup progress panel', () => {
       oncommand,
     });
     await fireEvent.click(view.getByRole('button', { name: 'Process next batch' }));
+    expect(oncommand).toHaveBeenCalledWith('resume');
+  });
+
+  it('starts continuous preparation only after an explicit action', async () => {
+    const oncommand = vi.fn();
+    const view = render(IphoneBackupPanel, { progress, busy: false, stale: false, oncommand });
+    expect(oncommand).not.toHaveBeenCalled();
+    await fireEvent.click(view.getByRole('button', { name: 'Start continuous preparation' }));
+    expect(oncommand).toHaveBeenCalledWith('continue');
+  });
+
+  it('shows persisted continuous mode and resumes it without switching to a manual batch', async () => {
+    const oncommand = vi.fn();
+    const view = render(IphoneBackupPanel, {
+      progress: { ...progress, continuous: true, state: 'paused' },
+      busy: false,
+      stale: false,
+      oncommand,
+    });
+    expect(view.getByText(/Continuous preparation is enabled/)).toBeInTheDocument();
+    expect(view.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
+    await fireEvent.click(view.getByRole('button', { name: 'Resume continuous preparation' }));
     expect(oncommand).toHaveBeenCalledWith('resume');
   });
 

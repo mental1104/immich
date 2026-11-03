@@ -9,6 +9,7 @@ import { IphoneBackupCommandDto } from 'src/dtos/iphone-backup.dto.js';
 import { ImmichWorker } from 'src/enum.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
+import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { IphoneBackupRepository } from 'src/repositories/iphone-backup.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -27,6 +28,7 @@ describe('iPhone fingerprint progress', () => {
   let repository: IphoneBackupRepository;
   let crypto: CryptoRepository;
   let config: ConfigRepository;
+  let controlDatabase: DatabaseRepository;
   let api: IphoneBackupService;
   let worker: IphoneBackupService | undefined;
   let queue: Queue;
@@ -76,7 +78,8 @@ describe('iPhone fingerprint progress', () => {
     vi.spyOn(config, 'getEnv').mockReturnValue({ ...env, bull: { ...env.bull, config: options } });
     crypto = new CryptoRepository();
     repository = new IphoneBackupRepository(db, crypto);
-    api = new IphoneBackupService(ImmichWorker.Api, config, repository, LoggingRepository.create());
+    controlDatabase = new DatabaseRepository(db, LoggingRepository.create(), config);
+    api = new IphoneBackupService(ImmichWorker.Api, config, repository, LoggingRepository.create(), controlDatabase);
     await api.onBootstrap();
     queue = new Queue('fork-iphone-fingerprints', options);
   });
@@ -94,7 +97,13 @@ describe('iPhone fingerprint progress', () => {
 
   /** @returns 启动本例唯一消费者；任务仍受 Redis 全局并发上限约束。 */
   async function startWorker() {
-    worker = new IphoneBackupService(ImmichWorker.Microservices, config, repository, LoggingRepository.create());
+    worker = new IphoneBackupService(
+      ImmichWorker.Microservices,
+      config,
+      repository,
+      LoggingRepository.create(),
+      controlDatabase,
+    );
     await worker.onBootstrap();
   }
 
@@ -157,7 +166,7 @@ describe('iPhone fingerprint progress', () => {
     await api.command({ command: 'start', limit: 2 });
     await api.command({ command: 'pause', limit: 2 });
     await api.onShutdown();
-    api = new IphoneBackupService(ImmichWorker.Api, config, repository, LoggingRepository.create());
+    api = new IphoneBackupService(ImmichWorker.Api, config, repository, LoggingRepository.create(), controlDatabase);
     await api.onBootstrap();
     await startWorker();
     expect(await api.getProgress()).toMatchObject({ state: 'paused', ready: 0 });
@@ -262,5 +271,95 @@ describe('iPhone fingerprint progress', () => {
       command: 'start',
       limit: 1000,
     });
+  });
+
+  it('automatically continues bounded batches after cooldown and stops when the library is ready', async () => {
+    await api.command({ command: 'continue', limit: 1 });
+    expect(await api.getProgress()).toMatchObject({ continuous: true, state: 'queued' });
+    await startWorker();
+    await expect
+      .poll(async () => {
+        const counts = await repository.counts(libraryId);
+        return counts.ready;
+      })
+      .toBe(1);
+    await worker!.continuePreparation();
+    expect(await repository.counts(libraryId)).toMatchObject({ ready: 1, pending: 1 });
+    // 使用真实定时器和 Redis finishedOn 检验自动接续，不由测试提交第二批任务。
+    await expect
+      .poll(
+        async () => {
+          const progress = await api.getProgress();
+          return progress.state;
+        },
+        { timeout: 15_000 },
+      )
+      .toBe('completed');
+    await worker!.continuePreparation();
+    expect(await api.getProgress()).toMatchObject({ ready: 2, pending: 0, continuous: false });
+  }, 20_000);
+
+  it('preserves continuous intent and pause across API and worker restarts', async () => {
+    const prepare = repository.prepare.bind(repository);
+    vi.spyOn(repository, 'prepare').mockImplementationOnce(async (id, row, size) => {
+      const bytes = await prepare(id, row, size);
+      await api.command({ command: 'pause', limit: 1 });
+      return bytes;
+    });
+    await api.command({ command: 'continue', limit: 1 });
+    await startWorker();
+    await waitFor('paused');
+    expect(await api.getProgress()).toMatchObject({ continuous: true, ready: 1 });
+    await worker!.onShutdown();
+    worker = undefined;
+    await api.onShutdown();
+    api = new IphoneBackupService(ImmichWorker.Api, config, repository, LoggingRepository.create(), controlDatabase);
+    await api.onBootstrap();
+    await startWorker();
+    await worker!.continuePreparation();
+    expect(await api.getProgress()).toMatchObject({ continuous: true, state: 'paused', ready: 1 });
+    await api.command({ command: 'resume', limit: 2 });
+    await waitFor('completed');
+    expect(await api.getProgress()).toMatchObject({ ready: 2, continuous: false });
+  });
+
+  it('does not automatically retry a failed continuous batch', async () => {
+    const prepare = vi.spyOn(repository, 'prepare').mockRejectedValueOnce(new Error('synthetic failure'));
+    await api.command({ command: 'continue', limit: 2 });
+    await startWorker();
+    await waitFor('failed');
+    await worker!.continuePreparation();
+    await worker!.continuePreparation();
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(await api.getProgress()).toMatchObject({ state: 'failed', continuous: true, ready: 0 });
+    await api.command({ command: 'retry', limit: 2 });
+    await waitFor('completed');
+    expect(await api.getProgress()).toMatchObject({ ready: 2, continuous: false });
+  });
+
+  it('serializes completed-job replacement across independent API instances and the coordinator', async () => {
+    await api.command({ command: 'start', limit: 1 });
+    await startWorker();
+    await waitFor('idle');
+    const other = new IphoneBackupService(
+      ImmichWorker.Api,
+      config,
+      repository,
+      LoggingRepository.create(),
+      new DatabaseRepository(db, LoggingRepository.create(), config),
+    );
+    await other.onBootstrap();
+    try {
+      await Promise.all([
+        api.command({ command: 'continue', limit: 1 }),
+        other.command({ command: 'continue', limit: 1 }),
+        other.continuePreparation(),
+      ]);
+      await waitFor('completed');
+      expect(await repository.counts(libraryId)).toEqual({ total: 2, ready: 2, pending: 0 });
+      expect(await queue.getJobCountByTypes()).toBe(1);
+    } finally {
+      await other.onShutdown();
+    }
   });
 });

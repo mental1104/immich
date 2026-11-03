@@ -1302,9 +1302,11 @@
   "invite_to_album": "Invite to album",
   "iphone_backup": {
     "batch": "This batch: {completed} assets, {mib} MiB read",
+    "continue": "Start continuous preparation",
+    "continuous": "Continuous preparation is enabled. Batches advance automatically until ready, paused, or failed.",
     "count": "Ready {ready} / {total}; remaining {pending}",
     "description": "Prepare content fingerprints for existing photos so the phone can match local originals after synchronization. The dashed branch is started manually and does not block metadata or thumbnails.",
-    "limits": "Each batch processes up to 1,000 assets or 8 GiB, then stops. Pause takes effect after the current file. Failures stop the batch; completed results survive restarts.",
+    "limits": "Each batch processes up to 1,000 assets or 8 GiB. Continuous mode starts the next batch after a 5 second interval. Pause takes effect after the current file; failures require explicit retry. Completed results survive restarts.",
     "pause": "Pause",
     "pending": "Remaining {pending}",
     "phone_check": "Server fingerprints alone do not prove the phone skipped uploading or opened a local original. Verify these on the phone after synchronization.",
@@ -1314,6 +1316,7 @@
       "limit": "Batch limit reached",
       "paused": "Paused after current file"
     },
+    "resume": "Resume continuous preparation",
     "retry": "Retry failed batch",
     "stale": "Unable to refresh or apply the command. Displayed progress may be out of date; retry after the connection recovers.",
     "start": "Process next batch",
