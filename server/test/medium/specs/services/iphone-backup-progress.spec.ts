@@ -241,14 +241,111 @@ describe('iPhone fingerprint progress', () => {
     expect(repository.prepare).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses a single file larger than the batch budget without reading it', async () => {
-    const hash = vi.spyOn(crypto, 'hashFile');
-    vi.spyOn(repository, 'size').mockResolvedValue(9 * 1024 ** 3);
+  /** @param concurrency 配置的文件并发数；超大文件在两种配置下都必须独占批次。 */
+  it.each(['1', '2'])(
+    'prepares an oversized file alone with concurrency %s and leaves the next file pending',
+    async (concurrency) => {
+      vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', concurrency);
+      const [large, next] = await repository.candidates(libraryId, 2);
+      const size = repository.size.bind(repository);
+      const prepare = repository.prepare.bind(repository);
+      // 只模拟调度层看到的大小；实际哈希和条件写入仍使用小型合成文件。
+      vi.spyOn(repository, 'size').mockResolvedValueOnce(9 * 1024 ** 3);
+      /** @param id 目标库。 @param row 合成资产快照。 @param expectedSize 模拟预算字节数。 @returns 真实指纹写入后返回模拟字节数，失败仍拒绝。 */
+      const prepared = vi.spyOn(repository, 'prepare').mockImplementation(async (id, row, expectedSize) => {
+        await prepare(id, row, await size(row));
+        return expectedSize;
+      });
+      await api.command({ command: 'start', limit: 2 });
+      await startWorker();
+      await waitFor('idle');
+      expect(await api.getProgress()).toMatchObject({
+        ready: 1,
+        pending: 1,
+        batch: { completed: 1, bytes: 9 * 1024 ** 3, reason: 'budget' },
+      });
+      expect(prepared).toHaveBeenCalledExactlyOnceWith(libraryId, large, 9 * 1024 ** 3);
+      const checksum = await db
+        .selectFrom('asset')
+        .select('contentChecksum')
+        .where('id', '=', large.id)
+        .executeTakeFirstOrThrow();
+      expect(checksum.contentChecksum).toEqual(
+        createHash('sha1')
+          .update(await readFile(large.originalPath))
+          .digest(),
+      );
+      await api.command({ command: 'start', limit: 2 });
+      await waitFor('completed');
+      expect(prepared).toHaveBeenLastCalledWith(libraryId, next, await size(next));
+    },
+  );
+
+  /** @param concurrency 波次大小；先完成的普通文件不能和超大文件挤在同一批。 */
+  it.each(['1', '2'])('defers an oversized file after a normal file with concurrency %s', async (concurrency) => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', concurrency);
+    const [first, large] = await repository.candidates(libraryId, 2);
+    const size = repository.size.bind(repository);
+    const prepare = repository.prepare.bind(repository);
+    /** @param row 合成资产快照。 @returns 为目标超大文件返回模拟大小，其他文件读取实际大小。 */
+    vi.spyOn(repository, 'size').mockImplementation(async (row) => (row.id === large.id ? 9 * 1024 ** 3 : size(row)));
+    /** @param id 目标库。 @param row 合成资产快照。 @param expectedSize 模拟预算字节数。 @returns 真实指纹写入后返回模拟字节数，失败仍拒绝。 */
+    const prepared = vi.spyOn(repository, 'prepare').mockImplementation(async (id, row, expectedSize) => {
+      await prepare(id, row, await size(row));
+      return expectedSize;
+    });
     await api.command({ command: 'start', limit: 2 });
     await startWorker();
+    await waitFor('idle');
+    expect(await api.getProgress()).toMatchObject({
+      ready: 1,
+      pending: 1,
+      batch: { completed: 1, bytes: await size(first), reason: 'budget' },
+    });
+    expect(prepared).toHaveBeenCalledExactlyOnceWith(libraryId, first, await size(first));
+    await api.command({ command: 'start', limit: 2 });
+    await waitFor('completed');
+    expect(await api.getProgress()).toMatchObject({
+      ready: 2,
+      pending: 0,
+      batch: { completed: 1, bytes: 9 * 1024 ** 3 },
+    });
+    expect(prepared).toHaveBeenLastCalledWith(libraryId, large, 9 * 1024 ** 3);
+  });
+
+  /** 超大文件的真实读取错误仍停止持续模式；显式重试成功后才自动处理下一文件。 */
+  it('retains an oversized read failure for explicit retry and then continues the remaining batches', async () => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    const [large, next] = await repository.candidates(libraryId, 2);
+    const size = repository.size.bind(repository);
+    const prepare = repository.prepare.bind(repository);
+    /** @param row 合成资产快照。 @returns 为目标超大文件返回模拟大小，其他文件读取实际大小。 */
+    vi.spyOn(repository, 'size').mockImplementation(async (row) => (row.id === large.id ? 9 * 1024 ** 3 : size(row)));
+    /** @param id 目标库。 @param row 合成资产快照。 @param expectedSize 模拟预算字节数。 @returns 首次模拟 I/O 失败，此后写入真实指纹并返回模拟字节数。 */
+    const prepared = vi
+      .spyOn(repository, 'prepare')
+      .mockImplementation(async (id, row, expectedSize) => {
+        await prepare(id, row, await size(row));
+        return expectedSize;
+      })
+      .mockRejectedValueOnce(Object.assign(new Error('Synthetic read failure'), { code: 'EIO' }));
+    await api.command({ command: 'continue', limit: 2 });
+    await startWorker();
     await waitFor('failed');
-    expect(await api.getProgress()).toMatchObject({ ready: 0, batch: { errorCode: 'FILE_TOO_LARGE' } });
-    expect(hash).not.toHaveBeenCalled();
+    await worker!.continuePreparation();
+    expect(await api.getProgress()).toMatchObject({
+      ready: 0,
+      pending: 2,
+      continuous: true,
+      batch: { completed: 0, bytes: 0, currentAssetId: large.id, errorCode: 'EIO' },
+    });
+    expect(prepared).toHaveBeenCalledTimes(1);
+    await api.command({ command: 'retry', limit: 2 });
+    await waitFor('completed');
+    expect(await repository.counts(libraryId)).toEqual({ total: 2, ready: 2, pending: 0 });
+    expect(prepared).toHaveBeenCalledTimes(3);
+    expect(prepared).toHaveBeenNthCalledWith(2, libraryId, large, 9 * 1024 ** 3);
+    expect(prepared).toHaveBeenLastCalledWith(libraryId, next, await size(next));
   });
 
   it('rejects an asset changed during hashing without persisting a stale fingerprint', async () => {

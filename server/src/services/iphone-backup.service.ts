@@ -270,7 +270,7 @@ export class IphoneBackupService {
   }
 
   /**
-   * 用最多两个文件组成的波次执行有界批次；暂停在波次之间生效，失败不隐式跳过。
+   * 用最多两个文件组成的波次执行有界批次；超过字节预算的单文件独占一批，失败不隐式跳过。
    * @param job BullMQ 固定 ID 的持久化任务。
    * @returns 本次实际完成数、读取字节及停止原因；失败只向 Redis 记录安全错误码。
    */
@@ -295,14 +295,19 @@ export class IphoneBackupService {
           progress.reason = 'paused';
           break;
         }
-        // 在开始本波次前为每个文件预留字节预算，两个在途文件的总量也不能超过 8 GiB。
+        // 普通文件共享 8 GiB 预算；超大文件仅能在空批次独占读取，避免永久阻塞后续资产。
         const wave = [];
         let reservedBytes = progress.bytes;
         for (const row of rows.slice(offset, offset + concurrency)) {
           progress.currentAssetId = row.id;
           const size = await this.repository.size(row);
           if (size > MAX_BATCH_BYTES) {
-            throw new Error('FILE_TOO_LARGE');
+            progress.reason = 'budget';
+            if (progress.completed === 0 && wave.length === 0) {
+              // 沿用流式哈希，不按文件大小分配内存；本文件完成后立即结束批次。
+              wave.push({ row, size });
+            }
+            break;
           }
           if (reservedBytes + size > MAX_BATCH_BYTES) {
             progress.reason = 'budget';
