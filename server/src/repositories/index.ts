@@ -18,6 +18,7 @@ import { DuplicateRepository } from 'src/repositories/duplicate.repository.js';
 import { EmailRepository } from 'src/repositories/email.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
 import { IntegrityRepository } from 'src/repositories/integrity.repository.js';
+import { IphoneBackupRepository } from 'src/repositories/iphone-backup.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -75,6 +76,7 @@ export const repositories = [
   EmailRepository,
   EventRepository,
   IntegrityRepository,
+  IphoneBackupRepository,
   JobRepository,
   LibraryRepository,
   LoggingRepository,

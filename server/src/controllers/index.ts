@@ -16,6 +16,7 @@ import { DownloadController } from 'src/controllers/download.controller.js';
 import { DuplicateController } from 'src/controllers/duplicate.controller.js';
 import { FaceController } from 'src/controllers/face.controller.js';
 import { IntegrityAdminController } from 'src/controllers/integrity-admin.controller.js';
+import { IphoneBackupController } from 'src/controllers/iphone-backup.controller.js';
 import { JobController } from 'src/controllers/job.controller.js';
 import { LibraryController } from 'src/controllers/library.controller.js';
 import { MaintenanceController } from 'src/controllers/maintenance.controller.js';
@@ -64,6 +65,7 @@ export const controllers = [
   DuplicateController,
   FaceController,
   IntegrityAdminController,
+  IphoneBackupController,
   JobController,
   LibraryController,
   MaintenanceController,

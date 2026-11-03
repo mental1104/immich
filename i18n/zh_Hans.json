@@ -1298,6 +1298,35 @@
   "invalid_date_format": "无效的日期格式",
   "invite_people": "邀请人员",
   "invite_to_album": "邀请加入相册",
+  "iphone_backup": {
+    "batch": "本批完成 {completed} 张，已读取 {mib} MiB",
+    "count": "已就绪 {ready} / {total}；剩余 {pending}",
+    "description": "为已有照片准备内容指纹，手机同步后才能匹配本地原片。虚线分支需手动启动，不阻塞元数据和缩略图处理。",
+    "limits": "每批最多 1,000 张或读取 8 GiB，完成后自动停止。暂停在当前文件处理完后生效；遇错停止，已完成结果在重启后保留。",
+    "pause": "暂停",
+    "pending": "剩余 {pending}",
+    "phone_check": "服务端指纹就绪不等于手机已跳过上传或已使用本地原图，仍需在手机同步后验收。",
+    "reason": {
+      "budget": "达到读取预算",
+      "complete": "本批结束",
+      "limit": "达到批次数量上限",
+      "paused": "已在文件之间暂停"
+    },
+    "retry": "重试失败批次",
+    "stale": "刷新或操作失败，当前进度可能已过期；连接恢复后请重试。",
+    "start": "处理下一批",
+    "state": {
+      "completed": "已就绪",
+      "disabled": "未配置",
+      "failed": "失败",
+      "idle": "等待下一批",
+      "paused": "已暂停",
+      "queued": "排队中",
+      "running": "处理中"
+    },
+    "title": "历史照片匹配",
+    "uploads_paused": "手机上传仍暂停。请在匹配准备和手机小样本验收完成之前，保持自动备份关闭。"
+  },
   "iso": "ISO",
   "items_count": "{count, plural, one {#个} other {#个}}项目",
   "jobs": "任务",

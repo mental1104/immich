@@ -1,5 +1,12 @@
 <script lang="ts">
   import QueuePanel from './QueuePanel.svelte';
+  import IphoneBackupPanel from './IphoneBackupPanel.svelte';
+  import { onMount } from 'svelte';
+  import {
+    requestIphoneBackupProgress,
+    type IphoneBackupCommand,
+    type IphoneBackupProgress,
+  } from '$lib/services/iphone-backup.service';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { asQueueItem } from '$lib/services/queue.service';
   import { locale } from '$lib/stores/preferences.store';
@@ -29,6 +36,33 @@
 
   let { queues }: { queues: QueueResponseDto[] } = $props();
   let selected = $state<PipelineQueue>(QueueName.MetadataExtraction);
+  let fingerprints = $state<IphoneBackupProgress>();
+  let fingerprintsSelected = $state(false);
+  let fingerprintsBusy = $state(false);
+  let fingerprintsStale = $state(false);
+
+  /** @param command 省略时仅刷新；每次最多一个请求，失败保留数据并明确标记过期。 */
+  async function refreshFingerprints(command?: IphoneBackupCommand) {
+    if (fingerprintsBusy) {
+      return;
+    }
+    fingerprintsBusy = true;
+    try {
+      fingerprints = await requestIphoneBackupProgress(command);
+      fingerprintsStale = false;
+    } catch {
+      fingerprintsStale = true;
+    } finally {
+      fingerprintsBusy = false;
+    }
+  }
+
+  // 页面只轮询状态，不自动启动后续批次；离开页面时取消轮询。
+  onMount(() => {
+    void refreshFingerprints();
+    const timer = setInterval(() => void refreshFingerprints(), 6000);
+    return () => clearInterval(timer);
+  });
   let zoom = $state(0.75);
   let assetId = $state('');
   let asset = $state<AssetResponseDto>();
@@ -132,6 +166,7 @@
     }
     const request = quiet ? generation : ++generation;
     if (!quiet) {
+      fingerprintsSelected = false;
       asset = undefined;
       traceError = '';
     }
@@ -205,7 +240,9 @@
         <p class="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-300">{$t('pipeline.description')}</p>
       </div>
       <span class="rounded-full bg-immich-primary/10 px-3 py-1 text-sm text-immich-primary"
-        >{$t('pipeline.node_count', { values: { count: pipelineNodes.length } })}</span
+        >{$t('pipeline.node_count', {
+          values: { count: pipelineNodes.length + (!asset && fingerprints?.enabled ? 1 : 0) },
+        })}</span
       >
     </div>
     <form
@@ -248,6 +285,8 @@
       </div>
     {/if}
   </div>
+
+  {#if fingerprintsStale}<p class="px-4 text-sm text-red-600" role="alert">{$t('iphone_backup.stale')}</p>{/if}
 
   <div
     class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-immich-dark-bg"
@@ -298,7 +337,7 @@
               <path
                 d={edgePath(edge.from, edge.to)}
                 fill="none"
-                class={ancestors.has(edge.from) && ancestors.has(edge.to)
+                class={!fingerprintsSelected && ancestors.has(edge.from) && ancestors.has(edge.to)
                   ? 'text-immich-primary'
                   : 'text-gray-400 dark:text-gray-600'}
                 stroke="currentColor"
@@ -307,7 +346,40 @@
                 marker-end="url(#pipeline-arrow)"
               />
             {/each}
+            {#if !asset && fingerprints?.enabled}
+              <path
+                d="M 119 220 L 119 195"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-dasharray="5 5"
+                class="text-immich-primary"
+                marker-end="url(#pipeline-arrow)"
+              />
+            {/if}
           </svg>
+          {#if !asset && fingerprints?.enabled}
+            <button
+              type="button"
+              aria-pressed={fingerprintsSelected}
+              onclick={() => (fingerprintsSelected = true)}
+              class={`absolute flex flex-col gap-2 rounded-xl border-2 bg-white p-3 text-start shadow-sm dark:bg-immich-dark-gray ${fingerprintsSelected ? 'border-immich-primary' : 'border-gray-200 dark:border-gray-700'}`}
+              style={`left:24px;top:40px;width:${PIPELINE_NODE_WIDTH}px;height:${PIPELINE_NODE_HEIGHT}px`}
+            >
+              <span class="text-sm font-semibold">{$t('iphone_backup.title')}</span>
+              <span class={`w-fit rounded-full px-2 py-0.5 text-xs ${stateClass(fingerprints.state)}`}
+                >{$t(`iphone_backup.state.${fingerprints.state}`)}</span
+              >
+              <span class="text-xs tabular-nums"
+                >{fingerprints.ready.toLocaleString($locale)} / {fingerprints.total.toLocaleString($locale)}</span
+              >
+              <span class="text-xs text-gray-600 dark:text-gray-300"
+                >{$t('iphone_backup.pending', {
+                  values: { pending: fingerprints.pending.toLocaleString($locale) },
+                })}</span
+              >
+            </button>
+          {/if}
           {#each pipelineNodes as node (node.queue)}
             {@const queue = queues.find(({ name }) => name === node.queue)}
             {@const pipelineCount = pipelineCountFor(node.queue)}
@@ -315,9 +387,12 @@
             {@const state = stateFor(node)}
             <button
               type="button"
-              aria-pressed={selected === node.queue}
-              onclick={() => (selected = node.queue)}
-              class={`absolute flex flex-col gap-2 rounded-xl border-2 bg-white p-3 text-start shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-immich-primary dark:bg-immich-dark-gray ${selected === node.queue ? 'border-immich-primary' : 'border-gray-200 hover:border-gray-400 dark:border-gray-700'}`}
+              aria-pressed={!fingerprintsSelected && selected === node.queue}
+              onclick={() => {
+                selected = node.queue;
+                fingerprintsSelected = false;
+              }}
+              class={`absolute flex flex-col gap-2 rounded-xl border-2 bg-white p-3 text-start shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-immich-primary dark:bg-immich-dark-gray ${!fingerprintsSelected && selected === node.queue ? 'border-immich-primary' : 'border-gray-200 hover:border-gray-400 dark:border-gray-700'}`}
               style={`left:${node.x}px;top:${node.y}px;width:${PIPELINE_NODE_WIDTH}px;height:${PIPELINE_NODE_HEIGHT}px`}
             >
               <span class="flex items-center gap-2 text-sm font-semibold"
@@ -379,34 +454,43 @@
     </div>
   </div>
 
-  <div class="rounded-2xl border border-gray-200 p-5 dark:border-gray-700">
-    <h3 class="font-semibold">{asQueueItem($t, { name: selected }).title}</h3>
-    <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{$t(`pipeline.hint.${selected}`)}</p>
-    {#if asset}
-      <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
-        <span class={`rounded-full px-2 py-1 ${stateClass(stateFor(selectedNode))}`}
-          >{stateLabel(stateFor(selectedNode))}</span
-        >
-        {#if selectedTask}<span>{$t('pipeline.attempts', { values: { count: selectedTask.attempts } })}</span>{/if}
-        {#if retryAction}
-          <button
-            type="button"
-            disabled={busy ||
-              selectedTask?.status === 'running' ||
-              selectedTask?.status === 'queued' ||
-              isDisabled(selected) ||
-              (isInsv && selected === QueueName.MetadataExtraction)}
-            onclick={() => void retryAsset()}
-            class="rounded-lg border border-immich-primary px-3 py-1 text-immich-primary disabled:opacity-40"
-            >{$t('pipeline.retry_asset')}</button
+  {#if !asset && fingerprintsSelected && fingerprints?.enabled}
+    <IphoneBackupPanel
+      progress={fingerprints}
+      busy={fingerprintsBusy}
+      stale={fingerprintsStale}
+      oncommand={(command) => void refreshFingerprints(command)}
+    />
+  {:else}
+    <div class="rounded-2xl border border-gray-200 p-5 dark:border-gray-700">
+      <h3 class="font-semibold">{asQueueItem($t, { name: selected }).title}</h3>
+      <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{$t(`pipeline.hint.${selected}`)}</p>
+      {#if asset}
+        <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <span class={`rounded-full px-2 py-1 ${stateClass(stateFor(selectedNode))}`}
+            >{stateLabel(stateFor(selectedNode))}</span
           >
-        {/if}
-      </div>
-      {#if selectedTask?.errorMessage}<p class="mt-2 text-sm break-all text-red-600 dark:text-red-400">
-          {selectedTask.errorMessage}
-        </p>{/if}
-    {/if}
-    <p class="mt-4 text-xs font-medium text-gray-600 dark:text-gray-300">{$t('pipeline.global_controls')}</p>
-    <QueuePanel {queues} only={[selected]} />
-  </div>
+          {#if selectedTask}<span>{$t('pipeline.attempts', { values: { count: selectedTask.attempts } })}</span>{/if}
+          {#if retryAction}
+            <button
+              type="button"
+              disabled={busy ||
+                selectedTask?.status === 'running' ||
+                selectedTask?.status === 'queued' ||
+                isDisabled(selected) ||
+                (isInsv && selected === QueueName.MetadataExtraction)}
+              onclick={() => void retryAsset()}
+              class="rounded-lg border border-immich-primary px-3 py-1 text-immich-primary disabled:opacity-40"
+              >{$t('pipeline.retry_asset')}</button
+            >
+          {/if}
+        </div>
+        {#if selectedTask?.errorMessage}<p class="mt-2 text-sm break-all text-red-600 dark:text-red-400">
+            {selectedTask.errorMessage}
+          </p>{/if}
+      {/if}
+      <p class="mt-4 text-xs font-medium text-gray-600 dark:text-gray-300">{$t('pipeline.global_controls')}</p>
+      <QueuePanel {queues} only={[selected]} />
+    </div>
+  {/if}
 </section>

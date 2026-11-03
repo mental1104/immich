@@ -1257,6 +1257,35 @@
   "invalid_date_format": "無效的日期格式",
   "invite_people": "邀請成員",
   "invite_to_album": "邀請至相簿",
+  "iphone_backup": {
+    "batch": "本批完成 {completed} 張，已讀取 {mib} MiB",
+    "count": "已就緒 {ready} / {total}；剩餘 {pending}",
+    "description": "為既有照片準備內容指紋，手機同步後才能比對本機原片。虛線分支需手動啟動，不阻塞中繼資料和縮圖處理。",
+    "limits": "每批最多 1,000 張或讀取 8 GiB，完成後自動停止。暫停在目前檔案處理完後生效；遇錯停止，已完成結果在重新啟動後保留。",
+    "pause": "暫停",
+    "pending": "剩餘 {pending}",
+    "phone_check": "伺服器指紋就緒不代表手機已略過上傳或已使用本機原圖，仍需在手機同步後驗收。",
+    "reason": {
+      "budget": "達到讀取預算",
+      "complete": "本批結束",
+      "limit": "達到批次數量上限",
+      "paused": "已在檔案之間暫停"
+    },
+    "retry": "重試失敗批次",
+    "stale": "重新整理或操作失敗，目前進度可能已過期；連線恢復後請重試。",
+    "start": "處理下一批",
+    "state": {
+      "completed": "已就緒",
+      "disabled": "未設定",
+      "failed": "失敗",
+      "idle": "等待下一批",
+      "paused": "已暫停",
+      "queued": "排隊中",
+      "running": "處理中"
+    },
+    "title": "歷史照片比對",
+    "uploads_paused": "手機上傳仍暫停。請在比對準備和手機小樣本驗收完成前，保持自動備份關閉。"
+  },
   "iso": "ISO",
   "items_count": "{count, plural, one {# 個項目} other {# 個項目}}",
   "jobs": "任務",

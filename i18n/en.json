@@ -1300,6 +1300,35 @@
   "invalid_date_format": "Invalid date format",
   "invite_people": "Invite People",
   "invite_to_album": "Invite to album",
+  "iphone_backup": {
+    "batch": "This batch: {completed} assets, {mib} MiB read",
+    "count": "Ready {ready} / {total}; remaining {pending}",
+    "description": "Prepare content fingerprints for existing photos so the phone can match local originals after synchronization. The dashed branch is started manually and does not block metadata or thumbnails.",
+    "limits": "Each batch processes up to 1,000 assets or 8 GiB, then stops. Pause takes effect after the current file. Failures stop the batch; completed results survive restarts.",
+    "pause": "Pause",
+    "pending": "Remaining {pending}",
+    "phone_check": "Server fingerprints alone do not prove the phone skipped uploading or opened a local original. Verify these on the phone after synchronization.",
+    "reason": {
+      "budget": "Read budget reached",
+      "complete": "Batch finished",
+      "limit": "Batch limit reached",
+      "paused": "Paused after current file"
+    },
+    "retry": "Retry failed batch",
+    "stale": "Unable to refresh or apply the command. Displayed progress may be out of date; retry after the connection recovers.",
+    "start": "Process next batch",
+    "state": {
+      "completed": "Prepared",
+      "disabled": "Not configured",
+      "failed": "Failed",
+      "idle": "Waiting for next batch",
+      "paused": "Paused",
+      "queued": "Queued",
+      "running": "Running"
+    },
+    "title": "Historical photo matching",
+    "uploads_paused": "Phone uploads are paused. Keep automatic backup off until preparation and a small phone test are complete."
+  },
   "iso": "ISO",
   "items_count": "{count, plural, one {# item} other {# items}}",
   "jobs": "Jobs",
