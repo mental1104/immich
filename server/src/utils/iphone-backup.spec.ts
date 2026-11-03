@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
 import {
+  getIphoneBackupConcurrency,
   getIphoneBackupConfig,
   getIphoneBackupPath,
   isIphoneBackupFingerprintingEnabled,
@@ -27,6 +28,17 @@ describe('iPhone backup paths', () => {
   it('does not enable backup unless a library is explicitly configured', () => {
     vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_LIBRARY_ID', '');
     expect(getIphoneBackupConfig()).toBeUndefined();
+  });
+
+  it('bounds fingerprint concurrency to one or two files', () => {
+    vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', undefined);
+    expect(getIphoneBackupConcurrency()).toBe(1);
+    vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    expect(getIphoneBackupConcurrency()).toBe(2);
+    for (const value of ['0', '3', '100', 'invalid']) {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', value);
+      expect(() => getIphoneBackupConcurrency()).toThrow('Invalid iPhone fingerprint concurrency');
+    }
   });
 
   it('allows fingerprint scans to stay paused during sample preparation', () => {

@@ -120,6 +120,28 @@ describe('iPhone fingerprint progress', () => {
       .toBe(state);
   }
 
+  /** @param count 为暂停边界测试追加的合成文件数量。 @returns 仅向本例独立库添加文件与资产。 */
+  async function addSamples(count: number) {
+    const library = await db
+      .selectFrom('library')
+      .select('ownerId')
+      .where('id', '=', libraryId)
+      .executeTakeFirstOrThrow();
+    const { ctx } = newMediumService(LibraryService, { database: db, real: [], mock: [LoggingRepository] });
+    for (let index = 0; index < count; index++) {
+      const originalPath = join(root, `extra-${index}.jpg`);
+      await writeFile(originalPath, `synthetic-extra-${index}`);
+      await ctx.newAsset({
+        ownerId: library.ownerId,
+        libraryId,
+        originalPath,
+        originalFileName: `extra-${index}.jpg`,
+        isExternal: true,
+        checksum: createHash('sha1').update(originalPath).digest(),
+      });
+    }
+  }
+
   it('reports only the configured library and never starts work while reading status', async () => {
     expect(await api.getProgress()).toMatchObject({
       total: 2,
@@ -361,5 +383,111 @@ describe('iPhone fingerprint progress', () => {
     } finally {
       await other.onShutdown();
     }
+  });
+
+  it('processes two distinct files concurrently while preserving their original fingerprints', async () => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    const prepare = repository.prepare.bind(repository);
+    let admitted = 0;
+    let inFlight = 0;
+    let peak = 0;
+    const { promise: barrier, resolve: release } = Promise.withResolvers<void>();
+    vi.spyOn(repository, 'prepare').mockImplementation(async (id, row, size) => {
+      admitted++;
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      if (admitted === 2) release();
+      await barrier;
+      try {
+        return await prepare(id, row, size);
+      } finally {
+        inFlight--;
+      }
+    });
+    await api.command({ command: 'start', limit: 2 });
+    await startWorker();
+    await waitFor('completed');
+    expect(peak).toBe(2);
+    expect(await api.getProgress()).toMatchObject({ ready: 2, batch: { completed: 2, bytes: 31 } });
+    const rows = await db
+      .selectFrom('asset')
+      .select(['originalPath', 'contentChecksum'])
+      .where('libraryId', '=', libraryId)
+      .execute();
+    for (const row of rows) {
+      expect(row.contentChecksum).toEqual(
+        createHash('sha1')
+          .update(await readFile(row.originalPath))
+          .digest(),
+      );
+    }
+  });
+
+  it('reserves the combined byte budget before starting two file reads', async () => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    const prepare = repository.prepare.bind(repository);
+    vi.spyOn(repository, 'size').mockResolvedValue(5 * 1024 ** 3);
+    vi.spyOn(repository, 'prepare').mockImplementation(async (id, row) => {
+      const content = await readFile(row.originalPath);
+      await prepare(id, row, content.length);
+      return 5 * 1024 ** 3;
+    });
+    await api.command({ command: 'start', limit: 2 });
+    await startWorker();
+    await waitFor('idle');
+    expect(repository.prepare).toHaveBeenCalledTimes(1);
+    expect(await api.getProgress()).toMatchObject({
+      ready: 1,
+      pending: 1,
+      batch: { completed: 1, bytes: 5 * 1024 ** 3, reason: 'budget' },
+    });
+  });
+
+  it('finishes only the in-flight pair when paused and preserves the remaining files', async () => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    await addSamples(2);
+    const prepare = repository.prepare.bind(repository);
+    vi.spyOn(repository, 'prepare').mockImplementationOnce(async (id, row, size) => {
+      const bytes = await prepare(id, row, size);
+      await api.command({ command: 'pause', limit: 4 });
+      return bytes;
+    });
+    await api.command({ command: 'start', limit: 4 });
+    await startWorker();
+    await waitFor('paused');
+    expect(repository.prepare).toHaveBeenCalledTimes(2);
+    expect(await api.getProgress()).toMatchObject({ ready: 2, pending: 2, batch: { completed: 2, reason: 'paused' } });
+    await api.command({ command: 'resume', limit: 4 });
+    await waitFor('completed');
+    expect(await repository.counts(libraryId)).toEqual({ total: 4, ready: 4, pending: 0 });
+  });
+
+  it('records a failed file while retaining the other in-flight success for explicit retry', async () => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    const [failed] = await repository.candidates(libraryId, 2);
+    const prepare = vi.spyOn(repository, 'prepare').mockRejectedValueOnce(new Error('synthetic parallel failure'));
+    await api.command({ command: 'start', limit: 2 });
+    await startWorker();
+    await waitFor('failed');
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(await api.getProgress()).toMatchObject({
+      ready: 1,
+      pending: 1,
+      batch: { completed: 1, currentAssetId: failed.id, errorCode: 'PREPARATION_FAILED' },
+    });
+    await api.command({ command: 'retry', limit: 2 });
+    await waitFor('completed');
+    expect(await repository.counts(libraryId)).toEqual({ total: 2, ready: 2, pending: 0 });
+    expect(prepare).toHaveBeenCalledTimes(3);
+  });
+
+  it('respects a one-file batch limit even when two-file concurrency is configured', async () => {
+    vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY', '2');
+    const prepare = vi.spyOn(repository, 'prepare');
+    await api.command({ command: 'start', limit: 1 });
+    await startWorker();
+    await waitFor('idle');
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(await api.getProgress()).toMatchObject({ ready: 1, pending: 1, batch: { completed: 1, reason: 'limit' } });
   });
 });

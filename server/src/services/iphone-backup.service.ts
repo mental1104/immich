@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
 import { Job, Queue, Worker } from 'bullmq';
+import { performance } from 'node:perf_hooks';
 import { IWorker } from 'src/constants.js';
 import { OnEvent } from 'src/decorators.js';
 import { IphoneBackupBatchProgress, IphoneBackupCommandDto, IphoneBackupProgress } from 'src/dtos/iphone-backup.dto.js';
@@ -8,7 +9,7 @@ import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { IphoneBackupRepository } from 'src/repositories/iphone-backup.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
-import { getIphoneBackupConfig } from 'src/utils/iphone-backup.js';
+import { getIphoneBackupConcurrency, getIphoneBackupConfig } from 'src/utils/iphone-backup.js';
 
 const QUEUE_NAME = 'fork-iphone-fingerprints';
 const MAX_BATCH_BYTES = 8 * 1024 ** 3;
@@ -55,6 +56,8 @@ export class IphoneBackupService {
     if (!getIphoneBackupConfig()) {
       return;
     }
+    // 在启动消费者前拒绝非法并发配置；单个队列任务仍保持全局串行。
+    getIphoneBackupConcurrency();
     const options = this.config.getEnv().bull.config;
     this.queue = new Queue(QUEUE_NAME, {
       ...options,
@@ -253,11 +256,12 @@ export class IphoneBackupService {
   }
 
   /**
-   * 串行执行有界批次；暂停在文件之间生效，任何文件失败均停止且不隐式跳过。
+   * 用最多两个文件组成的波次执行有界批次；暂停在波次之间生效，失败不隐式跳过。
    * @param job BullMQ 固定 ID 的持久化任务。
    * @returns 本次实际完成数、读取字节及停止原因；失败只向 Redis 记录安全错误码。
    */
   async runBatch(job: Job<FingerprintBatch, IphoneBackupBatchProgress>): Promise<IphoneBackupBatchProgress> {
+    const started = performance.now();
     const progress: IphoneBackupBatchProgress = { completed: 0, bytes: 0 };
     try {
       const backup = getIphoneBackupConfig();
@@ -271,30 +275,63 @@ export class IphoneBackupService {
         throw new Error('INVALID_BATCH');
       }
       const rows = await this.repository.candidates(backup.libraryId, job.data.limit);
-      for (const row of rows) {
+      const concurrency = getIphoneBackupConcurrency();
+      for (let offset = 0; offset < rows.length; offset += concurrency) {
         if (this.stopping || (await this.queue!.isPaused())) {
           progress.reason = 'paused';
           break;
         }
-        progress.currentAssetId = row.id;
-        await job.updateProgress({ ...progress });
-        const size = await this.repository.size(row);
-        if (size > MAX_BATCH_BYTES) {
-          throw new Error('FILE_TOO_LARGE');
+        // 在开始本波次前为每个文件预留字节预算，两个在途文件的总量也不能超过 8 GiB。
+        const wave = [];
+        let reservedBytes = progress.bytes;
+        for (const row of rows.slice(offset, offset + concurrency)) {
+          progress.currentAssetId = row.id;
+          const size = await this.repository.size(row);
+          if (size > MAX_BATCH_BYTES) {
+            throw new Error('FILE_TOO_LARGE');
+          }
+          if (reservedBytes + size > MAX_BATCH_BYTES) {
+            progress.reason = 'budget';
+            break;
+          }
+          reservedBytes += size;
+          wave.push({ row, size });
         }
-        if (progress.bytes + size > MAX_BATCH_BYTES) {
-          progress.reason = 'budget';
+        if (wave.length === 0) {
           break;
         }
-        progress.bytes += await this.repository.prepare(backup.libraryId, row, size);
-        progress.completed++;
+        progress.currentAssetId = wave[0].row.id;
+        await job.updateProgress({ ...progress });
+        const outcomes = await Promise.allSettled(
+          wave.map(({ row, size }) => this.repository.prepare(backup.libraryId, row, size)),
+        );
+        let failure: { assetId: string; error: unknown } | undefined;
+        // 等所有在途文件结束再记账：一项失败时保留另一项的成功结果和真实字节数。
+        for (const [index, outcome] of outcomes.entries()) {
+          if (outcome.status === 'fulfilled') {
+            progress.bytes += outcome.value;
+            progress.completed++;
+          } else {
+            failure ??= { assetId: wave[index].row.id, error: outcome.reason };
+          }
+        }
+        if (failure) {
+          delete progress.reason;
+          progress.currentAssetId = failure.assetId;
+          throw failure.error;
+        }
         delete progress.currentAssetId;
         await job.updateProgress({ ...progress });
+        if (progress.reason === 'budget') {
+          break;
+        }
       }
       progress.reason ??= rows.length < job.data.limit ? 'complete' : 'limit';
       delete progress.currentAssetId;
       await job.updateProgress({ ...progress });
-      this.logger.log(`IphoneBackupBatch ${JSON.stringify(progress)}`);
+      this.logger.log(
+        `IphoneBackupBatch ${JSON.stringify({ ...progress, concurrency, elapsedMs: Math.round(performance.now() - started) })}`,
+      );
       return progress;
     } catch (error) {
       // 原始 fs/数据库异常可能含私人路径或 SQL；持久化和日志只接受白名单错误码。
@@ -317,7 +354,9 @@ export class IphoneBackupService {
         ? code
         : 'PREPARATION_FAILED';
       await job.updateProgress({ ...progress });
-      this.logger.error(`IphoneBackupBatch ${JSON.stringify(progress)}`);
+      this.logger.error(
+        `IphoneBackupBatch ${JSON.stringify({ ...progress, elapsedMs: Math.round(performance.now() - started) })}`,
+      );
       // 底层异常包含原片路径时禁止附加 cause，防止 BullMQ 持久化私人信息。
       // eslint-disable-next-line preserve-caught-error
       throw new Error(progress.errorCode);

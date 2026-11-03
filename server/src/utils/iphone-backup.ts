@@ -78,6 +78,15 @@ export function isIphoneBackupFingerprintingEnabled(libraryId: string): boolean 
   );
 }
 
+/** @returns 指纹补算同时处理的文件数，默认 1、最多 2；非法配置直接失败，避免无界磁盘并发。 */
+export function getIphoneBackupConcurrency(): 1 | 2 {
+  const value = process.env.IMMICH_FORK_IPHONE_BACKUP_CONCURRENCY ?? '1';
+  if (value === '1' || value === '2') {
+    return value === '2' ? 2 : 1;
+  }
+  throw new Error('Invalid iPhone fingerprint concurrency');
+}
+
 /**
  * 判断候选路径是否严格位于指定目录内，避免相同前缀和父目录跳转造成越界。
  * @param root 已规范化的根目录。
