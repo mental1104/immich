@@ -1306,7 +1306,7 @@
     "continuous": "Continuous preparation is enabled. Batches advance automatically until ready, paused, or failed.",
     "count": "Ready {ready} / {total}; remaining {pending}",
     "description": "Prepare content fingerprints for existing photos so the phone can match local originals after synchronization. The dashed branch is started manually and does not block metadata or thumbnails.",
-    "limits": "Each batch processes up to 1,000 assets or 8 GiB. Continuous mode starts the next batch after a 5 second interval. Pause takes effect after the current file; failures require explicit retry. Completed results survive restarts.",
+    "limits": "Each batch processes up to 5,000 assets or 8 GiB. Continuous mode starts the next batch immediately after completion. Pause takes effect after in-flight files finish; failures require explicit retry. Progress updates throughout the batch and survives restarts.",
     "pause": "Pause",
     "pending": "Remaining {pending}",
     "phone_check": "Server fingerprints alone do not prove the phone skipped uploading or opened a local original. Verify these on the phone after synchronization.",

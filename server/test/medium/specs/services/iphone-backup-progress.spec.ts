@@ -286,40 +286,54 @@ describe('iPhone fingerprint progress', () => {
   });
 
   it('validates bounded commands without accepting library routing from the request', () => {
-    for (const limit of [0, 1001, 1.5]) {
+    for (const limit of [0, 5001, 1.5]) {
       expect(IphoneBackupCommandDto.schema.safeParse({ command: 'start', limit }).success).toBe(false);
     }
     expect(IphoneBackupCommandDto.schema.parse({ command: 'start', libraryId: randomUUID() })).toEqual({
       command: 'start',
-      limit: 1000,
+      limit: 5000,
     });
   });
 
-  it('automatically continues bounded batches after cooldown and stops when the library is ready', async () => {
+  it('immediately continues completed batches without waiting for the reconciliation timer', async () => {
     await api.command({ command: 'continue', limit: 1 });
     expect(await api.getProgress()).toMatchObject({ continuous: true, state: 'queued' });
     await startWorker();
-    await expect
-      .poll(async () => {
-        const counts = await repository.counts(libraryId);
-        return counts.ready;
-      })
-      .toBe(1);
-    await worker!.continuePreparation();
-    expect(await repository.counts(libraryId)).toMatchObject({ ready: 1, pending: 1 });
-    // 使用真实定时器和 Redis finishedOn 检验自动接续，不由测试提交第二批任务。
+    // 使用真实队列验证两批在五秒巡检之前结束，不由测试提交第二批任务。
     await expect
       .poll(
         async () => {
           const progress = await api.getProgress();
           return progress.state;
         },
-        { timeout: 15_000 },
+        { timeout: 3000 },
       )
       .toBe('completed');
     await worker!.continuePreparation();
     expect(await api.getProgress()).toMatchObject({ ready: 2, pending: 0, continuous: false });
-  }, 20_000);
+  });
+
+  it('accepts and executes a 5000-file batch through the persistent queue', async () => {
+    await addSamples(1000);
+    await api.command({ command: 'start', limit: 5000 });
+    const job = await queue.getJob(libraryId);
+    expect(job!.data.limit).toBe(5000);
+    await startWorker();
+    await expect
+      .poll(
+        async () => {
+          const progress = await api.getProgress();
+          return progress.state;
+        },
+        { timeout: 20_000 },
+      )
+      .toBe('completed');
+    expect(await api.getProgress()).toMatchObject({
+      ready: 1002,
+      pending: 0,
+      batch: { completed: 1002, reason: 'complete' },
+    });
+  }, 30_000);
 
   it('preserves continuous intent and pause across API and worker restarts', async () => {
     const prepare = repository.prepare.bind(repository);
@@ -432,7 +446,7 @@ describe('iPhone fingerprint progress', () => {
       await prepare(id, row, content.length);
       return 5 * 1024 ** 3;
     });
-    await api.command({ command: 'start', limit: 2 });
+    await api.command({ command: 'start', limit: 5000 });
     await startWorker();
     await waitFor('idle');
     expect(repository.prepare).toHaveBeenCalledTimes(1);

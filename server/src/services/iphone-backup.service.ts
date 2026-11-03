@@ -3,7 +3,12 @@ import { Job, Queue, Worker } from 'bullmq';
 import { performance } from 'node:perf_hooks';
 import { IWorker } from 'src/constants.js';
 import { OnEvent } from 'src/decorators.js';
-import { IphoneBackupBatchProgress, IphoneBackupCommandDto, IphoneBackupProgress } from 'src/dtos/iphone-backup.dto.js';
+import {
+  IPHONE_BACKUP_BATCH_LIMIT,
+  IphoneBackupBatchProgress,
+  IphoneBackupCommandDto,
+  IphoneBackupProgress,
+} from 'src/dtos/iphone-backup.dto.js';
 import { DatabaseLock, ImmichWorker } from 'src/enum.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { DatabaseRepository } from 'src/repositories/database.repository.js';
@@ -13,7 +18,7 @@ import { getIphoneBackupConcurrency, getIphoneBackupConfig } from 'src/utils/iph
 
 const QUEUE_NAME = 'fork-iphone-fingerprints';
 const MAX_BATCH_BYTES = 8 * 1024 ** 3;
-const CONTINUATION_INTERVAL_MS = 5000;
+const RECONCILIATION_INTERVAL_MS = 5000;
 
 /** 单个有限批次；是否接续由独立控制记录决定，libraryId 同时作为跨进程去重键。 */
 interface FingerprintBatch {
@@ -32,6 +37,7 @@ export class IphoneBackupService {
   private stopping = false;
   private continuationTimer?: ReturnType<typeof setInterval>;
   private continuationTask?: Promise<void>;
+  private continuationRequested = false;
 
   /**
    * @param role 当前进程角色，仅 microservices 消费任务。
@@ -75,18 +81,30 @@ export class IphoneBackupService {
       maxStalledCount: 1,
     });
     this.processor.on('error', () => this.logger.error('Fingerprint worker connection failed'));
-    // Redis 保存持续模式的意图；定时协调使重启、完成事件丢失后仍能接续。
-    this.continuationTimer = setInterval(() => {
-      if (this.stopping || this.continuationTask) {
-        return;
-      }
-      this.continuationTask = this.continuePreparation()
-        .catch(() => this.logger.error('Fingerprint continuation failed'))
-        .finally(() => {
-          this.continuationTask = undefined;
-        });
-    }, CONTINUATION_INTERVAL_MS);
+    // 正常完成后立即协调下一批；定时器只负责丢事件和重启恢复，不再强制批间冷却。
+    this.processor.on('completed', () => this.requestContinuation());
+    this.continuationTimer = setInterval(() => this.requestContinuation(), RECONCILIATION_INTERVAL_MS);
     await this.continuePreparation();
+  }
+
+  /** 合并重叠的完成和巡检请求；保留已有协调过程中到达的完成信号，不丢失即时接续。 */
+  private requestContinuation(): void {
+    if (this.stopping) {
+      return;
+    }
+    this.continuationRequested = true;
+    if (this.continuationTask) {
+      return;
+    }
+    this.continuationRequested = false;
+    this.continuationTask = this.continuePreparation()
+      .catch(() => this.logger.error('Fingerprint continuation failed'))
+      .finally(() => {
+        this.continuationTask = undefined;
+        if (this.continuationRequested && !this.stopping) {
+          this.requestContinuation();
+        }
+      });
   }
 
   /** 关闭时完成当前文件后退出，保留 Redis 和数据库结果供后续恢复。 */
@@ -148,7 +166,7 @@ export class IphoneBackupService {
 
   /**
    * 执行管理员命令；重试仅针对保留的失败批次，已完成项由数据库自动跳过。
-   * @param dto 命令与 1..1000 的批次上限；continue 持久启用接续，start 仅处理单批。
+   * @param dto 命令与 1..5000 的批次上限；continue 持久启用接续，start 仅处理单批。
    * @returns 命令后的实时状态；并发重复启动复用固定 jobId，不清空其他队列。
    */
   async command(dto: IphoneBackupCommandDto): Promise<IphoneBackupProgress> {
@@ -205,10 +223,6 @@ export class IphoneBackupService {
       if (job && (await job.getState()) !== 'completed') {
         return;
       }
-      // finishedOn 保存在 Redis，跨重启也保留至少五秒的批间休息，避免完成后紧接磁盘读取。
-      if (job?.finishedOn && Date.now() - job.finishedOn < CONTINUATION_INTERVAL_MS) {
-        return;
-      }
       const counts = await this.repository.counts(backup.libraryId);
       if (counts.pending === 0) {
         await this.writeContinuation(backup.libraryId, false, control.limit);
@@ -222,8 +236,8 @@ export class IphoneBackupService {
   private async readContinuation(libraryId: string) {
     const client = await this.queue!.client;
     const [enabled, rawLimit] = await client.hmget(this.queue!.toKey(`continuation-${libraryId}`), 'enabled', 'limit');
-    const limit = Number(rawLimit ?? 1000);
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+    const limit = Number(rawLimit ?? IPHONE_BACKUP_BATCH_LIMIT);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > IPHONE_BACKUP_BATCH_LIMIT) {
       throw new BadRequestException('Invalid fingerprint continuation limit');
     }
     return { enabled: enabled === 'true', limit };
@@ -270,7 +284,7 @@ export class IphoneBackupService {
         backup.libraryId !== job.data.libraryId ||
         !Number.isSafeInteger(job.data.limit) ||
         job.data.limit < 1 ||
-        job.data.limit > 1000
+        job.data.limit > IPHONE_BACKUP_BATCH_LIMIT
       ) {
         throw new Error('INVALID_BATCH');
       }

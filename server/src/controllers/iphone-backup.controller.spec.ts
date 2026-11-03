@@ -46,7 +46,7 @@ describe(IphoneBackupController.name, () => {
   it('rejects unbounded commands before submitting a job', async () => {
     const response = await request(ctx.getHttpServer())
       .put('/admin/fork/iphone-backup')
-      .send({ command: 'start', limit: 1001 });
+      .send({ command: 'start', limit: 5001 });
     expect(response.status).toBe(400);
     expect(service.command).not.toHaveBeenCalled();
   });
