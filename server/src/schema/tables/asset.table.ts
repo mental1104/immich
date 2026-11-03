@@ -1,6 +1,7 @@
 import {
   AfterDeleteTrigger,
   AfterUpdateTrigger,
+  BeforeUpdateTrigger,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
@@ -10,11 +11,16 @@ import {
   PrimaryGeneratedColumn,
   Table,
   type Timestamp,
+  TriggerFunction,
   UpdateDateColumn,
 } from '@immich/sql-tools';
 import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
 import { AssetStatus, AssetType, AssetVisibility, ChecksumAlgorithm } from 'src/enum.js';
 import { asset_checksum_algorithm_enum, asset_visibility_enum, assets_status_enum } from 'src/schema/enums.js';
+import {
+  fork_iphone_client_checksum,
+  fork_iphone_promote_checksum,
+} from 'src/schema/functions/fork-iphone-checksum.js';
 import { asset_delete_audit, asset_face_update_asset_state } from 'src/schema/functions.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
 import { StackTable } from 'src/schema/tables/stack.table.js';
@@ -23,6 +29,25 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
 
 @Table('asset')
 @UpdatedAtTrigger('asset_updatedAt')
+@TriggerFunction({
+  name: 'asset_fork_iphone_checksum_insert',
+  timing: 'before',
+  actions: ['insert'],
+  scope: 'row',
+  function: fork_iphone_client_checksum,
+})
+@BeforeUpdateTrigger({
+  name: 'asset_fork_iphone_checksum_update',
+  scope: 'row',
+  function: fork_iphone_client_checksum,
+  when: '(OLD."contentChecksum", OLD."clientChecksum", OLD."isOffline", OLD."deletedAt", OLD."ownerId", OLD."libraryId", OLD."checksum") IS DISTINCT FROM (NEW."contentChecksum", NEW."clientChecksum", NEW."isOffline", NEW."deletedAt", NEW."ownerId", NEW."libraryId", NEW."checksum")',
+})
+@AfterUpdateTrigger({
+  name: 'asset_fork_iphone_checksum_promote',
+  scope: 'row',
+  function: fork_iphone_promote_checksum,
+})
+@AfterDeleteTrigger({ name: 'asset_fork_iphone_checksum_delete', scope: 'row', function: fork_iphone_promote_checksum })
 @AfterDeleteTrigger({
   scope: 'statement',
   function: asset_delete_audit,
@@ -60,6 +85,12 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
   columns: ['ownerId', 'contentChecksum'],
   where: '"contentChecksum" IS NOT NULL',
 })
+@Index({
+  name: 'fork_asset_client_checksum_idx',
+  columns: ['ownerId', 'libraryId', 'clientChecksum'],
+  unique: true,
+  where: '"clientChecksum" IS NOT NULL',
+})
 @Index({ columns: ['id', 'stackId'] })
 @Index({
   name: 'asset_originalFilename_trigram_idx',
@@ -71,7 +102,7 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
   columns: ['id'],
   where: `visibility = 'timeline' AND "deletedAt" IS NULL`,
 })
-/** 资产持久化模型；外部库路径身份与可空内容指纹分开维护，允许不同路径保留相同内容。 */
+/** 资产持久化模型；独立保存路径身份、原始内容指纹及唯一客户端指纹，保留同内容副本的全部资产。 */
 export class AssetTable {
   @PrimaryGeneratedColumn()
   id!: Generated<string>;
@@ -103,6 +134,10 @@ export class AssetTable {
   /** 外部文件的内容 SHA-1；路径 checksum 仍用于保留同内容不同路径的独立资产身份。 */
   @Column({ type: 'bytea', nullable: true })
   contentChecksum!: Buffer | null;
+
+  /** 同库同内容仅一份在线资产持有客户端匹配指纹；其他副本使用原路径 checksum。 */
+  @Column({ type: 'bytea', nullable: true })
+  clientChecksum!: Buffer | null;
 
   @Column({ enum: asset_checksum_algorithm_enum })
   checksumAlgorithm!: ChecksumAlgorithm;

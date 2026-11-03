@@ -142,8 +142,10 @@ export type MapAsset = {
   updateId: string;
   status: AssetStatus;
   checksum: Buffer<ArrayBufferLike>;
-  /** 可选外部文件内容指纹；旧查询缺少该字段时保留原来的路径 checksum。 */
+  /** 原始内容指纹只用于服务端判重，不直接作为所有副本的下发值。 */
   contentChecksum?: Buffer<ArrayBufferLike> | null;
+  /** 已持久分配且在同用户、同外部库中唯一的匹配指纹；缺失时保持原有 checksum。 */
+  clientChecksum: Buffer<ArrayBufferLike> | null;
   checksumAlgorithm: ChecksumAlgorithm;
   duplicateId: string | null;
   duration: number | null;
@@ -215,6 +217,12 @@ const mapStack = (entity: {
   };
 };
 
+/**
+ * 映射资产详情、列表及推送，使用与同步流一致的唯一客户端指纹。
+ * @param entity 数据库资产及可选关系；原始 contentChecksum 不直接对外下发。
+ * @param options 鉴权及元数据裁剪选项，不修改资产。
+ * @returns 原有 API 结构；同内容副本仍保留各自 ID 和路径标识。
+ */
 export function mapAsset(entity: MaybeDehydrated<MapAsset>, options: AssetMapOptions = {}): AssetResponseDto {
   const { stripMetadata = false, withStack = false } = options;
 
@@ -258,7 +266,7 @@ export function mapAsset(entity: MaybeDehydrated<MapAsset>, options: AssetMapOpt
     livePhotoVideoId: entity.livePhotoVideoId,
     tags: entity.tags?.map((tag) => mapTag(tag)),
     people: peopleFromFaces(entity.faces),
-    checksum: hexOrBufferToBase64((!entity.isOffline && entity.contentChecksum) || entity.checksum)!,
+    checksum: hexOrBufferToBase64((!entity.isOffline && entity.clientChecksum) || entity.checksum)!,
     stack: withStack ? mapStack(entity) : undefined,
     isOffline: entity.isOffline,
     hasMetadata: true,

@@ -677,7 +677,7 @@ export class AssetRepository {
    * 为上传预检读取当前用户的内容匹配；外部库只参与显式启用的目标库。
    * @param userId 当前已鉴权用户 UUID，匹配不跨用户。
    * @param checksums 文件内容 SHA-1 列表，不修改调用者输入。
-   * @returns 普通上传及在线目标外部库的匹配记录，checksum 统一为内容指纹。
+   * @returns 内容匹配记录；同内容的客户端代表排在最后，供预检映射优先复用。
    */
   getByChecksums(userId: string, checksums: Buffer[]) {
     const backup = getIphoneBackupConfig();
@@ -707,6 +707,7 @@ export class AssetRepository {
             : []),
         ]),
       )
+      .orderBy(sql`"clientChecksum" IS NOT NULL`, 'asc')
       .execute();
   }
 
@@ -715,7 +716,7 @@ export class AssetRepository {
    * 读取当前用户可复用的上传资产或目标外部库资产；不返回离线、已删除外部资产。
    * @param ownerId 当前用户 UUID。
    * @param checksum 待上传文件的内容 SHA-1。
-   * @returns 已有资产 UUID；没有匹配时返回 undefined。
+   * @returns 优先已有上传、再选客户端代表的资产 UUID；没有匹配时返回 undefined。
    */
   async getUploadAssetIdByChecksum(ownerId: string, checksum: Buffer): Promise<string | undefined> {
     const backup = getIphoneBackupConfig();
@@ -745,6 +746,8 @@ export class AssetRepository {
             : []),
         ]),
       )
+      .orderBy(sql`"libraryId" IS NOT NULL`, 'asc')
+      .orderBy(sql`"clientChecksum" IS NOT NULL`, 'desc')
       .limit(1)
       .executeTakeFirst();
 

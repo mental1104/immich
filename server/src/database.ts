@@ -325,6 +325,7 @@ export const columns = {
     'asset.checksum',
     'asset.checksumAlgorithm',
     'asset.contentChecksum',
+    'asset.clientChecksum',
     'asset.duplicateId',
     'asset.duration',
     'asset.fileCreatedAt',
@@ -427,8 +428,8 @@ export const columns = {
     'asset.ownerId',
     'asset.originalFileName',
     'asset.thumbhash',
-    // 内容指纹只用于客户端匹配；离线文件不能作为已完成备份下发。
-    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."contentChecksum", "asset"."checksum") end`.as(
+    // 只下发持久分配的代表指纹，防止同库副本违反官方客户端的唯一约束。
+    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."clientChecksum", "asset"."checksum") end`.as(
       'checksum',
     ),
     'asset.fileCreatedAt',
@@ -452,7 +453,7 @@ export const columns = {
     'asset.ownerId',
     'asset.originalFileName',
     'asset.thumbhash',
-    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."contentChecksum", "asset"."checksum") end`.as(
+    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."clientChecksum", "asset"."checksum") end`.as(
       'checksum',
     ),
     'asset.fileCreatedAt',
@@ -475,7 +476,7 @@ export const columns = {
     'asset.ownerId',
     'asset.originalFileName',
     'asset.thumbhash',
-    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."contentChecksum", "asset"."checksum") end`.as(
+    sql<Buffer>`case when "asset"."isOffline" then "asset"."checksum" else coalesce("asset"."clientChecksum", "asset"."checksum") end`.as(
       'checksum',
     ),
     'asset.fileCreatedAt',

@@ -21,7 +21,7 @@ import {
 import { UserFactory } from 'test/factories/user.factory.js';
 import { newSha1, newUuid, newUuidV7 } from 'test/small.factory.js';
 
-/** 构造完整资产测试数据，包含默认未计算的外部文件内容指纹。 */
+/** 构造完整资产测试数据，内容指纹及唯一客户端匹配指纹默认均未分配。 */
 export class AssetFactory {
   #owner!: UserFactory;
   #assetExif?: AssetExifFactory;
@@ -60,6 +60,7 @@ export class AssetFactory {
       status: AssetStatus.Active,
       checksum: newSha1(),
       contentChecksum: null,
+      clientChecksum: null,
       checksumAlgorithm: ChecksumAlgorithm.sha1File,
       duplicateId: null,
       duration: null,

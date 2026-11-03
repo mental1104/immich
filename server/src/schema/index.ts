@@ -7,6 +7,10 @@ import {
   person_user_role_enum,
 } from 'src/schema/enums.js';
 import {
+  fork_iphone_client_checksum,
+  fork_iphone_promote_checksum,
+} from 'src/schema/functions/fork-iphone-checksum.js';
+import {
   album_user_after_insert,
   album_user_delete,
   album_user_delete_audit,
@@ -31,8 +35,8 @@ import {
 import { ActivityTable } from 'src/schema/tables/activity.table.js';
 import { AlbumAssetAuditTable } from 'src/schema/tables/album-asset-audit.table.js';
 import { AlbumAssetTable } from 'src/schema/tables/album-asset.table.js';
-import { AlbumTagTable } from 'src/schema/tables/album-tag.table.js';
 import { AlbumAuditTable } from 'src/schema/tables/album-audit.table.js';
+import { AlbumTagTable } from 'src/schema/tables/album-tag.table.js';
 import { AlbumUserAuditTable } from 'src/schema/tables/album-user-audit.table.js';
 import { AlbumUserTable } from 'src/schema/tables/album-user.table.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
@@ -175,6 +179,8 @@ export class ImmichDatabase {
   ];
 
   functions = [
+    fork_iphone_client_checksum,
+    fork_iphone_promote_checksum,
     immich_uuid_v7,
     updated_at,
     f_concat_ws,
