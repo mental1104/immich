@@ -3,10 +3,11 @@
 ## 分支与历史
 
 - `upstream` 指向 `https://github.com/immich-app/immich.git`，`origin` 指向个人 Fork。
-- `nas-dev-x5-jpg` 承载自定义开发；`main` 仅接收验证后的稳定代码。
-- 每次从开发分支建立 `upgrade/vX.Y.Z`，合并官方稳定标签；保留 merge commit，不重写已发布历史。
-- 发布标签使用 `x5-vX.Y.Z-N`，避免与官方 `vX.Y.Z` 混淆。现有镜像工作流只接受已经合入 `main` 的发布提交。
-- 本次基线是官方 `v3.3.3`，升级到 `v3.3.5`；升级前 Fork 提交为 `f955ab20eb02786cea4446ffa5430ad9a069fb14`。
+- `main` 只镜像官方 `upstream/main`，不接收 Fork 补丁；`dev` 长期集成个人修改。特性分支从最新 `dev` 创建，验证后合回 `dev`；历史 `nas-dev-x5-jpg` 分支保留作归档。
+- 日常同步方向为 `upstream/main → main → dev`。在 `dev` 合并 `main`；复杂同步从 `dev` 建立 `codex/sync-main-YYYYMMDD` 分支，保留 merge commit，验证并更新 `change.log` 后合回 `dev`。
+- 发布标签使用 `x5-vX.Y.Z-N`，避免与官方 `vX.Y.Z` 混淆；候选版本选择经过验证的 `dev` 提交，代码同步和正式部署分别授权。
+- **过渡状态**：2026-11-09 建立上述约定时，已有 `main` 含 Fork 历史；不能直接快进为纯官方分支。重新对齐前须保留可恢复引用并取得历史替换的明确授权。现有 `x5-image.yml` 仍要求标签提交已合入 `main`，现有检查也仍绑定部分旧分支；本次文档调整没有迁移工作流，不得宣称新发布路径已经可用，也不得为满足旧门禁把 `dev` 合回 `main`。
+- 历史升级记录：官方 `v3.3.3` 升级到 `v3.3.5`；升级前 Fork 提交为 `f955ab20eb02786cea4446ffa5430ad9a069fb14`。此记录不代表 `main` 当前已对齐官方主线。
 
 新工作区首次配置：
 
@@ -21,19 +22,21 @@ git config rerere.autoupdate false
 
 ## 每次升级
 
-下面以 `v3.3.5` 为例，后续替换版本号和工作目录：
+先获取远端状态，核对工作区和关联 worktree。在持有 `main` 的干净工作区确认其只含官方历史后，才允许将它快进到已获取的 `upstream/main`；如果不能快进，停止并检查差异，不执行 reset 或强推。推送官方镜像分支须在用户授权范围内进行。随后回到开发工作区：
 
 ```sh
+# 读取远端，不自动发布本地改动或修改运行中的服务。
 git fetch origin
-git fetch --no-tags upstream refs/tags/v3.3.5:refs/tags/v3.3.5
-git switch nas-dev-x5-jpg
-git pull --ff-only origin nas-dev-x5-jpg
-git worktree add -b upgrade/v3.3.5 ../immich-upgrade-3.3.5 HEAD
-cd ../immich-upgrade-3.3.5
-git merge --no-ff --no-commit v3.3.5
+git fetch --no-tags upstream main
+git switch dev
+git merge --ff-only origin/dev
+# 日期与目录每次替换；同步基线使用已经核实并对齐官方的 main。
+git worktree add -b codex/sync-main-YYYYMMDD ../immich-sync-main-YYYYMMDD dev
+cd ../immich-sync-main-YYYYMMDD
+git merge --no-ff --no-commit main
 ```
 
-逐处审查冲突及双方修改同一文件的自动合并结果。移动端接收官方原样更新；不在这个 Fork 加入自定义客户端补丁。
+逐处审查冲突及双方修改同一文件的自动合并结果，验证 Fork 功能和官方客户端关键路径。在 `change.log` 记录实际合入的官方提交、冲突取舍、仍保留的补丁、检查结果与客户端版本。完成验证后提交合并结果并汇回 `dev`。移动端接收官方原样更新；不在这个 Fork 加入自定义客户端补丁。官方主线可能包含未发布变更，不随同步自动升级真实图库。
 
 ## 数据库迁移
 
@@ -70,8 +73,8 @@ API 源代码变化时，先构建 Server，再执行 `server/dist/bin/sync-open
 ## 发布与回退
 
 1. 在隔离图库启动候选镜像，检查迁移、登录、搜索、相簿批量操作、堆叠和 HLS。手机上的实际同步结果需单独观察，服务端测试不能证明客户端 URL 初始化缺陷已解决。
-2. 推送升级分支，验证后合入开发分支及 `main`；优先快进以保留已测试提交。若稳定分支已有额外提交，正常 merge 后重新验证，不强推。
-3. 创建 `x5-vX.Y.Z-N` 标签，现有 `x5-image.yml` 构建 GHCR 镜像。保存已验证本地镜像和上一版镜像。
+2. 按授权推送特性或同步分支，验证后合入 `dev`；优先快进以保留已测试提交，出现额外合并时重新验证。不将 Fork 修改合回镜像官方历史的 `main`，不强推。
+3. 发布自动化完成独立迁移后，才从已验证的 `dev` 提交创建 `x5-vX.Y.Z-N` 标签构建 GHCR 镜像；目前 `x5-image.yml` 的旧 `main` 门禁仍在，不能按新约定直接发布。保存已验证本地镜像和上一版镜像。
 4. 正式切换前保存部署配置和一致数据库备份，并在独立数据库验证备份可恢复。备份含个人数据，保存在仓库外的私有目录。
 5. 同步评估 Server 与 machine-learning 镜像。本次 `v3.3.5` 涉及 Python 基础镜像和 `certifi` 安全更新，机器学习服务也必须升级。
 6. 涉及迁移时，不把切回旧镜像当成完整回退：需先停止新服务，恢复升级前数据库和相应配置，再启动旧版本。备份后的新写入不在旧快照内，需要提前安排维护窗口。
@@ -80,13 +83,13 @@ API 源代码变化时，先构建 Server，再执行 `server/dist/bin/sync-open
 
 ## 自定义功能维护清单
 
-| 功能 | 主要交叉点 | 验证入口 |
-| --- | --- | --- |
-| 自动堆叠、NEF 内嵌预览 | Stack/Metadata/Media 仓库与服务 | `raw-pair.spec.ts`、对应 service 单测 |
-| 搜索、设备、分辨率、全景 | 搜索 DTO、查询构建器、Web 搜索组件 | media-category/panorama medium 测试、search-manager 单测 |
-| 相簿分组、批量共享和删除 | album DTO/table/service、AlbumsControls、分组弹窗 | Server album 单测、Web 验证 |
-| 实时 HLS、悬停预览 | HLS/Transcoding service、VideoNativeViewer、VideoThumbnail | HLS/Transcoding 单测、视频播放 Web 测试 |
-| 中文地名 | Map 仓库与服务、离线地名表、Web 地点组件 | Map 单测、localized-location Web 测试 |
-| 任务可观测性、调度 | AssetJob/Job 仓库与服务、自定义任务表 | Job/Queue/Library 单测、任务详情验证 |
+| 功能                     | 主要交叉点                                                 | 验证入口                                                 |
+| ------------------------ | ---------------------------------------------------------- | -------------------------------------------------------- |
+| 自动堆叠、NEF 内嵌预览   | Stack/Metadata/Media 仓库与服务                            | `raw-pair.spec.ts`、对应 service 单测                    |
+| 搜索、设备、分辨率、全景 | 搜索 DTO、查询构建器、Web 搜索组件                         | media-category/panorama medium 测试、search-manager 单测 |
+| 相簿分组、批量共享和删除 | album DTO/table/service、AlbumsControls、分组弹窗          | Server album 单测、Web 验证                              |
+| 实时 HLS、悬停预览       | HLS/Transcoding service、VideoNativeViewer、VideoThumbnail | HLS/Transcoding 单测、视频播放 Web 测试                  |
+| 中文地名                 | Map 仓库与服务、离线地名表、Web 地点组件                   | Map 单测、localized-location Web 测试                    |
+| 任务可观测性、调度       | AssetJob/Job 仓库与服务、自定义任务表                      | Job/Queue/Library 单测、任务详情验证                     |
 
 新增自定义功能时更新此清单，优先增加独立工具文件和可选 API 字段，减少长期覆盖官方核心代码的面积。
