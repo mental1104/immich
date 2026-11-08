@@ -127,6 +127,7 @@ export class AssetJobRepository {
         'asset.visibility',
         'asset.originalFileName',
         'asset.originalPath',
+        'asset.backupChecksum',
         'asset.ownerId',
         'asset.thumbhash',
         'asset.type',
@@ -281,6 +282,7 @@ export class AssetJobRepository {
    * @returns 已存在资产的扫描字段，缺失 ID 不返回。
    */
   getForSyncAssets(ids: string[]) {
+    // 版本记录由源资产状态触发器维护，不能再当成独立物理文件扫描。
     return this.db
       .selectFrom('asset')
       .select([
@@ -293,6 +295,7 @@ export class AssetJobRepository {
         'asset.contentChecksum',
       ])
       .where('asset.id', '=', anyUuid(ids))
+      .where('asset.backupChecksum', 'is', null)
       .execute();
   }
 
@@ -308,6 +311,7 @@ export class AssetJobRepository {
         'asset.livePhotoVideoId',
         'asset.originalPath',
         'asset.isOffline',
+        'asset.backupChecksum',
       ])
       .$call(withExif)
       .select(withFiles)

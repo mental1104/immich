@@ -29,6 +29,8 @@ export class ImmichFileResponse {
   public readonly contentType!: string;
   public readonly cacheControl!: CacheControl;
   public readonly fileName?: string;
+  /** 请求专属临时原片的释放回调，在传输成功、失败或取消后调用。 */
+  public readonly onComplete?: () => Promise<void>;
 
   constructor(response: ImmichFileResponse) {
     Object.assign(this, response);
@@ -54,8 +56,9 @@ export const sendFile = async (
   const _sendFile = (path: string, options: SendFileOptions) =>
     promisify<string, SendFileOptions>(res.sendFile).bind(res)(path, options);
 
+  let file: ImmichFileResponse | undefined;
   try {
-    const file = await handler();
+    file = await handler();
 
     await access(file.path, constants.R_OK);
 
@@ -76,6 +79,9 @@ export const sendFile = async (
     if (canWrite) {
       next(new NotFoundException());
     }
+  } finally {
+    // 回收请求专属临时文件，不让二次清理错误覆盖原有 HTTP 错误响应。
+    await file?.onComplete?.().catch(() => logger.warn('Unable to remove temporary original download'));
   }
 };
 

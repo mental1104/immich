@@ -163,6 +163,12 @@ export class JobService extends BaseService {
    * @param response 当前任务的最终状态。
    * @returns 后续任务安排完成时结束；队列失败将向上抛出。
    */
+  /**
+   * 按任务结果安排后续处理，并以同步流相同的客户端身份发布实时资产事件。
+   * @param item 已执行的任务及其关联资产；只读，不修改原任务内容。
+   * @param response 任务执行结果；仅成功的缩略图任务发布对应就绪通知。
+   * @returns 后续入队和通知发送完成后结束；仓库失败交由上层任务错误处理。
+   */
   private async onDone(item: JobItem, response: JobStatus) {
     switch (item.name) {
       case JobName.SidecarCheck: {
@@ -207,7 +213,8 @@ export class JobService extends BaseService {
               ownerId: asset.ownerId,
               originalFileName: asset.originalFileName,
               thumbhash: asset.thumbhash ? hexOrBufferToBase64(asset.thumbhash) : null,
-              checksum: hexOrBufferToBase64(asset.checksum),
+              // 编辑事件同样会覆盖手机远程索引，必须保留同步流的在线代表及离线身份。
+              checksum: hexOrBufferToBase64((!asset.isOffline && asset.clientChecksum) || asset.checksum),
               fileCreatedAt: asset.fileCreatedAt,
               fileModifiedAt: asset.fileModifiedAt,
               createdAt: asset.createdAt,
@@ -265,7 +272,9 @@ export class JobService extends BaseService {
                 ownerId: asset.ownerId,
                 originalFileName: asset.originalFileName,
                 thumbhash: asset.thumbhash ? hexOrBufferToBase64(asset.thumbhash) : null,
-                checksum: hexOrBufferToBase64(asset.checksum),
+                // 与同步流使用同一代表哈希，防止实时事件用内部路径哈希覆盖手机已匹配的索引。
+                // 离线项及未分配代表的副本仍下发自身身份，不复用 contentChecksum 破坏客户端唯一约束。
+                checksum: hexOrBufferToBase64((!asset.isOffline && asset.clientChecksum) || asset.checksum),
                 fileCreatedAt: asset.fileCreatedAt,
                 fileModifiedAt: asset.fileModifiedAt,
                 createdAt: asset.createdAt,

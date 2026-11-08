@@ -54,7 +54,8 @@ export class FileUploadInterceptor implements NestInterceptor {
     this.logger.setContext(FileUploadInterceptor.name);
 
     const instance = multer({
-      fileFilter: this.fileFilter.bind(this),
+      // Multer 通过回调接收错误，不消费异步校验的 Promise。
+      fileFilter: (...args) => void this.fileFilter(...args),
       storage: {
         _handleFile: this.handleFile.bind(this),
         _removeFile: this.removeFile.bind(this),
@@ -88,9 +89,21 @@ export class FileUploadInterceptor implements NestInterceptor {
     return next.handle();
   }
 
-  private fileFilter(request: AuthRequest, file: Express.Multer.File, callback: multer.FileFilterCallback) {
+  /**
+   * 在创建暂存文件前验证类型与备份门禁；视频暂停不影响照片、XMP 或头像。
+   * @param request 已鉴权请求；使用当前已解析的 filename 覆盖字段，与原有类型检查一致。
+   * @param file 当前文件头，不消费原片流。
+   * @param callback Multer 的接受或拒绝回调；异步校验错误通过回调传播。
+   * @returns 校验完成后调用一次回调；拒绝时不会进入写文件处理。
+   */
+  private async fileFilter(request: AuthRequest, file: Express.Multer.File, callback: multer.FileFilterCallback) {
     try {
-      callback(null, this.assetService.canUploadFile(asUploadRequest(request, file)));
+      const upload = asUploadRequest(request, file);
+      const allowed = this.assetService.canUploadFile(upload);
+      if (request.user && upload.fieldName === UploadFieldName.ASSET_DATA) {
+        await this.assetService.checkIphoneBackupUploadAccess(request.user, upload.body.filename || file.originalname);
+      }
+      callback(null, allowed);
     } catch (error: Error | any) {
       callback(error);
     }

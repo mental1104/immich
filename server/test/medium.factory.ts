@@ -35,6 +35,7 @@ import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
 import { DatabaseRepository } from 'src/repositories/database.repository.js';
+import { DownloadRepository } from 'src/repositories/download.repository.js';
 import { DuplicateRepository } from 'src/repositories/duplicate.repository.js';
 import { EmailRepository } from 'src/repositories/email.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
@@ -476,6 +477,7 @@ export class ExifTestContext extends MediumTestContext<typeof MetadataService> {
   }
 }
 
+/** @param key 测试明确选择的真实仓库。@param db 隔离数据库。@returns 绑定隔离依赖的仓库；不支持的构造器直接失败。 */
 const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely<DB>): InstanceType<T> => {
   switch (key) {
     case AccessRepository:
@@ -488,6 +490,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case AssetFileRepository:
     case AssetJobRepository:
     case ClusterGroupRepository:
+    case DownloadRepository:
     case DuplicateRepository:
     case IntegrityRepository:
     case MemoryRepository:

@@ -7,6 +7,7 @@ export const newMetadataRepositoryMock = (): Mocked<RepositoryInterface<Metadata
     setMaxConcurrency: vitest.fn(),
     teardown: vitest.fn(),
     readTags: vitest.fn(),
+    readBackupTags: vitest.fn(),
     writeTags: vitest.fn(),
     extractBinaryTag: vitest.fn(),
   };

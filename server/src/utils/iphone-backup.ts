@@ -12,7 +12,13 @@ export type IphoneBackupAuditEvent =
   | { event: 'upload_stream_failed'; uploadId: string; mediaBytes: number }
   | (ReceivedBackupAudit & { event: 'upload_received' })
   | (ReceivedBackupAudit & { event: 'duplicate_after_receive'; assetId: string })
-  | (ReceivedBackupAudit & { event: 'external_asset_created'; assetId: string; libraryId: string; overwrite: false })
+  | (ReceivedBackupAudit & {
+      event: 'external_asset_created';
+      assetId: string;
+      libraryId: string;
+      overwrite: false;
+      historical?: boolean;
+    })
   | (ReceivedBackupAudit & { event: 'upload_rolled_back'; assetId?: string; publishedFilesRemoved: number })
   | { event: 'header_duplicate'; ownerId: string; assetId: string; bodyParsed: false }
   | { event: 'upload_precheck'; ownerId: string; checked: number; duplicates: number }
@@ -38,11 +44,13 @@ export interface IphoneBackupConfig {
   root: string;
   timeZone: string;
   minMonth?: string;
+  /** 可选的历史上传暂存根目录；仅接收早于 minMonth 的文件，与常规归档根目录分离。 */
+  historicalRoot?: string;
 }
 
 /**
  * 读取显式启用的备份配置；未设置 Library ID 时返回 undefined，错误配置直接失败。
- * @returns 指定外部库、备份根目录及缺少 EXIF 时使用的时区；不修改环境变量。
+ * @returns 指定库、常规根目录、可选历史暂存根及 EXIF 缺失时的时区；错误路径配置直接抛错。
  */
 export function getIphoneBackupConfig(): IphoneBackupConfig | undefined {
   const libraryId = process.env.IMMICH_FORK_IPHONE_BACKUP_LIBRARY_ID;
@@ -53,17 +61,28 @@ export function getIphoneBackupConfig(): IphoneBackupConfig | undefined {
   const root = process.env.IMMICH_FORK_IPHONE_BACKUP_ROOT;
   const timeZone = process.env.IMMICH_FORK_IPHONE_BACKUP_TIME_ZONE || 'Asia/Shanghai';
   const minMonth = process.env.IMMICH_FORK_IPHONE_BACKUP_MIN_MONTH;
+  const historicalRoot = process.env.IMMICH_FORK_IPHONE_BACKUP_HISTORICAL_ROOT || undefined;
   if (
     !z.uuid().safeParse(libraryId).success ||
     !root ||
     !path.isAbsolute(root) ||
     !DateTime.now().setZone(timeZone).isValid ||
-    (minMonth !== undefined && !/^\d{4}(0[1-9]|1[0-2])$/.test(minMonth))
+    (minMonth !== undefined && !/^\d{4}(0[1-9]|1[0-2])$/.test(minMonth)) ||
+    (historicalRoot !== undefined &&
+      (!path.isAbsolute(historicalRoot) ||
+        isWithinDirectory(path.resolve(root), path.resolve(historicalRoot)) ||
+        isWithinDirectory(path.resolve(historicalRoot), path.resolve(root))))
   ) {
     throw new Error('Invalid iPhone backup configuration');
   }
 
-  return { libraryId, root: path.resolve(root), timeZone, minMonth };
+  return {
+    libraryId,
+    root: path.resolve(root),
+    timeZone,
+    minMonth,
+    historicalRoot: historicalRoot ? path.resolve(historicalRoot) : undefined,
+  };
 }
 
 /**

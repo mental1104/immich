@@ -240,6 +240,7 @@ from
 where
   "libraryId" = $1::uuid
   and "originalPath" = $2
+  and "backupChecksum" is null
 limit
   $3
 
@@ -266,6 +267,7 @@ select
   "stackId",
   "originalPath",
   "isFavorite",
+  "type",
   (
     select
       coalesce(json_agg(agg), '[]')
@@ -327,6 +329,8 @@ from
 where
   "ownerId" = $1::uuid
   and "checksum" in ($2)
+order by
+  "clientChecksum" IS NOT NULL asc
 
 -- AssetRepository.getUploadAssetIdByChecksum
 select
@@ -339,6 +343,9 @@ where
     "checksum" = $2
     and "libraryId" is null
   )
+order by
+  "libraryId" IS NOT NULL asc,
+  "clientChecksum" IS NOT NULL desc
 limit
   $3
 
@@ -395,9 +402,9 @@ with
         select
           motion_exif."fileSizeInByte"::double precision
         from
-          "asset_exif" as motion_exif
+          asset_exif as motion_exif
         where
-          motion_exif."assetId" = "asset"."livePhotoVideoId"
+          motion_exif."assetId" = asset."livePhotoVideoId"
       ) as "livePhotoVideoFileSize",
       extract(
         epoch
@@ -548,27 +555,41 @@ where
 
 -- AssetRepository.filterNewExternalAssetPaths
 select
-  "path"
+  "originalPath" as "path"
 from
-  unnest(array[$1]::text[]) as "path"
+  "asset"
 where
-  not exists (
-    select
-      "originalPath"
-    from
-      "asset"
-    where
-      "asset"."originalPath" = "path"
-      and "libraryId" = $2::uuid
-      and "isExternal" = $3
-  )
+  "libraryId" = $1::uuid
+  and "isExternal" = $2
+  and "originalPath" in ($3)
+union all
+select
+  "backupOriginalPath" as "path"
+from
+  "asset"
+where
+  "libraryId" = $4::uuid
+  and "isExternal" = $5
+  and "backupOriginalPath" in ($6)
 
 -- AssetRepository.getForOriginal
 select
   "asset"."id",
   "originalFileName",
+  "backupMetadata",
   "asset_file"."path" as "editedPath",
-  "originalPath"
+  coalesce(
+    (
+      select
+        "path"
+      from
+        "fork_iphone_source_snapshot"
+      where
+        "sourceId" = coalesce("asset"."backupSourceId", "asset"."id")
+        and "fork_iphone_source_snapshot"."checksum" = "asset"."contentChecksum"
+    ),
+    "asset"."originalPath"
+  ) as "originalPath"
 from
   "asset"
   left join "asset_file" on "asset"."id" = "asset_file"."assetId"
@@ -576,13 +597,29 @@ from
   and "asset_file"."type" = $2
 where
   "asset"."id" in ($3)
+  and (
+    "asset"."backupChecksum" is null
+    or "asset"."isOffline" = $4
+  )
 
 -- AssetRepository.getForOriginals
 select
   "asset"."id",
   "originalFileName",
+  "backupMetadata",
   "asset_file"."path" as "editedPath",
-  "originalPath"
+  coalesce(
+    (
+      select
+        "path"
+      from
+        "fork_iphone_source_snapshot"
+      where
+        "sourceId" = coalesce("asset"."backupSourceId", "asset"."id")
+        and "fork_iphone_source_snapshot"."checksum" = "asset"."contentChecksum"
+    ),
+    "asset"."originalPath"
+  ) as "originalPath"
 from
   "asset"
   left join "asset_file" on "asset"."id" = "asset_file"."assetId"
@@ -590,6 +627,10 @@ from
   and "asset_file"."type" = $2
 where
   "asset"."id" in ($3)
+  and (
+    "asset"."backupChecksum" is null
+    or "asset"."isOffline" = $4
+  )
 
 -- AssetRepository.getForThumbnail
 select

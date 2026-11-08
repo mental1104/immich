@@ -142,6 +142,9 @@ export const getForMetadataExtraction = (
   { clusterGroupId }: { clusterGroupId?: string } = {},
 ) => ({
   id: asset.id,
+  backupChecksum: asset.backupChecksum,
+  backupSourceId: asset.backupSourceId,
+  backupOriginalPath: asset.backupOriginalPath,
   clusterGroupId: clusterGroupId ?? newUuid(),
   checksum: asset.checksum,
   checksumAlgorithm: asset.checksumAlgorithm,
@@ -170,6 +173,7 @@ export const getForGenerateThumbnail = (asset: ReturnType<AssetFactory['build']>
   visibility: asset.visibility,
   originalFileName: asset.originalFileName,
   originalPath: asset.originalPath,
+  backupChecksum: asset.backupChecksum,
   ownerId: asset.ownerId,
   thumbhash: asset.thumbhash,
   type: asset.type,
@@ -206,6 +210,7 @@ export const getForSidecarWrite = (asset: ReturnType<AssetFactory['build']>) => 
 
 export const getForAssetDeletion = (asset: ReturnType<AssetFactory['build']>) => ({
   id: asset.id,
+  backupChecksum: asset.backupChecksum,
   visibility: asset.visibility,
   libraryId: asset.libraryId,
   ownerId: asset.ownerId,

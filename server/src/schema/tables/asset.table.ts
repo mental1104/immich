@@ -20,6 +20,7 @@ import { asset_checksum_algorithm_enum, asset_visibility_enum, assets_status_enu
 import {
   fork_iphone_client_checksum,
   fork_iphone_promote_checksum,
+  fork_iphone_reference_state,
 } from 'src/schema/functions/fork-iphone-checksum.js';
 import { asset_delete_audit, asset_face_update_asset_state } from 'src/schema/functions.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -40,7 +41,13 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
   name: 'asset_fork_iphone_checksum_update',
   scope: 'row',
   function: fork_iphone_client_checksum,
-  when: '(OLD."contentChecksum", OLD."clientChecksum", OLD."isOffline", OLD."deletedAt", OLD."ownerId", OLD."libraryId", OLD."checksum") IS DISTINCT FROM (NEW."contentChecksum", NEW."clientChecksum", NEW."isOffline", NEW."deletedAt", NEW."ownerId", NEW."libraryId", NEW."checksum")',
+  when: '(OLD."contentChecksum", OLD."clientChecksum", OLD."backupChecksum", OLD."backupSourceId", OLD."isOffline", OLD."deletedAt", OLD."ownerId", OLD."libraryId", OLD."checksum") IS DISTINCT FROM (NEW."contentChecksum", NEW."clientChecksum", NEW."backupChecksum", NEW."backupSourceId", NEW."isOffline", NEW."deletedAt", NEW."ownerId", NEW."libraryId", NEW."checksum")',
+})
+@AfterUpdateTrigger({
+  name: 'asset_fork_iphone_reference_state',
+  scope: 'row',
+  function: fork_iphone_reference_state,
+  when: '(OLD."contentChecksum", OLD."originalPath", OLD."isOffline", OLD."deletedAt", OLD."ownerId", OLD."libraryId") IS DISTINCT FROM (NEW."contentChecksum", NEW."originalPath", NEW."isOffline", NEW."deletedAt", NEW."ownerId", NEW."libraryId")',
 })
 @AfterUpdateTrigger({
   name: 'asset_fork_iphone_checksum_promote',
@@ -138,6 +145,22 @@ export class AssetTable {
   /** 同库同内容仅一份在线资产持有客户端匹配指纹；其他副本使用原路径 checksum。 */
   @Column({ type: 'bytea', nullable: true })
   clientChecksum!: Buffer | null;
+
+  /** 元数据等价版本的手机原始 SHA-1；contentChecksum 始终描述当前共用的实际原片。 */
+  @Column({ type: 'bytea', nullable: true })
+  backupChecksum!: Buffer | null;
+
+  /** 共用原片的独立物理资产；版本记录保留自身 ID，源删除后自动离线而不伪造备份。 */
+  @ForeignKeyColumn(() => AssetTable, { nullable: true, onUpdate: 'CASCADE', onDelete: 'SET NULL', index: true })
+  backupSourceId!: string | null;
+
+  /** 待清理暂存路径，同时防止扫描器把尚未清理的文件再次导入；不向客户端下发。 */
+  @Column({ type: 'character varying', nullable: true })
+  backupOriginalPath!: string | null;
+
+  /** 压缩后的 JPEG 元数据恢复配方；共用编码图像即可逐字节恢复手机版本，无需第二份完整原片。 */
+  @Column({ type: 'bytea', nullable: true })
+  backupMetadata!: Buffer | null;
 
   @Column({ enum: asset_checksum_algorithm_enum })
   checksumAlgorithm!: ChecksumAlgorithm;

@@ -203,6 +203,7 @@ select
   "asset"."visibility",
   "asset"."originalFileName",
   "asset"."originalPath",
+  "asset"."backupChecksum",
   "asset"."ownerId",
   "asset"."thumbhash",
   "asset"."type",
@@ -307,6 +308,9 @@ where
 -- AssetJobRepository.getForMetadataExtraction
 select
   "asset"."id",
+  "asset"."backupChecksum",
+  "asset"."backupSourceId",
+  "asset"."backupOriginalPath",
   "asset"."checksum",
   "asset"."checksumAlgorithm",
   "asset"."contentChecksum",
@@ -386,8 +390,7 @@ where
 
 -- AssetJobRepository.streamForSearchDuplicates
 select
-  "asset"."id",
-  "asset"."type"
+  "asset"."id"
 from
   "asset"
   inner join "smart_search" on "asset"."id" = "smart_search"."assetId"
@@ -524,6 +527,7 @@ from
   "asset"
 where
   "asset"."id" = any ($1::uuid[])
+  and "asset"."backupChecksum" is null
 
 -- AssetJobRepository.getForAssetDeletion
 select
@@ -534,6 +538,7 @@ select
   "asset"."livePhotoVideoId",
   "asset"."originalPath",
   "asset"."isOffline",
+  "asset"."backupChecksum",
   to_json("asset_exif") as "exifInfo",
   (
     select
@@ -715,19 +720,18 @@ from
   "asset"
   left join "asset_job_status" as "legacy_status" on "legacy_status"."assetId" = "asset"."id"
   left join "fork_asset_task_status" as "task_status" on "task_status"."assetId" = "asset"."id"
-  and "task_status"."taskName" = 'metadata-extraction'
+  and "task_status"."taskName" = $1
 where
   (
     (
       "task_status"."assetId" is null
       and "legacy_status"."metadataExtractedAt" is null
     )
-    or (
-      "task_status"."status" in ('failed', 'skipped')
-    )
+    or "task_status"."status" = $2
+    or "task_status"."status" = $3
   )
   and "asset"."deletedAt" is null
-  and "asset"."originalPath" not ilike $1
+  and "asset"."originalPath" not ilike $4
 
 -- AssetJobRepository.getForStorageTemplateJob
 select

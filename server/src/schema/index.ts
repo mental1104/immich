@@ -9,6 +9,7 @@ import {
 import {
   fork_iphone_client_checksum,
   fork_iphone_promote_checksum,
+  fork_iphone_reference_state,
 } from 'src/schema/functions/fork-iphone-checksum.js';
 import {
   album_user_after_insert,
@@ -60,6 +61,9 @@ import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
 import { ForkAssetTaskStatusTable } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { ForkGeodataNameTable } from 'src/schema/tables/fork-geodata-name.table.js';
+import { ForkIphoneImageFingerprintTable } from 'src/schema/tables/fork-iphone-image-fingerprint.table.js';
+import { ForkIphoneSourceSnapshotTable } from 'src/schema/tables/fork-iphone-source-snapshot.table.js';
+import { ForkIphoneUploadOriginTable } from 'src/schema/tables/fork-iphone-upload-origin.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -127,6 +131,9 @@ export class ImmichDatabase {
     AssetJobStatusTable,
     ForkAssetTaskStatusTable,
     ForkGeodataNameTable,
+    ForkIphoneImageFingerprintTable,
+    ForkIphoneSourceSnapshotTable,
+    ForkIphoneUploadOriginTable,
     AssetOcrTable,
     AssetOcrAuditTable,
     AssetTable,
@@ -181,6 +188,7 @@ export class ImmichDatabase {
   functions = [
     fork_iphone_client_checksum,
     fork_iphone_promote_checksum,
+    fork_iphone_reference_state,
     immich_uuid_v7,
     updated_at,
     f_concat_ws,
@@ -256,6 +264,9 @@ export interface DB {
 
   geodata_places: GeodataPlacesTable;
   fork_geodata_name: ForkGeodataNameTable;
+  fork_iphone_image_fingerprint: ForkIphoneImageFingerprintTable;
+  fork_iphone_source_snapshot: ForkIphoneSourceSnapshotTable;
+  fork_iphone_upload_origin: ForkIphoneUploadOriginTable;
 
   integrity_report: IntegrityReportTable;
 

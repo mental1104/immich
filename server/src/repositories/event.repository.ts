@@ -46,6 +46,8 @@ type EventMap = {
 
   // asset events
   AssetCreate: [{ asset: Pick<Asset, 'id' | 'ownerId'>; file?: UploadFile }];
+  /** 仅新备份上传发布路径发送，等待原始身份持久化后才允许异步元数据任务启动。 */
+  ForkIphoneBackupUpload: [{ assetId: string }];
   AssetTag: [{ assetId: string; userId: string }];
   AssetUntag: [{ assetId: string }];
   AssetHide: [{ assetId: string; userId: string }];

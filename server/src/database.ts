@@ -109,6 +109,9 @@ export type Memory = {
 
 export type Asset = {
   id: string;
+  backupChecksum: Buffer<ArrayBufferLike> | null;
+  backupSourceId: string | null;
+  backupOriginalPath: string | null;
   checksum: Buffer<ArrayBufferLike>;
   checksumAlgorithm: ChecksumAlgorithm;
   fileCreatedAt: Date;
@@ -297,6 +300,9 @@ const user2Columns = [
 export const columns = {
   asset: [
     'asset.id',
+    'asset.backupChecksum',
+    'asset.backupSourceId',
+    'asset.backupOriginalPath',
     'asset.checksum',
     'asset.checksumAlgorithm',
     'asset.contentChecksum',
@@ -326,6 +332,9 @@ export const columns = {
     'asset.checksumAlgorithm',
     'asset.contentChecksum',
     'asset.clientChecksum',
+    'asset.backupChecksum',
+    'asset.backupSourceId',
+    'asset.backupOriginalPath',
     'asset.duplicateId',
     'asset.duration',
     'asset.fileCreatedAt',

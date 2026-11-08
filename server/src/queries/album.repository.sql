@@ -265,6 +265,32 @@ where
 order by
   "album"."createdAt" desc
 
+-- AlbumRepository.searchIdsByText
+select
+  "album"."id"
+from
+  "album"
+  inner join "album_user" on "album_user"."albumId" = "album"."id"
+  and "album_user"."userId" = $1
+where
+  "album"."deletedAt" is null
+  and (
+    "album"."albumName" ilike $2
+    or "album"."description" ilike $3
+    or "album"."customGroupName" ilike $4
+    or exists (
+      select
+      from
+        "album_tag"
+        inner join "tag" on "tag"."id" = "album_tag"."tagId"
+      where
+        "album_tag"."albumId" = "album"."id"
+        and "tag"."value" ilike $5
+    )
+  )
+order by
+  "album"."createdAt" desc
+
 -- AlbumRepository.getAllIds
 select
   "album"."id"

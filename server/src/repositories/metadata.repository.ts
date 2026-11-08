@@ -135,6 +135,18 @@ export class MetadataRepository {
     }) as Promise<ImmichTags>;
   }
 
+  /**
+   * 严格读取备份等价校验所需的分组元数据和图像 SHA-256，不写入任何标签。
+   * @param path 已限制在目标库内的 JPEG/PNG 原片路径。
+   * @returns 原始分组字段；读取失败直接抛错，不能以空标签误判两份文件等价。
+   */
+  async readBackupTags(path: string): Promise<Record<string, unknown>> {
+    return this.exiftool.readRaw(path, {
+      useMWG: false,
+      readArgs: ['-G0:1', '-a', '-s', '-n', '-struct', '-api', 'ImageHashType=SHA256', '-ImageDataHash', '-all'],
+    });
+  }
+
   extractBinaryTag(path: string, tagName: string): Promise<Buffer> {
     return this.exiftool.extractBinaryTagToBuffer(tagName, path);
   }

@@ -9,6 +9,14 @@ import { LibraryRepository } from 'src/repositories/library.repository.js';
 import { immich_uuid_v7 } from 'src/schema/functions.js';
 import { DB } from 'src/schema/index.js';
 import { down, up } from 'src/schema/migrations/1793718000000-ForkIphoneClientChecksum.js';
+import {
+  down as referenceDown,
+  up as referenceUp,
+} from 'src/schema/migrations/1793898000000-ForkIphoneBackupReferences.js';
+import {
+  down as snapshotDown,
+  up as snapshotUp,
+} from 'src/schema/migrations/1793952000001-ForkIphoneSnapshotReferences.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { SyncTestContext } from 'test/medium.factory.js';
 
@@ -200,8 +208,12 @@ describe('external library client checksum compatibility', () => {
     const { auth: unrelated } = await context.newSyncAuthUser();
     await database.transaction().execute(async (transaction) => {
       // 模拟旧版库再升级，不对线上数据库执行迁移。
+      await snapshotDown(transaction);
+      await referenceDown(transaction);
       await down(transaction);
       await up(transaction);
+      await referenceUp(transaction);
+      await snapshotUp(transaction);
     });
     const rows = await database
       .selectFrom('asset')
@@ -244,7 +256,11 @@ describe('external library client checksum compatibility', () => {
     }
     const drift = schemaDiff(source, target)
       .asHuman()
-      .filter((line) => /clientChecksum|fork_iphone|asset_fork_iphone|fork_asset_client/.test(line));
+      .filter((line) =>
+        /clientChecksum|backupChecksum|backupMetadata|backupSourceId|backupOriginalPath|fork_iphone|asset_fork_iphone|fork_asset_client/.test(
+          line,
+        ),
+      );
     expect(drift).toEqual([]);
   });
 });

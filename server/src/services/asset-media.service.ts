@@ -45,6 +45,7 @@ import { requireUploadAccess } from 'src/utils/access.js';
 import { asUploadRequest, onBeforeLink } from 'src/utils/asset.util.js';
 import { isAssetChecksumConstraint } from 'src/utils/database.js';
 import { ImmichFileResponse, getFileNameWithoutExtension, getFilenameExtension } from 'src/utils/file.js';
+import { materializeIphoneBackupImage } from 'src/utils/iphone-backup-image.js';
 import {
   IphoneBackupConfig,
   getIphoneBackupConfig,
@@ -68,12 +69,16 @@ interface IphoneBackupTarget extends IphoneBackupConfig {
 /** 处理媒体上传和读取；显式启用的备份库在既有鉴权下接收其所有者的新上传。 */
 export class AssetMediaService extends BaseService {
   /**
-   * 准备指纹期间在 multipart 解析之前拒绝目标用户的新上传；其他用户与共享链接不受影响。
+   * 检查目标用户的备份门禁；准备中拒绝全部新上传，照片模式仅拒绝视频。
    * @param auth 当前请求鉴权；本方法不修改用户会话或已有资产。
-   * @returns 允许上传时正常返回；暂停中的目标用户收到可重试的 HTTP 503。
+   * @param filename 可选的有效上传文件名；未解析 multipart 文件头时只检查全部上传开关。
+   * @returns 允许上传时正常返回；被暂停的上传收到可重试的 HTTP 503，不伪造备份成功。
    */
-  async checkIphoneBackupUploadAccess(auth: AuthDto): Promise<void> {
-    if (process.env.IMMICH_FORK_IPHONE_BACKUP_UPLOADS_ENABLED !== 'false' || auth.sharedLink) {
+  async checkIphoneBackupUploadAccess(auth: AuthDto, filename?: string): Promise<void> {
+    const uploadsPaused = process.env.IMMICH_FORK_IPHONE_BACKUP_UPLOADS_ENABLED === 'false';
+    const videoPaused =
+      process.env.IMMICH_FORK_IPHONE_BACKUP_VIDEOS_ENABLED === 'false' && !!filename && mimeTypes.isVideo(filename);
+    if ((!uploadsPaused && !videoPaused) || auth.sharedLink) {
       return;
     }
     const config = getIphoneBackupConfig();
@@ -82,7 +87,9 @@ export class AssetMediaService extends BaseService {
     }
     const library = await this.libraryRepository.get(config.libraryId);
     if (library?.ownerId === auth.user.id) {
-      throw new ServiceUnavailableException('Photo backup is being prepared; retry later');
+      throw new ServiceUnavailableException(
+        uploadsPaused ? 'Photo backup is being prepared; retry later' : 'Video backup is paused; photos only for now',
+      );
     }
   }
   /**
@@ -195,7 +202,8 @@ export class AssetMediaService extends BaseService {
     });
     let backup: IphoneBackupTarget | undefined;
     try {
-      await this.checkIphoneBackupUploadAccess(auth);
+      // 在发布前再次检查，覆盖直接调用及已完成暂存的上传；异常沿用原有文件清理。
+      await this.checkIphoneBackupUploadAccess(auth, dto.filename || file.originalName);
       const config = getIphoneBackupConfig();
       if (config && !auth.sharedLink) {
         const library = await this.libraryRepository.get(config.libraryId);
@@ -205,13 +213,22 @@ export class AssetMediaService extends BaseService {
         if (library.ownerId === auth.user.id) {
           // 要求管理员预先创建并挂载根目录，不从客户端接受任意服务器路径。
           const root = await this.storageRepository.realpath(config.root);
+          const historicalRoot = config.historicalRoot
+            ? await this.storageRepository.realpath(config.historicalRoot)
+            : undefined;
           const importPaths = await Promise.all(
             library.importPaths.map((folder) => this.storageRepository.realpath(folder)),
           );
-          if (importPaths.every((folder) => !isWithinDirectory(folder, root))) {
+          // 两个目的地都必须属于同一目标库；历史暂存不能成为任意目录写入入口。
+          const roots = historicalRoot ? [root, historicalRoot] : [root];
+          if (roots.some((candidate) => importPaths.every((folder) => !isWithinDirectory(folder, candidate)))) {
             throw new BadRequestException('iPhone backup root is outside the library import paths');
           }
-          backup = { ...config, root, exclusionPatterns: library.exclusionPatterns };
+          // realpath 后再次校验，防止暂存根目录通过符号链接落回原归档目录。
+          if (historicalRoot && (isWithinDirectory(root, historicalRoot) || isWithinDirectory(historicalRoot, root))) {
+            throw new BadRequestException('iPhone historical backup root overlaps the backup root');
+          }
+          backup = { ...config, root, historicalRoot, exclusionPatterns: library.exclusionPatterns };
         }
       }
     } catch (error) {
@@ -333,6 +350,9 @@ export class AssetMediaService extends BaseService {
         lockedPropertiesBehavior: 'override',
       });
 
+      // 在异步元数据任务及 NAS 可能的标签改写前保存可信上传原貌；失败沿用本次上传的回滚。
+      if (backup) await this.eventRepository.emit('ForkIphoneBackupUpload', { assetId: asset.id });
+
       await this.jobRepository.queue({
         name: JobName.AssetExtractMetadata,
         data: { id: asset.id, source: 'upload', assetType: asset.type },
@@ -359,6 +379,7 @@ export class AssetMediaService extends BaseService {
           assetId: asset.id,
           libraryId: backup.libraryId,
           overwrite: false,
+          ...(backup.historicalRoot && isWithinDirectory(backup.historicalRoot, originalPath) && { historical: true }),
         });
       }
 
@@ -420,7 +441,7 @@ export class AssetMediaService extends BaseService {
   }
 
   /**
-   * 按拍摄时间原子发布原片；同秒不同照片追加 +1 等序号，绝不覆盖已有文件。
+   * 按拍摄时间原子发布原片；显式配置时将门槛前照片写入独立暂存根，同秒文件仍不覆盖。
    * @param backup 已验证的根目录、库 ID 及排除规则。
    * @param dto 手机上传时间信息和可选原始文件名。
    * @param file 服务端完整暂存的原片，仅进行读取。
@@ -436,17 +457,22 @@ export class AssetMediaService extends BaseService {
     const tags = await this.metadataRepository.readTags(file.originalPath);
     const capturedAt =
       firstDateTime(tags)?.dateTime.toDateTime() ?? DateTime.fromJSDate(dto.fileCreatedAt, { zone: backup.timeZone });
-    const target = getIphoneBackupPath(backup.root, capturedAt, dto.filename || file.originalName);
+    let root = backup.root;
     if (backup.minMonth && capturedAt.toFormat('yyyyMM') < backup.minMonth) {
-      throw new BadRequestException('Photo predates the configured backup start month');
+      if (!backup.historicalRoot) {
+        throw new BadRequestException('Photo predates the configured backup start month');
+      }
+      // 历史文件也沿用完整落盘与真实资产建档，只有目的地改变，不伪造备份成功。
+      root = backup.historicalRoot;
     }
-    let parent = backup.root;
+    const target = getIphoneBackupPath(root, capturedAt, dto.filename || file.originalName);
+    let parent = root;
     // 逐层检查后才创建下一层，避免 YYYY 或 MM 符号链接把后续写入带出备份根目录。
-    for (const folder of path.relative(backup.root, path.dirname(target)).split(path.sep)) {
+    for (const folder of path.relative(root, path.dirname(target)).split(path.sep)) {
       const next = path.join(parent, folder);
       this.storageRepository.mkdirSync(next);
       parent = await this.storageRepository.realpath(next);
-      if (!isWithinDirectory(backup.root, parent)) {
+      if (!isWithinDirectory(root, parent)) {
         throw new BadRequestException('iPhone backup destination escapes the configured root');
       }
     }
@@ -480,18 +506,22 @@ export class AssetMediaService extends BaseService {
       dto.edited = true;
     }
 
-    const { originalPath, originalFileName, editedPath } = await this.assetRepository.getForOriginal(
+    const { originalPath, originalFileName, editedPath, backupMetadata } = await this.assetRepository.getForOriginal(
       id,
       dto.edited ?? false,
     );
 
-    const path = editedPath ?? originalPath!;
+    const restored =
+      !editedPath && backupMetadata ? await materializeIphoneBackupImage(originalPath, backupMetadata) : undefined;
+    const path = restored?.path ?? editedPath ?? originalPath!;
 
     return new ImmichFileResponse({
       path,
-      fileName: getFileNameWithoutExtension(originalFileName) + getFilenameExtension(path),
+      fileName:
+        getFileNameWithoutExtension(originalFileName) + getFilenameExtension(restored ? originalFileName : path),
       contentType: mimeTypes.lookup(path),
       cacheControl: CacheControl.PrivateWithCache,
+      ...(restored && { onComplete: restored.cleanup }),
     });
   }
 

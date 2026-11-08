@@ -11,6 +11,7 @@ import type { JobOf } from 'src/types.js';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { Asset, AssetFile } from 'src/database.js';
 import { OnEvent, OnJob } from 'src/decorators.js';
+import { SystemConfig } from 'src/dtos/config.dto.js';
 import {
   AssetFileType,
   AssetType,
@@ -24,6 +25,7 @@ import {
   QueueName,
   SourceType,
 } from 'src/enum.js';
+import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { ReverseGeocodeResult } from 'src/repositories/map.repository.js';
 import { ImmichTags } from 'src/repositories/metadata.repository.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
@@ -33,6 +35,7 @@ import { BaseService } from 'src/services/base.service.js';
 import { getAssetFiles } from 'src/utils/asset.util.js';
 import { isAssetChecksumConstraint } from 'src/utils/database.js';
 import { mergeTimeZone } from 'src/utils/date.js';
+import { materializeIphoneBackupImage } from 'src/utils/iphone-backup-image.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, isFaceImportEnabled } from 'src/utils/misc.js';
 import { upsertTags } from 'src/utils/tag.js';
@@ -135,6 +138,9 @@ type Dates = {
   localDateTime: Date;
 };
 
+/** 元数据任务的完整逻辑资产；原片临时路径只在当前任务内替换，不写入数据库。 */
+type MetadataAsset = NonNullable<Awaited<ReturnType<AssetJobRepository['getForMetadataExtraction']>>>;
+
 @Injectable()
 export class MetadataService extends BaseService {
   @OnEvent({ name: 'AppBootstrap', workers: [ImmichWorker.Microservices] })
@@ -231,7 +237,7 @@ export class MetadataService extends BaseService {
 
   @OnJob({ name: JobName.AssetExtractMetadata, queue: QueueName.MetadataExtraction })
   async handleMetadataExtraction(data: JobOf<JobName.AssetExtractMetadata>) {
-    const [{ metadata, reverseGeocoding }, asset] = await Promise.all([
+    const [config, asset] = await Promise.all([
       this.getConfig({ withCache: true }),
       this.assetJobRepository.getForMetadataExtraction(data.id),
     ]);
@@ -240,6 +246,29 @@ export class MetadataService extends BaseService {
       return;
     }
 
+    if (!asset.backupChecksum) return this.extractMetadataForAsset(asset, config, data);
+    const original = await this.assetRepository.getForOriginal(asset.id, false);
+    if (!original.backupMetadata) throw new Error('Missing backup metadata recovery');
+    const restored = await materializeIphoneBackupImage(original.originalPath, original.backupMetadata);
+    try {
+      return await this.extractMetadataForAsset({ ...asset, originalPath: restored.path }, config, data);
+    } finally {
+      await restored.cleanup();
+    }
+  }
+
+  /**
+   * 从当前任务固定的原片读取 EXIF、尺寸及 motion 数据，引用版本使用恢复出的手机完整文件。
+   * @param asset 当前任务资产；替换后的原片路径只指向任务专属临时文件。
+   * @param config 当前元数据及逆地理配置。
+   * @param data 原始队列参数，维持任务分类和完成事件语义。
+   * @returns 既有任务结果；读取或恢复失败直接失败，不回退到后来变化的 NAS 图像。
+   */
+  private async extractMetadataForAsset(
+    asset: MetadataAsset,
+    { metadata, reverseGeocoding }: Pick<SystemConfig, 'metadata' | 'reverseGeocoding'>,
+    data: JobOf<JobName.AssetExtractMetadata>,
+  ) {
     // 暂停 INSV 提取，避免对大文件执行全片扫描；强制重扫同样跳过。
     if (asset.originalPath.toLowerCase().endsWith('.insv')) {
       await this.assetJobRepository.skipAssetTask(asset.id, ForkAssetTask.MetadataExtraction);
@@ -259,6 +288,14 @@ export class MetadataService extends BaseService {
       this.getExifTags(asset),
       this.storageRepository.stat(asset.originalPath),
     ]);
+    // 恢复临时文件的创建时间不属于手机原片，不能污染缺少 EXIF 时的日期回退或修改时间。
+    if (asset.backupChecksum) {
+      Object.assign(stats, {
+        mtime: asset.fileModifiedAt,
+        mtimeMs: asset.fileModifiedAt.valueOf(),
+        birthtimeMs: asset.fileCreatedAt.valueOf(),
+      });
+    }
     const { tags: exifTags, audio, video, packets, format } = exifResult;
     this.logger.verbose('Exif Tags', exifTags);
 

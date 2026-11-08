@@ -20,6 +20,8 @@ export class SyncController {
   @Post('stream')
   @Authenticated({ permission: Permission.SyncStream })
   @Header('Content-Type', 'application/jsonlines+json')
+  // 增量很少时，压缩器可能一直缓冲到请求结束，客户端无法及时解析已写出的检查点。
+  @Header('Cache-Control', 'no-transform')
   @HttpCode(HttpStatus.OK)
   @Endpoint({
     summary: 'Stream sync changes',
@@ -27,6 +29,14 @@ export class SyncController {
       'Retrieve a JSON lines streamed response of changes for synchronization. This endpoint is used by the mobile app to efficiently stay up to date with changes.',
     history: new HistoryBuilder().added('v1').beta('v1').stable('v2'),
   })
+  /**
+   * 逐行输出同步变更，不让压缩器延迟发送客户端需要及时确认的检查点。
+   * @param auth 已通过原有权限校验的当前用户及会话。
+   * @param req 当前请求，仅在失败时交给原有异常处理器。
+   * @param res 按 JSONL 输出的响应；成功时由同步服务结束，错误保留原处理流程。
+   * @param dto 请求的同步实体类型及可选重置标记，不在控制器中改写。
+   * @returns 同步处理结束的 Promise；异常由既有处理器转换为响应。
+   */
   async getSyncStream(@Auth() auth: AuthDto, @Req() req: Request, @Res() res: Response, @Body() dto: SyncStreamDto) {
     try {
       await this.service.stream(auth, res, dto);

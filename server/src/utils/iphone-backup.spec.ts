@@ -65,6 +65,20 @@ describe('iPhone backup paths', () => {
     expect(isWithinDirectory('/photos', '/photos/2026')).toBe(true);
   });
 
+  /** 历史暂存需显式配置绝对路径，并与原归档根目录互不包含。 */
+  it('accepts a separate historical root and rejects relative or overlapping roots', () => {
+    vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_LIBRARY_ID', '0b194880-6dca-44f4-a28d-9320d4841278');
+    vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_ROOT', '/photos/archive');
+    vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_HISTORICAL_ROOT', undefined);
+    expect(getIphoneBackupConfig()?.historicalRoot).toBeUndefined();
+    vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_HISTORICAL_ROOT', '/photos/review');
+    expect(getIphoneBackupConfig()?.historicalRoot).toBe('/photos/review');
+    for (const value of ['../review', '/photos/archive', '/photos/archive/review', '/photos']) {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_HISTORICAL_ROOT', value);
+      expect(() => getIphoneBackupConfig()).toThrow('Invalid iPhone backup configuration');
+    }
+  });
+
   it('keeps audit logging disabled unless explicitly enabled', () => {
     vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_AUDIT', 'false');
     const logger = { log: vitest.fn() };

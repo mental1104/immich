@@ -386,7 +386,8 @@ export class AssetService extends BaseService {
       assetFiles.encodedVideoFile?.path,
     ];
 
-    if (deleteOnDisk && !asset.isOffline) {
+    // 删除版本记录只删除其派生文件；共用原片只能由物理资产的删除流程处理。
+    if (deleteOnDisk && !asset.isOffline && !asset.backupChecksum) {
       files.push(assetFiles.sidecarFile?.path, asset.originalPath);
     }
 

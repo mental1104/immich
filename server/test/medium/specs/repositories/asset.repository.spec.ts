@@ -1,6 +1,7 @@
 import { Kysely } from 'kysely';
 import { AssetOrder, AssetOrderBy, AssetVisibility } from 'src/enum.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { LibraryRepository } from 'src/repositories/library.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { DB } from 'src/schema/index.js';
 import { BaseService } from 'src/services/base.service.js';
@@ -64,6 +65,147 @@ const keyframeRow = (assetId: string, n: number) => ({
 });
 
 describe(AssetRepository.name, () => {
+  /** 验证路径批量查重的真实数据库语义，包括版本暂存路径的防重导入边界。 */
+  describe('filterNewExternalAssetPaths', () => {
+    /** 空扫描批次没有新路径，不生成无效的空 IN 查询。 */
+    it('returns an empty result for an empty input', async () => {
+      const { sut } = setup();
+      expect(await sut.filterNewExternalAssetPaths(factory.uuid(), [])).toEqual([]);
+    });
+
+    /** 一个来源可对应多个版本；集合查重后仍须保留新路径的输入顺序与重复次数。 */
+    it('excludes originals and staging aliases while preserving new path order and duplicates', async () => {
+      const { ctx, sut } = setup();
+      const { user } = await ctx.newUser();
+      const library = await ctx
+        .get(LibraryRepository)
+        .create({ ownerId: user.id, name: 'Path filtering', importPaths: ['/scan'], exclusionPatterns: [] });
+      const { result: source } = await ctx.newAsset({
+        ownerId: user.id,
+        libraryId: library.id,
+        isExternal: true,
+        originalPath: '/scan/original.jpg',
+        contentChecksum: Buffer.alloc(20, 1),
+      });
+      await ctx.newAsset({
+        ownerId: user.id,
+        libraryId: library.id,
+        isExternal: true,
+        originalPath: source.originalPath,
+        contentChecksum: source.contentChecksum,
+        backupSourceId: source.id,
+        backupChecksum: Buffer.alloc(20, 2),
+        backupMetadata: Buffer.from('synthetic-recovery'),
+        backupOriginalPath: '/scan/review/phone.jpg',
+      });
+      const paths = [
+        '/scan/new-z.jpg',
+        '/scan/original.jpg',
+        '/scan/review/phone.jpg',
+        String.raw`/scan/new-"quoted"\name.jpg`,
+        '/scan/new-z.jpg',
+        '/scan/original.jpg.extra',
+        '/scan/ORIGINAL.jpg',
+      ];
+      const before = [...paths];
+      expect(await sut.filterNewExternalAssetPaths(library.id, paths)).toEqual([
+        paths[0],
+        paths[3],
+        paths[4],
+        paths[5],
+        paths[6],
+      ]);
+      expect(paths).toEqual(before);
+    });
+
+    /** 同名路径只有属于本次外部库时才占用路径；其他库、普通上传不能屏蔽扫描。 */
+    it('keeps paths belonging only to another library or nonexternal assets', async () => {
+      const { ctx, sut } = setup();
+      const { user } = await ctx.newUser();
+      const libraryRepository = ctx.get(LibraryRepository);
+      const library = await libraryRepository.create({
+        ownerId: user.id,
+        name: 'Current path scope',
+        importPaths: ['/scan'],
+        exclusionPatterns: [],
+      });
+      const other = await libraryRepository.create({
+        ownerId: user.id,
+        name: 'Other path scope',
+        importPaths: ['/scan'],
+        exclusionPatterns: [],
+      });
+      await Promise.all([
+        ctx.newAsset({
+          ownerId: user.id,
+          libraryId: other.id,
+          isExternal: true,
+          originalPath: '/scan/other-library.jpg',
+          backupOriginalPath: '/scan/other-library-alias.jpg',
+        }),
+        ctx.newAsset({
+          ownerId: user.id,
+          libraryId: library.id,
+          isExternal: false,
+          originalPath: '/scan/internal.jpg',
+          backupOriginalPath: '/scan/internal-alias.jpg',
+        }),
+        ctx.newAsset({ ownerId: user.id, originalPath: '/scan/no-library.jpg' }),
+        ctx.newAsset({
+          ownerId: user.id,
+          libraryId: library.id,
+          isExternal: true,
+          originalPath: '/scan/current-library.jpg',
+        }),
+      ]);
+      const paths = [
+        '/scan/other-library.jpg',
+        '/scan/other-library-alias.jpg',
+        '/scan/internal.jpg',
+        '/scan/internal-alias.jpg',
+        '/scan/no-library.jpg',
+        '/scan/current-library.jpg',
+      ];
+      expect(await sut.filterNewExternalAssetPaths(library.id, paths)).toEqual(paths.slice(0, -1));
+    });
+
+    /** 已建档但离线或已软删除的文件仍不能在扫描时创建另一条资产记录。 */
+    it('continues to exclude offline and soft-deleted external paths', async () => {
+      const { ctx, sut } = setup();
+      const { user } = await ctx.newUser();
+      const library = await ctx
+        .get(LibraryRepository)
+        .create({ ownerId: user.id, name: 'Inactive paths', importPaths: ['/scan'], exclusionPatterns: [] });
+      await Promise.all([
+        ctx.newAsset({
+          ownerId: user.id,
+          libraryId: library.id,
+          isExternal: true,
+          isOffline: true,
+          originalPath: '/scan/offline.jpg',
+          backupOriginalPath: '/scan/offline-alias.jpg',
+        }),
+        ctx.newAsset({
+          ownerId: user.id,
+          libraryId: library.id,
+          isExternal: true,
+          deletedAt: new Date(),
+          originalPath: '/scan/deleted.jpg',
+          backupOriginalPath: '/scan/deleted-alias.jpg',
+        }),
+      ]);
+      expect(
+        await sut.filterNewExternalAssetPaths(library.id, [
+          '/scan/offline.jpg',
+          '/scan/offline-alias.jpg',
+          '/scan/deleted.jpg',
+          '/scan/deleted-alias.jpg',
+          '/scan/new.jpg',
+        ]),
+      ).toEqual(['/scan/new.jpg']);
+    });
+  });
+
   describe('getTimeBucket', () => {
     it('should order assets by local day first and fileCreatedAt within each day', async () => {
       const { ctx, sut } = setup();

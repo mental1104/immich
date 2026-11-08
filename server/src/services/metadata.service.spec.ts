@@ -1,7 +1,11 @@
 import { BinaryField, ExifDateTime } from 'exiftool-vendored';
 import { DateTime } from 'luxon';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Stats } from 'node:fs';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
 import { defaults } from 'src/dtos/config.dto.js';
 import {
   AssetFileType,
@@ -16,6 +20,7 @@ import {
 } from 'src/enum.js';
 import { ImmichTags } from 'src/repositories/metadata.repository.js';
 import { MetadataService, firstDateTime } from 'src/services/metadata.service.js';
+import { createIphoneBackupRecovery } from 'src/utils/iphone-backup-image.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { PersonGroupFactory } from 'test/factories/person-group.factory.js';
 import { PersonFactory } from 'test/factories/person.factory.js';
@@ -101,6 +106,76 @@ describe(MetadataService.name, () => {
 
   it('should be defined', () => {
     expect(sut).toBeDefined();
+  });
+
+  /** 使用真实合成 JPEG 和恢复文件验证引用任务，NAS 后来的文件不参与解析。 */
+  describe('retained iPhone original metadata', () => {
+    let directory: string;
+    let phone: Buffer;
+    let snapshotPath: string;
+
+    /** 为当前场景生成带手机方向元数据的真实文件与后来变化的 NAS 文件。 */
+    beforeEach(async () => {
+      directory = await mkdtemp(join(tmpdir(), 'immich-metadata-reference-test-'));
+      phone = await sharp({ create: { width: 32, height: 16, channels: 3, background: '#123456' } })
+        .withMetadata({ orientation: 6 })
+        .jpeg()
+        .toBuffer();
+      snapshotPath = join(directory, 'retained.jpg');
+      await writeFile(snapshotPath, phone);
+    });
+
+    /** 只清理本场景生成的文件，不依赖或接触图库。 */
+    afterEach(async () => {
+      await rm(directory, { recursive: true, force: true });
+    });
+
+    /** 原片 EXIF、大小和日期来自原手机版本，临时文件时间不能覆盖已有日期。 */
+    it('extracts the exact phone version and preserves its file dates', async () => {
+      const asset = AssetFactory.create({
+        originalPath: join(directory, 'new-nas.jpg'),
+        backupChecksum: createHash('sha1').update(phone).digest(),
+        backupMetadata: createIphoneBackupRecovery(phone, phone),
+      });
+      await writeFile(asset.originalPath, 'newer different NAS image');
+      mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
+      mocks.asset.getForOriginal.mockResolvedValue({ ...asset, originalPath: snapshotPath });
+      mocks.storage.stat.mockResolvedValue({ size: phone.length, mtime: new Date(), mtimeMs: Date.now() } as Stats);
+      mocks.metadata.readTags.mockReset().mockImplementation(async (filename) => {
+        expect(await readFile(filename)).toEqual(phone);
+        return { Orientation: 6, ImageWidth: 32, ImageHeight: 16 };
+      });
+
+      await sut.handleMetadataExtraction({ id: asset.id });
+
+      expect(mocks.asset.getForOriginal).toHaveBeenCalledWith(asset.id, false);
+      expect(mocks.asset.upsertExif).toHaveBeenCalledWith(
+        expect.objectContaining({ exif: expect.objectContaining({ orientation: '6', fileSizeInByte: phone.length }) }),
+      );
+      expect(mocks.asset.update).toHaveBeenCalledWith(
+        expect.objectContaining({ fileModifiedAt: asset.fileModifiedAt }),
+      );
+      const restoredPath = mocks.metadata.readTags.mock.calls[0][0];
+      expect(restoredPath).not.toBe(asset.originalPath);
+      await expect(access(restoredPath)).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(await readFile(asset.originalPath, 'utf8')).toBe('newer different NAS image');
+    });
+
+    /** 元数据读取失败也必须回收已恢复文件，不回退到可变的 NAS 原片。 */
+    it('removes its restored original when metadata extraction fails', async () => {
+      const asset = AssetFactory.create({
+        backupChecksum: createHash('sha1').update(phone).digest(),
+        backupMetadata: createIphoneBackupRecovery(phone, phone),
+      });
+      mocks.assetJob.getForMetadataExtraction.mockResolvedValue(getForMetadataExtraction(asset));
+      mocks.asset.getForOriginal.mockResolvedValue({ ...asset, originalPath: snapshotPath });
+      mocks.storage.stat.mockResolvedValue({ size: phone.length, mtime: new Date() } as Stats);
+      mocks.metadata.readTags.mockReset().mockRejectedValue(new Error('Synthetic metadata failure'));
+      await expect(sut.handleMetadataExtraction({ id: asset.id })).rejects.toThrow('Synthetic metadata failure');
+      const restoredPath = mocks.metadata.readTags.mock.calls[0][0];
+      await expect(access(restoredPath)).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(mocks.asset.upsertExif).not.toHaveBeenCalled();
+    });
   });
 
   describe('onBootstrapEvent', () => {

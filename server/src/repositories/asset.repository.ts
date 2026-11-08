@@ -40,7 +40,6 @@ import {
   inSharedAlbum,
   removeUndefinedKeys,
   truncatedDate,
-  unnest,
   withDefaultVisibility,
   withEdits,
   withExif,
@@ -542,6 +541,7 @@ export class AssetRepository {
       .selectAll('asset')
       .where('libraryId', '=', asUuid(libraryId))
       .where('originalPath', '=', originalPath)
+      .where('backupChecksum', 'is', null)
       .limit(1)
       .executeTakeFirst();
   }
@@ -684,7 +684,9 @@ export class AssetRepository {
     return this.db
       .selectFrom('asset')
       .select(['id', 'deletedAt'])
-      .select(backup ? sql<Buffer>`coalesce("contentChecksum", "checksum")`.as('checksum') : 'checksum')
+      .select(
+        backup ? sql<Buffer>`coalesce("backupChecksum", "contentChecksum", "checksum")`.as('checksum') : 'checksum',
+      )
       .where('ownerId', '=', asUuid(userId))
       .where((eb) =>
         eb.or([
@@ -694,7 +696,7 @@ export class AssetRepository {
                 eb.and([
                   eb('libraryId', '=', asUuid(backup.libraryId)),
                   eb('isOffline', '=', false),
-                  eb('contentChecksum', 'in', checksums),
+                  eb(sql<Buffer>`coalesce("backupChecksum", "contentChecksum")`, 'in', checksums),
                   eb.exists(
                     eb
                       .selectFrom('library')
@@ -730,7 +732,7 @@ export class AssetRepository {
           ...(backup
             ? [
                 eb.and([
-                  eb('contentChecksum', '=', checksum),
+                  sql<boolean>`coalesce("backupChecksum", "contentChecksum") = ${checksum}`,
                   eb('libraryId', '=', asUuid(backup.libraryId)),
                   eb('isOffline', '=', false),
                   eb('deletedAt', 'is', null),
@@ -1227,26 +1229,35 @@ export class AssetRepository {
       .executeTakeFirstOrThrow();
   }
 
+  /**
+   * 批量排除已建档的外部库路径，包括仍待清理的版本原路径，防止重复导入。
+   * @param libraryId 本轮扫描所属的外部库，不匹配其他库中的同名路径。
+   * @param paths 扫描得到的路径批次；不修改输入，允许空批次与重复路径。
+   * @returns 未建档路径的新数组，保留输入顺序和其中重复的新路径；查询失败直接抛错。
+   */
   @GenerateSql({ params: [DummyValue.UUID, [DummyValue.STRING]] })
   async filterNewExternalAssetPaths(libraryId: string, paths: string[]): Promise<string[]> {
-    const result = await this.db
-      .selectFrom(unnest(paths).as('path'))
-      .select('path')
-      .where((eb) =>
-        eb.not(
-          eb.exists(
-            this.db
-              .selectFrom('asset')
-              .select('originalPath')
-              .whereRef('asset.originalPath', '=', eb.ref('path'))
-              .where('libraryId', '=', asUuid(libraryId))
-              .where('isExternal', '=', true),
-          ),
-        ),
+    // 空批次无需访问数据库，同时避免构造空 IN 集合。
+    if (paths.length === 0) return [];
+
+    const candidates = this.db
+      .selectFrom('asset')
+      .where('libraryId', '=', asUuid(libraryId))
+      .where('isExternal', '=', true);
+    // 两路独立集合查询可使用原片路径索引；版本原路径至多扫描一次，避免每个输入重复扫描整库。
+    const result = await candidates
+      .select('originalPath as path')
+      .where('originalPath', 'in', paths)
+      .unionAll(
+        candidates
+          // 与非空输入路径相等时该列不可能为 NULL，收窄联合结果的类型。
+          .select((eb) => eb.ref('backupOriginalPath').$notNull().as('path'))
+          .where('backupOriginalPath', 'in', paths),
       )
       .execute();
 
-    return result.map((row) => row.path as string);
+    const existing = new Set(result.map((row) => row.path));
+    return paths.filter((path) => !existing.has(path));
   }
 
   async getLibraryAssetCount(libraryId: string): Promise<number> {
@@ -1259,12 +1270,20 @@ export class AssetRepository {
     return count;
   }
 
+  /**
+   * 选择可下载原片；源失效的版本不能继续从共用路径读取文件。
+   * @param ids 已在服务层鉴权的资产 ID。
+   * @param isEdited 是否优先提供已编辑的导出文件。
+   * @returns 下载字段查询，包含仅供服务端无损重建使用的恢复配方。
+   */
   private buildGetForOriginal(ids: string[], isEdited: boolean) {
     return this.db
       .selectFrom('asset')
       .select('asset.id')
       .select('originalFileName')
+      .select('backupMetadata')
       .where('asset.id', 'in', ids)
+      .where((eb) => eb.or([eb('asset.backupChecksum', 'is', null), eb('asset.isOffline', '=', false)]))
       .$if(isEdited, (qb) =>
         qb
           .leftJoin('asset_file', (join) =>
@@ -1275,7 +1294,18 @@ export class AssetRepository {
           )
           .select('asset_file.path as editedPath'),
       )
-      .select('originalPath');
+      .select((eb) =>
+        eb.fn
+          .coalesce(
+            eb
+              .selectFrom('fork_iphone_source_snapshot')
+              .select('path')
+              .where('sourceId', '=', eb.fn.coalesce('asset.backupSourceId', 'asset.id'))
+              .whereRef('fork_iphone_source_snapshot.checksum', '=', 'asset.contentChecksum'),
+            eb.ref('asset.originalPath'),
+          )
+          .as('originalPath'),
+      );
   }
 
   @GenerateSql({ params: [DummyValue.UUID, true] })

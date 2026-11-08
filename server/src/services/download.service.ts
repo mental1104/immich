@@ -13,6 +13,7 @@ import { Permission } from 'src/enum.js';
 import { ImmichReadStream } from 'src/repositories/storage.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { HumanReadableSize } from 'src/utils/bytes.js';
+import { materializeIphoneBackupImage } from 'src/utils/iphone-backup-image.js';
 import { getPreferences } from 'src/utils/preferences.js';
 
 @Injectable()
@@ -94,6 +95,13 @@ export class DownloadService extends BaseService {
     const assets = await this.assetRepository.getForOriginals(dto.assetIds, dto.edited ?? false);
     const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
     const paths: Record<string, number> = {};
+    const temporary: (() => Promise<void>)[] = [];
+    // ZIP 流关闭后才释放临时原片，避免 archiver 尚未读完就删除文件。
+    zip.stream.once('close', () => {
+      void Promise.all(temporary.map((cleanup) => cleanup())).catch(() =>
+        this.logger.warn('Unable to remove temporary archive originals'),
+      );
+    });
 
     for (const assetId of dto.assetIds) {
       const asset = assetMap.get(assetId);
@@ -101,7 +109,7 @@ export class DownloadService extends BaseService {
         continue;
       }
 
-      const { originalPath, editedPath, originalFileName } = asset;
+      const { originalPath, editedPath, originalFileName, backupMetadata } = asset;
 
       let filename = sanitize(originalFileName) || 'unnamed';
       const count = paths[filename] || 0;
@@ -112,6 +120,16 @@ export class DownloadService extends BaseService {
       }
 
       let realpath = dto.edited && editedPath ? editedPath : originalPath;
+      if ((!dto.edited || !editedPath) && backupMetadata) {
+        try {
+          const restored = await materializeIphoneBackupImage(originalPath, backupMetadata);
+          realpath = restored.path;
+          temporary.push(restored.cleanup);
+        } catch (error) {
+          await Promise.all(temporary.map((cleanup) => cleanup()));
+          throw error;
+        }
+      }
 
       try {
         realpath = await this.storageRepository.realpath(realpath);

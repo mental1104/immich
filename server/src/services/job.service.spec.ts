@@ -1,7 +1,8 @@
 import { vi } from 'vitest';
 import type { JobItem } from 'src/types.js';
-import { AssetType, ImmichWorker, JobName, JobStatus, QueueName } from 'src/enum.js';
+import { AssetType, ChecksumAlgorithm, ImmichWorker, JobName, JobStatus, QueueName } from 'src/enum.js';
 import { JobService } from 'src/services/job.service.js';
+import { AssetEditFactory } from 'test/factories/asset-edit.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
@@ -25,6 +26,145 @@ describe(JobService.name, () => {
   });
 
   describe('onJobRun', () => {
+    // 手机会以同一资产 ID 覆盖远程索引，实时事件必须保留同步流分配的代表哈希。
+    const matchingChecksumCases = [
+      { name: 'ordinary upload', isExternal: false, isOffline: false, hasRepresentative: false },
+      { name: 'online external representative', isExternal: true, isOffline: false, hasRepresentative: true },
+      { name: 'external non-representative', isExternal: true, isOffline: false, hasRepresentative: false },
+      { name: 'offline external representative', isExternal: true, isOffline: true, hasRepresentative: true },
+    ];
+
+    it.each(matchingChecksumCases)(
+      'publishes a stable matching checksum for $name',
+      /**
+       * 验证缩略图事件与普通资产响应采用同一匹配身份，且保留叠放及实况关联。
+       * @param scenario 普通／外部资产、在线状态及是否已分配代表哈希的测试组合。
+       * @returns 两种实时事件完成投影断言后结束；不连接数据库或任务队列。
+       */
+      async ({ isExternal, isOffline, hasRepresentative }) => {
+        const storedChecksum = Buffer.alloc(20, 1);
+        const contentChecksum = Buffer.alloc(20, 2);
+        const representativeChecksum = Buffer.alloc(20, 3);
+        const stackId = newUuid();
+        const livePhotoVideoId = newUuid();
+        const asset = AssetFactory.from({
+          checksum: storedChecksum,
+          checksumAlgorithm: isExternal ? ChecksumAlgorithm.sha1Path : ChecksumAlgorithm.sha1File,
+          contentChecksum: isExternal ? contentChecksum : null,
+          clientChecksum: hasRepresentative ? representativeChecksum : null,
+          libraryId: isExternal ? newUuid() : null,
+          isExternal,
+          isOffline,
+          stackId,
+          livePhotoVideoId,
+        })
+          .exif()
+          .build();
+        const expectedChecksum =
+          hasRepresentative && !isOffline
+            ? representativeChecksum.toString('base64')
+            : storedChecksum.toString('base64');
+        // 仓库的关联 JSON 已将 EXIF 日期序列化，保持桩数据与真实查询边界一致。
+        mocks.asset.getByIdsWithAllRelationsButStacks.mockResolvedValue([
+          {
+            ...asset,
+            faces: [],
+            exifInfo: {
+              ...asset.exifInfo,
+              dateTimeOriginal: asset.exifInfo.dateTimeOriginal?.toISOString() ?? null,
+              modifyDate: asset.exifInfo.modifyDate?.toISOString() ?? null,
+              updatedAt: asset.exifInfo.updatedAt.toISOString(),
+            },
+          },
+        ]);
+        mocks.job.run.mockResolvedValue(JobStatus.Success);
+
+        await sut.onJobRun(QueueName.ThumbnailGeneration, {
+          name: JobName.AssetGenerateThumbnails,
+          data: { id: asset.id, source: 'upload' },
+        });
+
+        expect(mocks.websocket.clientSend).toHaveBeenNthCalledWith(
+          2,
+          'AssetUploadReadyV2',
+          asset.ownerId,
+          expect.objectContaining({
+            asset: expect.objectContaining({
+              id: asset.id,
+              checksum: expectedChecksum,
+              libraryId: asset.libraryId,
+              stackId,
+              livePhotoVideoId,
+            }),
+            exif: expect.objectContaining({ assetId: asset.exifInfo.assetId }),
+          }),
+        );
+        expect(mocks.websocket.clientSend).toHaveBeenCalledWith(
+          'on_upload_success',
+          asset.ownerId,
+          expect.objectContaining({ id: asset.id, checksum: expectedChecksum }),
+        );
+        expect(mocks.logger.error).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(matchingChecksumCases)(
+      'preserves the matching checksum and edits for $name',
+      /**
+       * 验证编辑完成事件不会撤销已有内容匹配，且完整传递编辑步骤。
+       * @param scenario 普通／外部资产、在线状态及代表分配状态；不修改测试组合。
+       * @returns 编辑事件及全部身份字段断言完成后结束；不读写真实数据。
+       */
+      async ({ isExternal, isOffline, hasRepresentative }) => {
+        const storedChecksum = Buffer.alloc(20, 1);
+        const representativeChecksum = Buffer.alloc(20, 3);
+        const asset = {
+          ...AssetFactory.create({
+            checksum: storedChecksum,
+            checksumAlgorithm: isExternal ? ChecksumAlgorithm.sha1Path : ChecksumAlgorithm.sha1File,
+            contentChecksum: isExternal ? Buffer.alloc(20, 2) : null,
+            clientChecksum: hasRepresentative ? representativeChecksum : null,
+            libraryId: isExternal ? newUuid() : null,
+            isExternal,
+            isOffline,
+            isEdited: true,
+            stackId: newUuid(),
+            livePhotoVideoId: newUuid(),
+          }),
+          owner: null,
+          stack: null,
+          exifInfo: null,
+          faces: [],
+        };
+        const edits = [AssetEditFactory.create({ assetId: asset.id })];
+        const expectedChecksum =
+          hasRepresentative && !isOffline
+            ? representativeChecksum.toString('base64')
+            : storedChecksum.toString('base64');
+        mocks.asset.getById.mockResolvedValue(asset);
+        mocks.assetEdit.getWithSyncInfo.mockResolvedValue(edits);
+        mocks.job.run.mockResolvedValue(JobStatus.Success);
+
+        await sut.onJobRun(QueueName.Editor, {
+          name: JobName.AssetEditThumbnailGeneration,
+          data: { id: asset.id },
+        });
+
+        expect(mocks.websocket.clientSend).toHaveBeenCalledExactlyOnceWith('AssetEditReadyV2', asset.ownerId, {
+          asset: expect.objectContaining({
+            id: asset.id,
+            checksum: expectedChecksum,
+            libraryId: asset.libraryId,
+            stackId: asset.stackId,
+            livePhotoVideoId: asset.livePhotoVideoId,
+            isEdited: true,
+          }),
+          edit: edits,
+        });
+        expect(mocks.logger.error).not.toHaveBeenCalled();
+      },
+    );
+
     it('does not enqueue offline transcoding after video upload when iOS HLS is enabled', async () => {
       vi.stubEnv('IMMICH_EXPERIMENTAL_IOS_HLS', 'true');
       try {

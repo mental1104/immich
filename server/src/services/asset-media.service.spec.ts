@@ -5,10 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { UploadBody } from 'src/types.js';
-import { AssetFile } from 'src/database.js';
 import { AssetMediaStatus, AssetRejectReason, AssetUploadAction } from 'src/dtos/asset-media-response.dto.js';
 import { AssetMediaCreateDto, AssetMediaSize, UploadFieldName } from 'src/dtos/asset-media.dto.js';
-import { MapAsset } from 'src/dtos/asset-response.dto.js';
 import { AssetEditAction } from 'src/dtos/editing.dto.js';
 import { AssetFileType, AssetType, AssetVisibility, CacheControl, JobName } from 'src/enum.js';
 import { AuthRequest } from 'src/middleware/auth.guard.js';
@@ -22,6 +20,7 @@ import { authStub } from 'test/fixtures/auth.stub.js';
 import { fileStub } from 'test/fixtures/file.stub.js';
 import { userStub } from 'test/fixtures/user.stub.js';
 import { getForAsset } from 'test/mappers.js';
+import { factory } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const file1 = Buffer.from('d2947b871a706081be194569951b7db246907957', 'hex');
@@ -152,23 +151,22 @@ const createDto = Object.freeze({
   isFavorite: false,
 }) as AssetMediaCreateDto;
 
-const assetEntity = Object.freeze({
-  id: 'id_1',
-  ownerId: 'user_id_1',
-  type: AssetType.Video,
-  originalPath: 'fake_path/asset_1.jpeg',
-  fileModifiedAt: new Date('2022-06-19T23:41:36.910Z'),
-  fileCreatedAt: new Date('2022-06-19T23:41:36.910Z'),
-  updatedAt: new Date('2022-06-19T23:41:36.910Z'),
-  isFavorite: false,
-  duration: null,
-  files: [] as AssetFile[],
-  exifInfo: {
-    latitude: 49.533547,
-    longitude: 10.703075,
-  },
-  livePhotoVideoId: null,
-} as MapAsset);
+const assetEntity = Object.freeze(
+  AssetFactory.from({
+    id: 'id_1',
+    ownerId: 'user_id_1',
+    type: AssetType.Video,
+    originalPath: 'fake_path/asset_1.jpeg',
+    fileModifiedAt: new Date('2022-06-19T23:41:36.910Z'),
+    fileCreatedAt: new Date('2022-06-19T23:41:36.910Z'),
+    updatedAt: new Date('2022-06-19T23:41:36.910Z'),
+    isFavorite: false,
+    duration: null,
+    livePhotoVideoId: null,
+  })
+    .exif({ latitude: 49.533547, longitude: 10.703075 })
+    .build(),
+);
 
 describe(AssetMediaService.name, () => {
   let sut: AssetMediaService;
@@ -176,6 +174,64 @@ describe(AssetMediaService.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(AssetMediaService));
+  });
+
+  /** 验证照片模式只限制指定备份用户，默认行为和共享上传保持可用。 */
+  describe('checkIphoneBackupUploadAccess', () => {
+    beforeEach(() => {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_LIBRARY_ID', 'fb1736b2-ee04-4675-b2a0-8101e519d802');
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_ROOT', '/photos');
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_UPLOADS_ENABLED', 'true');
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_VIDEOS_ENABLED', 'false');
+      mocks.library.get.mockResolvedValue(factory.library({ ownerId: authStub.admin.user.id }));
+    });
+
+    afterEach(() => vitest.unstubAllEnvs());
+
+    it.each(['clip.MOV', 'clip.mp4', 'clip.MxF'])('rejects new video %s with a retryable error', async (filename) => {
+      await expect(sut.checkIphoneBackupUploadAccess(authStub.admin, filename)).rejects.toMatchObject({
+        status: 503,
+        message: 'Video backup is paused; photos only for now',
+      });
+    });
+
+    it.each(['photo.HEIC', 'photo.JPG', 'photo.DNG', undefined])(
+      'allows photo or pre-file check %s',
+      async (filename) => {
+        await expect(sut.checkIphoneBackupUploadAccess(authStub.admin, filename)).resolves.toBeUndefined();
+        expect(mocks.library.get).not.toHaveBeenCalled();
+      },
+    );
+
+    it('allows videos when the video switch is absent', async () => {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_VIDEOS_ENABLED', undefined);
+      await expect(sut.checkIphoneBackupUploadAccess(authStub.admin, 'clip.MOV')).resolves.toBeUndefined();
+    });
+
+    it('allows videos again when explicitly enabled', async () => {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_VIDEOS_ENABLED', 'true');
+      await expect(sut.checkIphoneBackupUploadAccess(authStub.admin, 'clip.MOV')).resolves.toBeUndefined();
+    });
+
+    it('leaves other users and shared links available', async () => {
+      await expect(sut.checkIphoneBackupUploadAccess(authStub.user1, 'clip.MOV')).resolves.toBeUndefined();
+      await expect(
+        sut.checkIphoneBackupUploadAccess(AuthFactory.from().sharedLink().build(), 'clip.MOV'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('leaves ordinary uploads available without a configured backup library', async () => {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_LIBRARY_ID', '');
+      await expect(sut.checkIphoneBackupUploadAccess(authStub.admin, 'clip.MOV')).resolves.toBeUndefined();
+    });
+
+    it('keeps the preparation gate in effect for photos', async () => {
+      vitest.stubEnv('IMMICH_FORK_IPHONE_BACKUP_UPLOADS_ENABLED', 'false');
+      await expect(sut.checkIphoneBackupUploadAccess(authStub.admin, 'photo.HEIC')).rejects.toMatchObject({
+        status: 503,
+        message: 'Photo backup is being prepared; retry later',
+      });
+    });
   });
 
   describe('getUploadAssetIdByChecksum', () => {
@@ -350,6 +406,7 @@ describe(AssetMediaService.name, () => {
       });
 
       expect(mocks.asset.create).toHaveBeenCalled();
+      expect(mocks.event.emit).not.toHaveBeenCalledWith('ForkIphoneBackupUpload', expect.anything());
       expect(mocks.storage.utimes).toHaveBeenCalledWith(
         file.originalPath,
         expect.any(Date),

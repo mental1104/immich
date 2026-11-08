@@ -64,7 +64,7 @@ select
   "asset"."thumbhash",
   case
     when "asset"."isOffline" then "asset"."checksum"
-    else coalesce("asset"."contentChecksum", "asset"."checksum")
+    else coalesce("asset"."clientChecksum", "asset"."checksum")
   end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
@@ -104,7 +104,7 @@ select
   "asset"."thumbhash",
   case
     when "asset"."isOffline" then "asset"."checksum"
-    else coalesce("asset"."contentChecksum", "asset"."checksum")
+    else coalesce("asset"."clientChecksum", "asset"."checksum")
   end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
@@ -146,7 +146,7 @@ select
   "asset"."thumbhash",
   case
     when "asset"."isOffline" then "asset"."checksum"
-    else coalesce("asset"."contentChecksum", "asset"."checksum")
+    else coalesce("asset"."clientChecksum", "asset"."checksum")
   end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
@@ -427,7 +427,7 @@ select
   "asset"."thumbhash",
   case
     when "asset"."isOffline" then "asset"."checksum"
-    else coalesce("asset"."contentChecksum", "asset"."checksum")
+    else coalesce("asset"."clientChecksum", "asset"."checksum")
   end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
@@ -879,7 +879,7 @@ select
   "asset"."thumbhash",
   case
     when "asset"."isOffline" then "asset"."checksum"
-    else coalesce("asset"."contentChecksum", "asset"."checksum")
+    else coalesce("asset"."clientChecksum", "asset"."checksum")
   end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",
@@ -935,7 +935,7 @@ select
   "asset"."thumbhash",
   case
     when "asset"."isOffline" then "asset"."checksum"
-    else coalesce("asset"."contentChecksum", "asset"."checksum")
+    else coalesce("asset"."clientChecksum", "asset"."checksum")
   end as "checksum",
   "asset"."fileCreatedAt",
   "asset"."fileModifiedAt",

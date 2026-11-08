@@ -15,6 +15,8 @@ import { DownloadService } from 'src/services/download.service.js';
 import { DuplicateService } from 'src/services/duplicate.service.js';
 import { HlsService } from 'src/services/hls.service.js';
 import { IntegrityService } from 'src/services/integrity.service.js';
+import { IphoneBackupReconciliationService } from 'src/services/iphone-backup-reconciliation.service.js';
+import { IphoneBackupUploadService } from 'src/services/iphone-backup-upload.service.js';
 import { IphoneBackupService } from 'src/services/iphone-backup.service.js';
 import { JobService } from 'src/services/job.service.js';
 import { LibraryService } from 'src/services/library.service.js';
@@ -70,6 +72,8 @@ export const services = [
   DuplicateService,
   IntegrityService,
   IphoneBackupService,
+  IphoneBackupUploadService,
+  IphoneBackupReconciliationService,
   HlsService,
   JobService,
   LibraryService,

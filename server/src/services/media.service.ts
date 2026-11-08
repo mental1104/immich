@@ -40,6 +40,7 @@ import { BoundingBox } from 'src/repositories/machine-learning.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { getAssetFile, getDimensions } from 'src/utils/asset.util.js';
 import { checkFaceVisibility, checkOcrVisibility } from 'src/utils/editor.js';
+import { materializeIphoneBackupImage } from 'src/utils/iphone-backup-image.js';
 import { BaseConfig, ThumbnailConfig } from 'src/utils/media.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, clamp } from 'src/utils/misc.js';
@@ -161,6 +162,16 @@ export class MediaService extends BaseService {
       return JobStatus.Failed;
     }
 
+    return this.withOriginalImage(asset, (current) => this.generateAssetEditThumbnails(current, config));
+  }
+
+  /**
+   * 生成已有逻辑版本的编辑衍生图，所有读取共享同一个任务专属完整原片。
+   * @param asset 已在当前任务中固定原片路径的资产。
+   * @param config 当前图像处理配置。
+   * @returns 保持原有编辑任务的成功状态，失败时由外层回收恢复文件。
+   */
+  private async generateAssetEditThumbnails(asset: ThumbnailAsset, config: SystemConfig): Promise<JobStatus> {
     const generated = await this.generateEditedThumbnails(asset, config);
     await this.syncFiles(
       asset.files.filter((file) => file.isEdited),
@@ -202,6 +213,39 @@ export class MediaService extends BaseService {
       this.logger.verbose(`Thumbnail generation skipped for asset ${id}: not visible`);
       return JobStatus.Skipped;
     }
+
+    return this.withOriginalImage(asset, (current) => this.generateThumbnailsForAsset(current, config));
+  }
+
+  /**
+   * 让缩略图、编辑和 GPano 元数据复制读取同一个恢复后的手机版本，避免读到 NAS 后来的新主体。
+   * @param asset 当前逻辑版本；普通资产不增加原片查询或临时文件。
+   * @param action 必须在 Promise 完成前消费原片的图像任务。
+   * @returns 图像任务结果；成功、异常和取消路径均回收专属临时目录。
+   */
+  private async withOriginalImage<T>(
+    asset: ThumbnailAsset,
+    action: (current: ThumbnailAsset) => Promise<T>,
+  ): Promise<T> {
+    if (!asset.backupChecksum) return action(asset);
+    const original = await this.assetRepository.getForOriginal(asset.id, false);
+    if (!original.backupMetadata) throw new Error('Missing backup metadata recovery');
+    const restored = await materializeIphoneBackupImage(original.originalPath, original.backupMetadata);
+    try {
+      return await action({ ...asset, originalPath: restored.path });
+    } finally {
+      await restored.cleanup();
+    }
+  }
+
+  /**
+   * 执行原有缩略图流程，原片路径已经按逻辑版本固定，完整 EXIF 方向由解码器读取。
+   * @param asset 当前任务对应的稳定原片资产。
+   * @param config 当前图像处理配置。
+   * @returns 原有任务结果；不改变普通资产的处理顺序或产物结构。
+   */
+  private async generateThumbnailsForAsset(asset: ThumbnailAsset, config: SystemConfig): Promise<JobStatus> {
+    const { id } = asset;
 
     let generated: Awaited<ReturnType<MediaService['generateImageThumbnails']>>;
     if (asset.type === AssetType.Video || asset.originalFileName.toLowerCase().endsWith('.gif')) {

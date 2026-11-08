@@ -10,8 +10,36 @@ export const fork_iphone_client_checksum = registerFunction({
   returnType: 'TRIGGER',
   language: 'PLPGSQL',
   body: `
+    DECLARE
+      matching_checksum bytea;
+      source_asset asset%ROWTYPE;
     BEGIN
       NEW."clientChecksum" := NULL;
+      IF NEW."backupChecksum" IS NOT NULL THEN
+        IF NEW."backupMetadata" IS NULL THEN
+          RAISE EXCEPTION 'Invalid iPhone backup reference';
+        END IF;
+        IF NEW."backupSourceId" IS NULL THEN
+          NEW."isOffline" := true;
+          RETURN NEW;
+        END IF;
+        SELECT * INTO source_asset FROM asset WHERE id = NEW."backupSourceId";
+        IF NOT FOUND OR source_asset.id = NEW.id OR source_asset."backupChecksum" IS NOT NULL
+          OR source_asset."ownerId" <> NEW."ownerId" OR source_asset."libraryId" IS DISTINCT FROM NEW."libraryId"
+          OR NEW."originalPath" <> source_asset."originalPath" THEN
+          RAISE EXCEPTION 'Invalid iPhone backup reference';
+        END IF;
+        IF source_asset."isOffline" OR source_asset."deletedAt" IS NOT NULL
+          OR source_asset."contentChecksum" IS NULL OR (
+            source_asset."contentChecksum" IS DISTINCT FROM NEW."contentChecksum"
+            AND NOT EXISTS (SELECT 1 FROM fork_iphone_source_snapshot s
+              WHERE s."sourceId" = source_asset.id AND s.checksum = NEW."contentChecksum")
+          ) THEN
+          NEW."isOffline" := true;
+        END IF;
+      ELSIF NEW."backupSourceId" IS NOT NULL THEN
+        RAISE EXCEPTION 'Missing iPhone backup matching checksum';
+      END IF;
       IF NEW."libraryId" IS NULL OR NEW."contentChecksum" IS NULL
         OR NEW."isOffline" OR NEW."deletedAt" IS NOT NULL THEN
         RETURN NEW;
@@ -19,13 +47,14 @@ export const fork_iphone_client_checksum = registerFunction({
 
       -- 分配发生在数据库内，覆盖上传、扫描和独立指纹任务的所有写入入口。
       PERFORM pg_advisory_xact_lock(hashtextextended('fork-iphone-client-checksum:' || NEW."libraryId"::text, 0));
+      matching_checksum := coalesce(NEW."backupChecksum", NEW."contentChecksum");
       IF NOT EXISTS (
         SELECT 1 FROM asset AS other
         WHERE other."ownerId" = NEW."ownerId" AND other."libraryId" = NEW."libraryId"
           AND other.id <> NEW.id
-          AND (other."clientChecksum" = NEW."contentChecksum" OR other.checksum = NEW."contentChecksum")
+          AND (other."clientChecksum" = matching_checksum OR other.checksum = matching_checksum)
       ) THEN
-        NEW."clientChecksum" := NEW."contentChecksum";
+        NEW."clientChecksum" := matching_checksum;
       END IF;
       RETURN NEW;
     END`,
@@ -69,7 +98,7 @@ export const fork_iphone_promote_checksum = registerFunction({
 
       SELECT id INTO candidate_id FROM asset
       WHERE "ownerId" = OLD."ownerId" AND "libraryId" = OLD."libraryId"
-        AND "contentChecksum" = OLD."clientChecksum" AND "clientChecksum" IS NULL
+        AND coalesce("backupChecksum", "contentChecksum") = OLD."clientChecksum" AND "clientChecksum" IS NULL
         AND NOT "isOffline" AND "deletedAt" IS NULL
       ORDER BY "createdAt", id LIMIT 1 FOR UPDATE;
       IF candidate_id IS NOT NULL THEN
@@ -77,8 +106,47 @@ export const fork_iphone_promote_checksum = registerFunction({
           -- UUID v7 只保证毫秒级时间顺序；跨过旧记录所在毫秒后再生成晋升记录，防止同毫秒随机尾部倒序。
           PERFORM pg_sleep(GREATEST(0, EXTRACT(EPOCH FROM NEW."updatedAt" + interval '1 millisecond' - clock_timestamp())));
         END IF;
-        UPDATE asset SET "clientChecksum" = "contentChecksum" WHERE id = candidate_id;
+        UPDATE asset SET "clientChecksum" = coalesce("backupChecksum", "contentChecksum") WHERE id = candidate_id;
       END IF;
+      RETURN NULL;
+    END`,
+});
+
+/**
+ * 物理原片变化时传播状态；已受保护的旧编码仍由不可变底稿提供，不能因 NAS 重编码而丢失备份。
+ * NEW 是已经更新的物理资产；仅传播给直接引用，禁止引用链，返回 NULL 不改变原片。
+ */
+export const fork_iphone_reference_state = registerFunction({
+  name: 'fork_iphone_reference_state',
+  returnType: 'TRIGGER',
+  language: 'PLPGSQL',
+  body: `
+    DECLARE
+      refresh_proof jsonb;
+    BEGIN
+      refresh_proof := NULLIF(current_setting('immich.fork_iphone_reference_refresh', true), '')::jsonb;
+      -- 只有应用逐字节复原过、绑定当前源及新校验和且已保存底稿的版本才能原子换底稿。
+      -- 其余版本保留旧 pin；存在旧底稿时仍能提供完整原文件，不会短暂清空 clientChecksum。
+      WITH proposed AS (
+        SELECT v.id, CASE WHEN refresh_proof->>'sourceId' = NEW.id::text
+          AND refresh_proof->>'checksum' = encode(NEW."contentChecksum", 'hex')
+          AND (refresh_proof->'versions') ? v.id::text
+          AND v."ownerId" = NEW."ownerId" AND v."libraryId" IS NOT DISTINCT FROM NEW."libraryId"
+          AND EXISTS (SELECT 1 FROM fork_iphone_source_snapshot s
+            WHERE s."sourceId" = NEW.id AND s.checksum = NEW."contentChecksum")
+          THEN NEW."contentChecksum" ELSE v."contentChecksum" END AS pin
+        FROM asset v WHERE v."backupSourceId" = NEW.id
+      )
+      UPDATE asset AS version SET
+        "backupSourceId" = CASE WHEN version."ownerId" = NEW."ownerId" AND version."libraryId" IS NOT DISTINCT FROM NEW."libraryId" THEN NEW.id ELSE NULL END,
+        "originalPath" = NEW."originalPath",
+        "contentChecksum" = proposed.pin,
+        "isOffline" = NEW."isOffline" OR NEW."deletedAt" IS NOT NULL OR NEW."contentChecksum" IS NULL
+          OR (proposed.pin IS DISTINCT FROM NEW."contentChecksum" AND NOT EXISTS (
+            SELECT 1 FROM fork_iphone_source_snapshot s WHERE s."sourceId" = NEW.id AND s.checksum = proposed.pin))
+          OR version."ownerId" <> NEW."ownerId" OR version."libraryId" IS DISTINCT FROM NEW."libraryId",
+        "updatedAt" = clock_timestamp()
+      FROM proposed WHERE version.id = proposed.id;
       RETURN NULL;
     END`,
 });

@@ -1,5 +1,9 @@
 import { ShallowDehydrateObject } from 'kysely';
-import { OutputInfo } from 'sharp';
+import { createHash } from 'node:crypto';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp, { OutputInfo } from 'sharp';
 import { vi } from 'vitest';
 import type { AudioStreamInfo, JobCounts, RawImageInfo, VideoFormat, VideoStreamInfo } from 'src/types.js';
 import { Exif } from 'src/database.js';
@@ -23,6 +27,7 @@ import {
   VideoCodec,
 } from 'src/enum.js';
 import { MediaService } from 'src/services/media.service.js';
+import { createIphoneBackupRecovery } from 'src/utils/iphone-backup-image.js';
 import { AssetFaceFactory } from 'test/factories/asset-face.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { PersonFactory } from 'test/factories/person.factory.js';
@@ -47,6 +52,77 @@ describe(MediaService.name, () => {
 
   it('should be defined', () => {
     expect(sut).toBeDefined();
+  });
+
+  /** 真实合成原片让缩略图和编辑测试证明实际读取 A，而非 NAS 后来替换的 B。 */
+  describe('retained iPhone original processing', () => {
+    let directory: string;
+    let phone: Buffer;
+    let snapshotPath: string;
+
+    /** 生成完整带方向 EXIF 的 A；所有文件均属于当前测试。 */
+    beforeEach(async () => {
+      directory = await mkdtemp(join(tmpdir(), 'immich-media-reference-test-'));
+      phone = await sharp({ create: { width: 32, height: 16, channels: 3, background: '#123456' } })
+        .withMetadata({ orientation: 6 })
+        .jpeg()
+        .toBuffer();
+      snapshotPath = join(directory, 'retained.jpg');
+      await writeFile(snapshotPath, phone);
+      mocks.person.getFaces.mockResolvedValue([]);
+      mocks.ocr.getByAssetId.mockResolvedValue([]);
+      mocks.media.getImageMetadata.mockResolvedValue({ width: 32, height: 16, isTransparent: false });
+      mocks.media.generateThumbhash.mockResolvedValue(Buffer.from('retained thumbhash'));
+      mocks.media.decodeImage.mockImplementation(async (input, options) => {
+        expect(typeof input).toBe('string');
+        const actual = await readFile(input as string);
+        expect(actual).toEqual(phone);
+        const metadata = await sharp(actual).metadata();
+        expect(metadata.orientation).toBe(6);
+        // 完整 A 自带方向，不把后来数据库中的其他方向强加给解码器。
+        expect(options.orientation).toBeUndefined();
+        return { data: rawBuffer, info: { width: 16, height: 32, channels: 3 } as OutputInfo };
+      });
+    });
+
+    /** 当前任务专属恢复文件由服务回收，场景源文件由测试自行回收。 */
+    afterEach(async () => {
+      await rm(directory, { recursive: true, force: true });
+    });
+
+    /** 普通衍生图和编辑衍生图都必须固定到精确 A，异常同样释放恢复文件。 */
+    it.each(['thumbnail', 'edited', 'failure'] as const)(
+      'uses the exact retained original for %s jobs',
+      async (kind) => {
+        const asset = AssetFactory.from({
+          originalPath: join(directory, 'new-nas.jpg'),
+          originalFileName: 'phone.jpg',
+          backupChecksum: createHash('sha1').update(phone).digest(),
+          backupMetadata: createIphoneBackupRecovery(phone, phone),
+        })
+          .exif({ orientation: '3' })
+          .edit({ action: AssetEditAction.Crop, parameters: { x: 0, y: 0, width: 8, height: 8 } })
+          .build();
+        await writeFile(asset.originalPath, 'newer different NAS image');
+        mocks.assetJob.getForGenerateThumbnailJob.mockResolvedValue(getForGenerateThumbnail(asset));
+        mocks.asset.getForOriginal.mockResolvedValue({ ...asset, originalPath: snapshotPath });
+        if (kind === 'failure') mocks.media.decodeImage.mockRejectedValue(new Error('Synthetic decoder failure'));
+
+        const job =
+          kind === 'edited'
+            ? sut.handleAssetEditThumbnailGeneration({ id: asset.id })
+            : sut.handleGenerateThumbnails({ id: asset.id });
+        if (kind === 'failure') await expect(job).rejects.toThrow('Synthetic decoder failure');
+        else await expect(job).resolves.toBe(JobStatus.Success);
+
+        expect(mocks.asset.getForOriginal).toHaveBeenCalledWith(asset.id, false);
+        const restoredPath = mocks.media.decodeImage.mock.calls[0][0];
+        expect(typeof restoredPath).toBe('string');
+        expect(restoredPath).not.toBe(asset.originalPath);
+        await expect(access(restoredPath as string)).rejects.toMatchObject({ code: 'ENOENT' });
+        expect(await readFile(asset.originalPath, 'utf8')).toBe('newer different NAS image');
+      },
+    );
   });
 
   // TODO these should all become medium tests of either the service or the repository.
