@@ -2,6 +2,23 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-10：NAS 后台 Photo Copilot 与照片查看器原生对话
+
+- 来源：从 `dev` 的 `70c4b0d845d5c2c56974daa29cafc6c5dedd8ebd` 创建 `codex/feature-photo-copilot`；本次没有同步新的官方提交，官方基线仍为 `v3.3.6`（`587f549f46f1cd1822a06e16dcccecef04ea4565`）。
+- 行为：照片查看器工具栏增加 Photo Copilot 入口和右侧面板；显示当前文件名/Asset ID、结构化上下文、图片来源、连接与任务状态。支持多轮、SSE 流式文本、停止、新会话、切图隔离及同标签页刷新恢复；关闭面板/切图只停止观察，任务继续在 NAS 后台运行。
+- 后台：新增 `PhotoCopilotService`、Fork 专用控制器/DTO 和隔离 stdio Codex 客户端。按本机 Codex CLI `0.166.0` 实际生成 Schema 接入 `thread/start`、`turn/start`、`turn/interrupt` 等协议；实验字段 `additionalContext` 显式启用后传递结构化照片上下文。没有浏览器扩展、localhost Bridge、配对流程或额外登录，沿用 Immich 登录和逐资产权限。
+- 图像：有权下载的 JPEG/PNG/WebP/GIF 原片不超过 20 MiB 时直接作为 localImage；NEF 复用既有内嵌图提取，HEIC/HEIF 本地转 JPEG，最长边 4096px，临时图终态清理；失败时用未编辑预览，均不可读时明确标记无图。原片、EXIF、数据库均不写回；图片和上下文交给配置的 Codex 模型服务。
+- 作用域与边界：默认禁用，专用 `IMMICH_PHOTO_COPILOT_HOME` 仅存独立登录/运行资料，拒绝覆盖其他 Codex 配置。禁用 shell/view_image 工具、Apps/web search，不继承 MCP、SSH、数据库环境；read-only sandbox，所有交互授权请求拒绝。最多 32 个内存会话、2 个同时运行任务；单轮 5 分钟请求停止，停止超时结束本功能子进程。现有 verbose 请求日志跳过助手正文。
+- 文件：`server/src/{controllers,dtos,services}/photo-copilot*`、`server/src/utils/photo-copilot*` 及注册入口；`web/src/lib/components/asset-viewer/{AssetViewer,AssetViewerNavBar,PhotoCopilotPanel}*`、`web/src/lib/services/photo-copilot.service.ts`；浏览器测试 `e2e/src/ui/specs/asset-viewer/photo-copilot.e2e-spec.ts`；运行说明 `docs/fork-photo-copilot.md` 和容器配置示例 `docker/compose.photo-copilot.example.yml`。
+- API/数据库/客户端：新增 `/api/fork/photo-copilot` 命名空间，控制器排除于官方 OpenAPI/SDK 生成；既有官方 API、数据库迁移、移动端和 SDK 不改动。保留全部 Fork 功能，没有移除既有补丁。官方 iOS/Android 真机本次未验证，未新增性能结论。
+- 静态与构建：Server/Web/E2E TypeScript 检查通过，Svelte 检查 0 错误/0 警告；新增代码及变更范围 ESLint/Prettier、Git diff 空白检查通过。Node 24.22.1 容器中 Nest Server 构建、Web 生产构建通过；Web 保留原有 WASM 资源解析警告，不影响构建完成。
+- 静态范围限制：`AssetViewer.svelte` 全文件 ESLint 仍报告已有 `unicorn/no-negated-array-predicate`（原 `!visibleStackAssets.some(...)`）；为保持最小补丁未改该无关逻辑。该文件在单次检查排除这条既有规则后通过，其余新增/修改文件按原规则通过。113 项迁移对照开发起点校验通过。
+- 分层测试：15 项服务/HTTP/SSE 合同测试及 4 项 Web 交互测试通过；数据库和模型在该层使用替身。真实 CLI/模型测试 1 项通过，合成几何图视觉识别、多轮口令记忆、增量文本及真实 interrupt 均成功。完整照片查看器的 Chromium 浏览器测试 1 项通过，覆盖打开/关闭、原生下一张切图、避免串图、刷新恢复及后端不可用；该浏览器场景 API 使用合成网络替身。
+- 实际端到端验收：以当前编译 Server/Web 挂载到 `immich-server:nas-dev-a9c72b00c556` 同基线运行时，使用新建独立 PostgreSQL/Valkey/媒体目录和专用 Codex 登录副本，仅监听回环端口。合成账户经真实上传 API 创建 PNG，完整调用原生会话/API/SSE → NAS Codex `gpt-6.1-sol`，确认原图视觉、终态前真实增量、多轮记忆、会话重新打开、主动停止终态和原片字节一致；8 项断言通过，没有连接生产库或挂载生产原片。
+- 图像证据：在同基线隔离镜像用 libheif 官方公开 HEIC 样本实际转换为 1280×854 JPEG 成功。NEF 分支以现有提取实现和内嵌图替身覆盖，没有使用真实 NEF 端到端验收；不宣称完整 RAW 显影。
+- 未实现/未验证：元数据富化写回、批量处理、持久化聊天、跨服务端重启恢复、多 API 副本、视频与移动端面板。iPhone 虚拟原片未接入额外重建流程，不可读时使用现有预览。Codex 实验协议需随 CLI 升级复验；真实用户图库和生产 Web 尚未部署/验收。
+- 回退：禁用 `IMMICH_PHOTO_COPILOT_ENABLED` 并正常重启服务，或回退本特性提交；没有数据库变更。专用 HOME 含登录和可能残留的临时分析图，须按私人资料保护；不会终止其他 Codex 会话。本次不推送镜像、不改 CI、不升级生产服务。
+
 ## 2026-11-09：同步官方 v3.3.6 稳定版与个人功能 v1.0.0 里程碑
 
 - 来源：同步分支 `codex/sync-v3.3.6` 从 `dev` 的 `d04025934` 创建；官方标签 `v3.3.6` 为 `587f549f46f1cd1822a06e16dcccecef04ea4565`，`main` 合并提交为 `5a05dae95`，同步分支合入 `main` 的提交为 `24929cd0c`。两次实际合并均无 Git 冲突。

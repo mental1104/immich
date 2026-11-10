@@ -6,6 +6,7 @@
   import NextAssetAction from '$lib/components/asset-viewer/actions/NextAssetAction.svelte';
   import PreviousAssetAction from '$lib/components/asset-viewer/actions/PreviousAssetAction.svelte';
   import AssetViewerNavBar from '$lib/components/asset-viewer/AssetViewerNavBar.svelte';
+  import PhotoCopilotPanel from '$lib/components/asset-viewer/PhotoCopilotPanel.svelte';
   import { preloadManager } from '$lib/components/asset-viewer/PreloadManager.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
   import { AssetAction } from '$lib/constants';
@@ -118,6 +119,8 @@
   let fullscreenElement = $state<Element>();
 
   let isPlayingOriginalVideo = $state($alwaysLoadOriginalVideo);
+  // 侧栏独立于预览布局；关闭后后台任务继续，按照片恢复会话。
+  let isPhotoCopilotOpen = $state(false);
   let slideshowStartAssetId = $state<string>();
   let x5FallbackAssetId = $state<string>();
 
@@ -551,6 +554,7 @@
         onClose={onClose ? () => onClose(stack?.primaryAssetId ?? asset.id) : undefined}
         {isPlayingOriginalVideo}
         {setPlayOriginalVideo}
+        onPhotoCopilot={() => (isPhotoCopilotOpen = !isPhotoCopilotOpen)}
       />
     </div>
   {/if}
@@ -649,7 +653,12 @@
   </div>
 
   {#if $slideshowState === SlideshowState.None && showNavigation && !assetViewerManager.isShowEditor && !assetViewerManager.isFaceEditMode && nextAsset}
-    <div class="col-span-1 col-start-4 row-span-full row-start-1 my-auto justify-self-end">
+    <div
+      class="col-span-1 col-start-4 row-span-full row-start-1 my-auto justify-self-end"
+      style:margin-inline-end={isPhotoCopilotOpen && asset.type === AssetTypeEnum.Image
+        ? 'min(420px, 42vw)'
+        : undefined}
+    >
       <NextAssetAction onNextAsset={() => navigateAsset('next')} />
     </div>
   {/if}
@@ -722,6 +731,15 @@
         assetId={asset.id}
       />
     </div>
+  {/if}
+  {#if isPhotoCopilotOpen && authManager.authenticated && asset.type === AssetTypeEnum.Image && !sharedLink}
+    {#key asset.id}
+      <PhotoCopilotPanel
+        assetId={asset.id}
+        fileName={asset.originalFileName}
+        onClose={() => (isPhotoCopilotOpen = false)}
+      />
+    {/key}
   {/if}
 </section>
 

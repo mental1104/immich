@@ -1,0 +1,312 @@
+<script lang="ts">
+  import { authManager } from '$lib/managers/auth-manager.svelte';
+  import {
+    photoCopilotEventsUrl,
+    requestPhotoCopilot,
+    type PhotoCopilotSnapshot,
+  } from '$lib/services/photo-copilot.service';
+  import { onMount } from 'svelte';
+
+  /** 当前照片专属面板；父级以 Asset ID 为 key 重建，避免迟到结果串到另一张照片。 */
+  interface Props {
+    assetId: string;
+    fileName: string;
+    onClose: () => void;
+  }
+  let { assetId, fileName, onClose }: Props = $props();
+  let snapshot = $state<PhotoCopilotSnapshot>();
+  let input = $state('');
+  let error = $state<string | null>(null);
+  let connection = $state('Connecting');
+  let opening = $state(false);
+  let submitting = $state(false);
+  let transcript = $state<HTMLDivElement>();
+  let stream: EventSource | undefined;
+  const controller = new AbortController();
+  const storageKey = `photo-copilot:${authManager.user.id}:${assetId}`;
+
+  /** @param state 后台快照；只接收本照片，并让滚动跟随最新输出。 */
+  function accept(state: PhotoCopilotSnapshot) {
+    if (state.assetId !== assetId || controller.signal.aborted) return;
+    snapshot = state;
+    error = state.error;
+    requestAnimationFrame(() => transcript?.scrollTo({ top: transcript.scrollHeight, behavior: 'instant' }));
+  }
+
+  /** @param id 已创建会话；断线后浏览器自动重连，服务端立即提供完整快照。 */
+  function subscribe(id: string) {
+    stream?.close();
+    stream = new EventSource(photoCopilotEventsUrl(assetId, id), { withCredentials: true });
+    stream.addEventListener('open', () => {
+      connection = 'Connected';
+    });
+    stream.addEventListener('message', (event) => {
+      try {
+        const state = JSON.parse(event.data);
+        if (!state.heartbeat && state.id === id) accept(state);
+      } catch {
+        error = 'Invalid response from Photo Copilot';
+      }
+    });
+    stream.addEventListener('error', () => {
+      connection = 'Connection lost - reconnecting';
+    });
+  }
+
+  /** @param fresh 为 true 时明确新建会话；否则刷新后恢复本标签页的会话。 */
+  async function open(fresh = false) {
+    if (opening) return;
+    opening = true;
+    connection = 'Connecting';
+    error = null;
+    stream?.close();
+    try {
+      const id = fresh ? null : sessionStorage.getItem(storageKey);
+      let state: PhotoCopilotSnapshot;
+      try {
+        state = await requestPhotoCopilot(assetId, 'sessions', id ? { sessionId: id } : {}, controller.signal);
+      } catch (error_) {
+        // API 重启后会话过期，通过新会话恢复连接，不伪造历史。
+        if (!(error_ instanceof Error && 'status' in error_ && error_.status === 404) || !id) throw error_;
+        state = await requestPhotoCopilot(assetId, 'sessions', {}, controller.signal);
+      }
+      if (controller.signal.aborted) return;
+      accept(state);
+      sessionStorage.setItem(storageKey, state.id);
+      subscribe(state.id);
+    } catch (error_) {
+      if (!controller.signal.aborted) {
+        error = error_ instanceof Error ? error_.message : 'Photo Copilot is unavailable';
+        connection = 'Unavailable';
+      }
+    } finally {
+      opening = false;
+    }
+  }
+
+  /** @param event 表单提交事件；一次只提交一条消息，输入在后台受理后清空。 */
+  async function send(event: SubmitEvent) {
+    event.preventDefault();
+    if (!snapshot || snapshot.busy || submitting || !input.trim()) return;
+    submitting = true;
+    error = null;
+    const message = input;
+    try {
+      const state = await requestPhotoCopilot(
+        assetId,
+        `sessions/${snapshot.id}/messages`,
+        { message },
+        controller.signal,
+      );
+      // SSE 可能先于 HTTP 响应完成；只用流更新，避免旧的受理状态覆盖较新的终态。
+      if (stream?.readyState !== EventSource.OPEN) accept(state);
+      input = '';
+    } catch (error_) {
+      if (!controller.signal.aborted) error = error_ instanceof Error ? error_.message : 'Message failed';
+    } finally {
+      submitting = false;
+    }
+  }
+
+  /** 显式停止当前照片任务；按钮不会将停止请求受理误写成任务完成。 */
+  async function stop() {
+    if (!snapshot) return;
+    try {
+      await requestPhotoCopilot(assetId, `sessions/${snapshot.id}/stop`, {}, controller.signal);
+    } catch (error_) {
+      if (!controller.signal.aborted) error = error_ instanceof Error ? error_.message : 'Stop failed';
+    }
+  }
+
+  onMount(() => {
+    void open();
+    // 关闭和切图仅结束观察；任务继续在 NAS 后台运行，重新打开可恢复。
+    return () => {
+      controller.abort();
+      stream?.close();
+    };
+  });
+</script>
+
+<aside class="copilot" aria-label="Photo Copilot" data-testid="photo-copilot-panel">
+  <header>
+    <strong>Photo Copilot</strong>
+    <button type="button" onclick={onClose} aria-label="Close Photo Copilot" title="Close">&#x2715;</button>
+  </header>
+  <div class="context">
+    <strong title={fileName}>{fileName}</strong>
+    <small data-testid="copilot-asset-id">{assetId}</small>
+    <small role="status">{connection} {snapshot ? ` / ${snapshot.status}` : ''}</small>
+    <small
+      >Image: {snapshot?.image === 'original'
+        ? 'original photo'
+        : snapshot?.image === 'converted'
+          ? 'locally converted HEIC'
+          : snapshot?.image === 'embedded-preview'
+            ? 'RAW embedded preview'
+            : snapshot?.image === 'preview'
+              ? 'Immich preview'
+              : 'not attached'}</small
+    >
+    <p>Read-only. Images and context are sent to the server's Codex model provider.</p>
+    {#if snapshot}
+      <details>
+        <summary>Photo context</summary>
+        <pre>{JSON.stringify(snapshot.context, null, 2)}</pre>
+      </details>
+    {/if}
+  </div>
+  <div class="messages" bind:this={transcript} role="log" aria-label="Conversation">
+    {#if !snapshot?.messages.length}<p>Ask about this photo, its camera settings, or possible improvements.</p>{/if}
+    {#each snapshot?.messages ?? [] as message (message.id)}
+      <article class:user={message.role === 'user'}>
+        <small>{message.role === 'user' ? 'You' : 'Codex'}</small>
+        <div>{message.text}</div>
+      </article>
+    {/each}
+  </div>
+  {#if error}<p class="error" role="alert">{error}</p>{/if}
+  <form onsubmit={send}>
+    <label for="photo-copilot-message">Message about this photo</label>
+    <textarea
+      id="photo-copilot-message"
+      bind:value={input}
+      rows="3"
+      maxlength="16000"
+      placeholder="What can you tell me about this photo?"
+      disabled={!snapshot || opening}></textarea>
+    <div class="actions">
+      <button type="button" onclick={() => open(true)} disabled={opening || snapshot?.busy || submitting}
+        >New session</button
+      >
+      {#if connection !== 'Connected'}<button type="button" onclick={() => open()} disabled={opening}>Reconnect</button
+        >{/if}
+      {#if snapshot?.busy || submitting}<button
+          type="button"
+          onclick={stop}
+          disabled={!snapshot?.busy || snapshot?.status === 'stopping'}>Stop</button
+        >
+      {:else}<button class="send" type="submit" disabled={!snapshot || !input.trim() || opening}>Send</button>{/if}
+    </div>
+  </form>
+</aside>
+
+<style>
+  .copilot {
+    position: absolute;
+    inset: 64px 0 0 auto;
+    z-index: 50;
+    width: min(420px, 42vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--color-immich-dark-bg, #16181e);
+    color: #eceef6;
+    border-left: 1px solid #4b4d58;
+    box-shadow: -8px 0 24px #0005;
+    font:
+      14px/1.5 system-ui,
+      sans-serif;
+  }
+  header,
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  header,
+  form,
+  .context {
+    padding: 12px 16px;
+  }
+  header {
+    border-bottom: 1px solid #4b4d58;
+  }
+  button {
+    cursor: pointer;
+    border: 1px solid #626777;
+    border-radius: 8px;
+    padding: 6px 10px;
+    background: transparent;
+    color: inherit;
+  }
+  button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .send {
+    background: #4250af;
+  }
+  .context {
+    border-bottom: 1px solid #4b4d58;
+  }
+  .context strong,
+  small {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .context strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  small,
+  .context p {
+    color: #b8bed1;
+    font-size: 12px;
+  }
+  p {
+    margin: 6px 0;
+  }
+  pre {
+    max-height: 160px;
+    overflow: auto;
+    font-size: 11px;
+    white-space: pre-wrap;
+  }
+  .messages {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px 16px;
+  }
+  article {
+    padding: 10px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    background: #252936;
+  }
+  article.user {
+    background: #303b5c;
+  }
+  article div {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  form {
+    border-top: 1px solid #4b4d58;
+  }
+  textarea {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    resize: vertical;
+    margin: 8px 0;
+    border: 1px solid #626777;
+    border-radius: 8px;
+    background: #252936;
+    color: inherit;
+    padding: 8px;
+    font: inherit;
+  }
+  .error {
+    padding: 8px 16px;
+    color: #ffb5b5;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 700px) {
+    .copilot {
+      width: min(420px, 90vw);
+    }
+  }
+</style>

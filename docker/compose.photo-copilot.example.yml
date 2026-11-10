@@ -1,0 +1,14 @@
+# 仅供隔离开发/后续明确授权的部署使用；不会单独启动 Bridge 或暴露 Codex 端口。
+# server 服务名与本 Fork compose.nas-dev.yml 对齐；原有数据库、媒体挂载继续由基础 Compose 提供。
+services:
+  server:
+    environment:
+      IMMICH_PHOTO_COPILOT_ENABLED: 'true'
+      IMMICH_PHOTO_COPILOT_HOME: /photo-copilot
+      IMMICH_PHOTO_COPILOT_EXECUTABLE: /opt/photo-codex/codex
+      IMMICH_PHOTO_COPILOT_MODEL: ${PHOTO_COPILOT_MODEL:-gpt-6.1-sol}
+    volumes:
+      # 目录包含 Codex 可执行文件及匹配的 codex-resources；只读挂载，不挂载用户的整个 HOME。
+      - ${PHOTO_COPILOT_CODEX_RELEASE:?Set the dedicated Codex release directory}:/opt/photo-codex:ro
+      # 独立目录含 auth.json，可写缓存及临时转换图；不得指向现有 ~/.codex。
+      - ${PHOTO_COPILOT_HOME:?Set a dedicated Photo Copilot directory}:/photo-copilot

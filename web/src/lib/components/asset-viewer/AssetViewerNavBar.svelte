@@ -27,7 +27,7 @@
     type StackResponseDto,
   } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider, Tooltip, type ActionItem } from '@immich/ui';
-  import { mdiArrowLeft, mdiArrowRight, mdiDotsVertical, mdiVideoOutline } from '@mdi/js';
+  import { mdiArrowLeft, mdiArrowRight, mdiDotsVertical, mdiVideoOutline, mdiRobotOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   interface Props {
@@ -41,6 +41,8 @@
     onClose?: () => void;
     isPlayingOriginalVideo: boolean;
     setPlayOriginalVideo: (value: boolean) => void;
+    /** 打开本张照片的只读 Codex 面板；不改变现有浏览操作。 */
+    onPhotoCopilot?: () => void;
   }
 
   let {
@@ -54,6 +56,7 @@
     onClose,
     isPlayingOriginalVideo = false,
     setPlayOriginalVideo,
+    onPhotoCopilot,
   }: Props = $props();
 
   const isOwner = $derived(authManager.authenticated && asset.ownerId === authManager.user.id);
@@ -113,6 +116,9 @@
     <ActionButton action={Actions.Copy} />
     <ActionButton action={Actions.SharedLinkDownload} />
     <ActionButton action={Actions.Info} />
+    {#if authManager.authenticated && !sharedLink && asset.type === AssetTypeEnum.Image}
+      <ActionButton action={{ title: 'Photo Copilot', icon: mdiRobotOutline, onAction: () => onPhotoCopilot?.() }} />
+    {/if}
     <ActionButton action={Actions.Favorite} />
     <ActionButton action={Actions.Unfavorite} />
     <ActionButton action={Actions.Edit} />

@@ -38,7 +38,8 @@ export class LoggingInterceptor implements NestInterceptor {
         const { statusCode } = res;
 
         this.logger.debug(`${method} ${url} ${statusCode} ${duration}ms ${ip}`);
-        if (req.body && Object.keys(req.body).length > 0) {
+        // 照片助手的消息可能包含私人描述或位置；即使 verbose 也不记录正文。
+        if (!url.startsWith('/api/fork/photo-copilot') && req.body && Object.keys(req.body).length > 0) {
           this.logger.verbose(JSON.stringify(req.body, replacer));
         }
       }),
