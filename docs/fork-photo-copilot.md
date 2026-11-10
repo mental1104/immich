@@ -2,6 +2,8 @@
 
 Photo Copilot 在照片查看器内提供原生 Codex 聊天面板。Codex 在 NAS 的 Immich API 进程旁作为子进程运行；浏览器沿用 Immich 登录 Cookie，不需要扩展、本地 Bridge、配对令牌或额外登录。图片和元数据会送到配置的 Codex 模型服务；进程在 NAS 上运行不表示模型也在 NAS 上推理。
 
+2026-11-10 已部署到 NAS 正式 Immich，运行镜像为 `immich-server:nas-dev-d3d32e845ef8`。刷新网页，打开照片后点击工具栏的机器人按钮 Photo Copilot 即可。正式专用 HOME 为 `/volume2/docker/immich/photo-copilot`，固定二进制目录为 `/volume2/docker/immich/photo-codex-0.166.0`；部署配置由 homelab-services 的 Immich override 管理，详细证据与回退边界见根目录 `change.log`。
+
 ## 当前实现
 
 ```text

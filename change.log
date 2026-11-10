@@ -2,6 +2,19 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-10：Photo Copilot 正式部署
+
+- 来源：用户授权部署已验证的 `dev` 功能提交 `d3d32e845ef84ee7e47f2a3a5233953398487422`；部署记录分支 `codex/deploy-photo-copilot-20261110`。本次没有同步官方提交，官方基线仍为 `v3.3.6`，没有修改业务源码、API 合同、数据库迁移、移动端或 SDK。
+- 正式切换：北京时间 22:47:10，`home` 项目仅重建 `immich-server`。从 `immich-server:nas-dev-a9c72b00c556` 切至 `immich-server:nas-dev-d3d32e845ef8`，镜像 ID 为 `sha256:b83e9091cfb7b89cc070b23ed69482f4a4d43971df5d1d52c768d8e331718fcc`；运行来源变量与完整功能提交一致，服务 running/healthy，版本仍为 3.3.6。
+- 构建证据：Server/Web/SDK/CLI 从该提交的 Git 归档构建；未变化的插件复用此前正式镜像产物，已确认插件源码、SDK、工具与依赖锁相对此前部署提交无差异，4 个插件文件 SHA-256 一致。构建使用仓库外的临时 Dockerfile，没有修改正式 Dockerfile、CI 或发布镜像到远端。
+- 配置：仅修改 `/volume2/workflow/homelab-services/services/immich/docker-compose.override.yml` 中的 Server 镜像，增加 4 个 `IMMICH_PHOTO_COPILOT_*` 配置及 2 个专用挂载。已对照规范化 Compose 配置确认其余字段一致，保留其他任务全部未提交改动。专用 HOME 为 `/volume2/docker/immich/photo-copilot`，固定 Codex 0.166.0 二进制/资源副本为 `/volume2/docker/immich/photo-codex-0.166.0`，二进制只读挂载；模型为 `gpt-6.1-sol`。没有新增端口、Bridge 或额外登录。
+- 备份与回退准备：保存部署前镜像身份、配置、环境和队列状态；对当前统一 PG17.11 的 Immich 库生成一致在线 custom 备份，在独立同版本 PostgreSQL 完整恢复成功。资产/相册计数、扩展和 113 条迁移名称摘要与源一致，SSD/HDD 两份归档 SHA-256 一致；私人配置、备份、恢复日志及原始验收证据保存在仓库外。
+- 迁移与运行状态：候选与旧正式镜像的 113 个迁移 JavaScript 文件逐字节一致，生产切换前后迁移账本摘要一致。统一 PostgreSQL、Redis 和 ML 容器未重建；35 个既有挂载及其读写属性、端口、内存上限、网络保持一致，仅增加助手所需挂载。23 个队列的暂停标记和 active/wait/paused 列表长度前后完全一致，没有清队列或恢复暂停队列。
+- 候选实际验收：最终镜像使用独立 PG17/Valkey/媒体及认证副本，经真实 Immich 上传和助手 HTTP/SSE 接口，合成 PNG 原图视觉识别、终态前增量、多轮记忆、会话重新打开、真实中断终态、原片字节一致等 8 项检查通过；没有连接生产库或挂载生产照片。
+- 正式验证：Web 首页 200；包含 Photo Copilot 的网页脚本 200 且 SHA-256 与运行镜像内文件一致；助手匿名访问按既有登录规则返回 401。正式容器使用专用 Codex 配置和真实模型，对现场生成的几何图完成视觉及流式响应探针。该探针不读取生产照片、不创建生产测试账户/资产/API key，也不改数据库。生产已登录 Web 页面与真实照片对话、官方手机客户端仍未人工验收，不能从健康状态推断这些通过。
+- 清理：本轮候选、备份恢复、插件提取容器及其专用临时数据卷已回收，候选登录副本与探针临时图已删除；旧正式镜像、回退配置、双盘数据库备份保留。未删除任何既有图库、历史回退数据库或其他任务资源。
+- 回退：恢复部署前 Immich override 并以同一 `home` 项目仅重建 Server 即可回到旧镜像；本次无数据库迁移，不自动恢复旧数据库快照。也可禁用 `IMMICH_PHOTO_COPILOT_ENABLED` 后重建 Server 停用助手。后续数据富化写回与持久化聊天仍未实现。
+
 ## 2026-11-10：NAS 后台 Photo Copilot 与照片查看器原生对话
 
 - 来源：从 `dev` 的 `70c4b0d845d5c2c56974daa29cafc6c5dedd8ebd` 创建 `codex/feature-photo-copilot`；本次没有同步新的官方提交，官方基线仍为 `v3.3.6`（`587f549f46f1cd1822a06e16dcccecef04ea4565`）。
