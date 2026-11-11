@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { authManager } from '#lib/managers/auth-manager.svelte.ts';
   import { downloadAsset, type AssetResponseDto } from '@immich/sdk';
   import { LoadingSpinner } from '@immich/ui';
   import { getX5InspFailureReason, type X5InspFallback } from './x5-insp';

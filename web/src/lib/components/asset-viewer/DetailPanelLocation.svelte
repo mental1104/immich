@@ -1,7 +1,7 @@
 <script lang="ts">
-  import GeolocationPointPickerModal from '$lib/modals/GeolocationPointPickerModal.svelte';
-  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
-  import { handleError } from '$lib/utils/handle-error';
+  import { localizedLocationManager } from '#lib/managers/localized-location-manager.svelte.ts';
+  import GeolocationPointPickerModal from '#lib/modals/GeolocationPointPickerModal.svelte';
+  import { handleError } from '#lib/utils/handle-error.ts';
   import { updateAsset, type AssetResponseDto } from '@immich/sdk';
   import { Icon, modalManager } from '@immich/ui';
   import { mdiMapMarkerOutline, mdiPencil } from '@mdi/js';

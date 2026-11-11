@@ -1,12 +1,12 @@
+import { ProjectionType } from '#lib/constants.ts';
+import { factory } from '#test/common/factories.ts';
 import { AssetTypeEnum } from '@immich/sdk';
 import { describe, expect, it } from 'vitest';
-import { ProjectionType } from '$lib/constants';
-import { assetFactory } from '@test-data/factories/asset-factory';
 import { isPanoramaImage } from './x5-jpg';
 
 /** 验证元数据优先及无 GPano 回退边界；仅使用合成 EXIF，不包含私人样片。 */
 describe(isPanoramaImage.name, () => {
-  const asset = assetFactory.build({
+  const asset = factory.asset({
     type: AssetTypeEnum.Image,
     originalFileName: 'export.JPG',
     exifInfo: {

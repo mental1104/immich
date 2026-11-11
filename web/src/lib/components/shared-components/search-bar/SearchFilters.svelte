@@ -1,38 +1,42 @@
 <script lang="ts">
-  import SearchHistorySection from './SearchHistorySection.svelte';
-  import { t } from 'svelte-i18n';
-  import { fly } from 'svelte/transition';
+  import { authManager } from '#lib/managers/auth-manager.svelte.ts';
+  import { searchManager } from '#lib/managers/search-manager.svelte.ts';
+  import { cameraLabel, selectedDeviceLabel } from '#lib/utils/capture-devices.ts';
+  import { mediaCategories, resolutionPresets } from '#lib/utils/media-categories.ts';
+  import { getAllTags, type PersonResponseDto, type TagResponseDto } from '@immich/sdk';
   import { Button, Text } from '@immich/ui';
   import {
     mdiAccount,
+    mdiAspectRatio,
+    mdiCalendarBlank,
     mdiCamera,
     mdiCellphone,
-    mdiAspectRatio,
-    mdiShapeOutline,
-    mdiCalendarBlank,
     mdiChevronDown,
     mdiChevronUp,
     mdiImage,
     mdiMagnify,
     mdiMapMarker,
+    mdiShapeOutline,
     mdiTagMultiple,
     mdiTune,
   } from '@mdi/js';
-  import SearchLocationSection from './SearchLocationSection.svelte';
-  import { getAllTags, type PersonResponseDto, type TagResponseDto } from '@immich/sdk';
-  import SearchMediaSection from './SearchMediaSection.svelte';
-  import SearchMediaCategorySection from './SearchMediaCategorySection.svelte';
-  import SearchResolutionSection from './SearchResolutionSection.svelte';
+  import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
+  import { fly } from 'svelte/transition';
+  import SearchButton from './SearchButton.svelte';
   import SearchCameraSection from './SearchCameraSection.svelte';
-  import SearchDeviceSection from './SearchDeviceSection.svelte';
-  import { cameraLabel, selectedDeviceLabel } from '$lib/utils/capture-devices';
   import SearchDateSection from './SearchDateSection.svelte';
+  import SearchDeviceSection from './SearchDeviceSection.svelte';
+  import SearchDisplaySection from './SearchDisplaySection.svelte';
+  import SearchHistorySection from './SearchHistorySection.svelte';
+  import SearchLocationSection from './SearchLocationSection.svelte';
+  import SearchMediaCategorySection from './SearchMediaCategorySection.svelte';
+  import SearchMediaSection from './SearchMediaSection.svelte';
   import SearchPeopleSection from './SearchPeopleSection.svelte';
+  import SearchRatingsSection from './SearchRatingsSection.svelte';
+  import SearchResolutionSection from './SearchResolutionSection.svelte';
   import SearchTagsSection from './SearchTagsSection.svelte';
   import SearchTextSection from './SearchTextSection.svelte';
-  import SearchDisplaySection from './SearchDisplaySection.svelte';
-  import SearchRatingsSection from './SearchRatingsSection.svelte';
-  import { authManager } from '$lib/managers/auth-manager.svelte';
   import {
     getPeople,
     getSearchDatePreset,
@@ -43,10 +47,6 @@
     getSearchTagsTitle,
     getSearchTypeTitle,
   } from './search-bar-utils';
-  import { onMount } from 'svelte';
-  import { searchManager } from '$lib/managers/search-manager.svelte';
-  import { mediaCategories, resolutionPresets } from '$lib/utils/media-categories';
-  import SearchButton from './SearchButton.svelte';
 
   interface Props {
     id: string;

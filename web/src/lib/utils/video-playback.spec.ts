@@ -1,4 +1,4 @@
-import { shouldPlaySmallVideoOriginal, SMALL_VIDEO_MAX_BYTES } from '$lib/utils/video-playback';
+import { SMALL_VIDEO_MAX_BYTES, shouldPlaySmallVideoOriginal } from '#lib/utils/video-playback.ts';
 
 describe('small video original playback', () => {
   it.each([1, SMALL_VIDEO_MAX_BYTES - 1, SMALL_VIDEO_MAX_BYTES])('plays %i bytes directly', (size) => {

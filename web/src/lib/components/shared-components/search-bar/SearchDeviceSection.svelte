@@ -1,12 +1,12 @@
 <script lang="ts">
+  import { MediaType } from '#lib/constants.ts';
+  import { searchManager } from '#lib/managers/search-manager.svelte.ts';
+  import { handlePromiseError } from '#lib/utils.ts';
+  import { deviceOptions } from '#lib/utils/capture-devices.ts';
+  import { SearchSuggestionType, getSearchSuggestions } from '@immich/sdk';
+  import { Text } from '@immich/ui';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { Text } from '@immich/ui';
-  import { getSearchSuggestions, SearchSuggestionType } from '@immich/sdk';
-  import { MediaType } from '$lib/constants';
-  import { searchManager } from '$lib/managers/search-manager.svelte';
-  import { handlePromiseError } from '$lib/utils';
-  import { deviceOptions } from '$lib/utils/capture-devices';
   import SearchButton from './SearchButton.svelte';
 
   let models = $state<string[]>([]);

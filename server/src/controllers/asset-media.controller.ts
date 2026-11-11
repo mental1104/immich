@@ -15,8 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiHeader, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { type NextFunction, type Request, type Response } from 'express';
-import type { UploadFiles } from 'src/types.js';
+import type { NextFunction, Request, Response } from 'express';
 import { HLS_PLAYLIST_CONTENT_TYPE } from 'src/constants.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
@@ -31,7 +30,7 @@ import {
   AssetMediaSize,
 } from 'src/dtos/asset-media.dto.js';
 import { AssetDownloadOriginalDto } from 'src/dtos/asset.dto.js';
-import { type AuthDto } from 'src/dtos/auth.dto.js';
+import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { ApiTag, ImmichHeader, Permission, RouteKey } from 'src/enum.js';
 import { AssetUploadInterceptor } from 'src/middleware/asset-upload.interceptor.js';
 import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard.js';
@@ -39,6 +38,7 @@ import { FileUploadInterceptor, getFiles } from 'src/middleware/file-upload.inte
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
 import { HlsService } from 'src/services/hls.service.js';
+import type { UploadFiles } from 'src/types.js';
 import { ImmichFileResponse, sendFile } from 'src/utils/file.js';
 import { FileNotEmptyValidator, UUIDParamDto } from 'src/validation.js';
 

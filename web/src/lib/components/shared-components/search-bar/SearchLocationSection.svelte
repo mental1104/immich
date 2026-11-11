@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Combobox, { asComboboxOptions } from '$lib/components/shared-components/Combobox.svelte';
-  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
-  import type { LocationKind } from '$lib/utils/localized-location';
-  import { searchManager } from '$lib/managers/search-manager.svelte';
-  import { handlePromiseError } from '$lib/utils';
-  import { getSearchSuggestions, SearchSuggestionType } from '@immich/sdk';
+  import Combobox, { asComboboxOptions } from '#lib/components/shared-components/Combobox.svelte';
+  import { localizedLocationManager } from '#lib/managers/localized-location-manager.svelte.ts';
+  import { searchManager } from '#lib/managers/search-manager.svelte.ts';
+  import { handlePromiseError } from '#lib/utils.ts';
+  import type { LocationKind } from '#lib/utils/localized-location.ts';
+  import { SearchSuggestionType, getSearchSuggestions } from '@immich/sdk';
   import { Text } from '@immich/ui';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
@@ -81,7 +81,7 @@
   });
 </script>
 
-<div id="location-selection">
+<div data-testid="search-location-section">
   <Text>{$t('search_filter_location_description')}</Text>
 
   <div class="mt-5 grid grid-auto-fit-40 gap-5">

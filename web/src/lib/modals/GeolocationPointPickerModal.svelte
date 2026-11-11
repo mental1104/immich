@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { isDefined } from '$lib';
-  import { clickOutside } from '$lib/actions/click-outside';
-  import { listNavigation } from '$lib/actions/list-navigation';
-  import CoordinatesInput from '$lib/components/shared-components/CoordinatesInput.svelte';
-  import type Map from '$lib/components/shared-components/map/Map.svelte';
-  import { timeDebounceOnSearch, timeToLoadTheMap } from '$lib/constants';
-  import SearchBar from '$lib/elements/SearchBar.svelte';
-  import { geolocationManager } from '$lib/managers/geolocation.manager.svelte';
-  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
-  import { lang } from '$lib/stores/preferences.store';
-  import type { LatLng } from '$lib/types';
-  import { delay } from '$lib/utils/asset-utils';
-  import { handleError } from '$lib/utils/handle-error';
+  import { isDefined } from '#lib';
+  import { clickOutside } from '#lib/actions/click-outside.ts';
+  import { listNavigation } from '#lib/actions/list-navigation.ts';
+  import CoordinatesInput from '#lib/components/shared-components/CoordinatesInput.svelte';
+  import type Map from '#lib/components/shared-components/map/Map.svelte';
+  import { timeDebounceOnSearch, timeToLoadTheMap } from '#lib/constants.ts';
+  import SearchBar from '#lib/elements/SearchBar.svelte';
+  import { geolocationManager } from '#lib/managers/geolocation.manager.svelte.ts';
+  import { localizedLocationManager } from '#lib/managers/localized-location-manager.svelte.ts';
+  import { lang } from '#lib/stores/preferences.store.ts';
+  import type { LatLng } from '#lib/types.ts';
+  import { delay } from '#lib/utils/asset-utils.ts';
+  import { handleError } from '#lib/utils/handle-error.ts';
   import { getForkSearchPlaces, type AssetResponseDto, type ForkPlaceResponseDto } from '@immich/sdk';
   import { ConfirmModal, LoadingSpinner } from '@immich/ui';
   import { mdiMapMarkerMultipleOutline } from '@mdi/js';
@@ -201,7 +201,7 @@
 
       <span>{$t('pick_a_location')}</span>
       <div class="z-0 h-125 min-h-75 w-full">
-        {#await import('$lib/components/shared-components/map/Map.svelte')}
+        {#await import('#lib/components/shared-components/map/Map.svelte')}
           {#await delay(timeToLoadTheMap) then}
             <!-- show the loading spinner only if loading the map takes too much time -->
             <div class="flex size-full items-center justify-center">

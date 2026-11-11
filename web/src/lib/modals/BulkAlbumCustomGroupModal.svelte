@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { handleUpdateAlbumsCustomGroup } from '$lib/services/album.service';
+  import { handleUpdateAlbumsCustomGroup } from '#lib/services/album.service.ts';
   import { Field, FormModal, Input } from '@immich/ui';
   import { mdiFolderEditOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';

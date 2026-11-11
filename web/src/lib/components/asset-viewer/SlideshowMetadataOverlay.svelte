@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { localizedLocationManager } from '$lib/managers/localized-location-manager.svelte';
-  import { SlideshowMetadataOverlayMode, slideshowStore } from '$lib/stores/slideshow.store';
-  import { fromISODateTime, fromISODateTimeUTC } from '$lib/utils/timeline-util';
+  import { localizedLocationManager } from '#lib/managers/localized-location-manager.svelte.ts';
+  import { SlideshowMetadataOverlayMode, slideshowStore } from '#lib/stores/slideshow.store.ts';
+  import { fromISODateTime, fromISODateTimeUTC } from '#lib/utils/timeline-util.ts';
   import type { AssetResponseDto } from '@immich/sdk';
   import { Text } from '@immich/ui';
   import { DateTime } from 'luxon';

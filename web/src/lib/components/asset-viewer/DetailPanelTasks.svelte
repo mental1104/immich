@@ -1,9 +1,9 @@
 <script lang="ts">
+  import { handleError } from '#lib/utils/handle-error.ts';
   import { AssetJobName, AssetTypeEnum, getAssetInfo, runAssetJobs, type AssetResponseDto } from '@immich/sdk';
-  import { SvelteSet } from 'svelte/reactivity';
   import { onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { handleError } from '$lib/utils/handle-error';
+  import { SvelteSet } from 'svelte/reactivity';
 
   interface Props {
     asset: AssetResponseDto;

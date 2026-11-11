@@ -1,5 +1,5 @@
+import { getPipelineAncestors, getPipelineState, pipelineEdges, pipelineNodes } from '#lib/utils/asset-pipeline.ts';
 import { QueueName, type AssetResponseDto, type QueueResponseDto } from '@immich/sdk';
-import { getPipelineAncestors, getPipelineState, pipelineNodes, pipelineEdges } from '$lib/utils/asset-pipeline';
 
 const metadata = pipelineNodes.find(({ queue }) => queue === QueueName.MetadataExtraction)!;
 const busyQueue = {

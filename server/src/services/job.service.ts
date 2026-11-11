@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import type { JobItem } from 'src/types.js';
 import { OnEvent } from 'src/decorators.js';
 import { mapAsset } from 'src/dtos/asset-response.dto.js';
 import { JobCreateDto } from 'src/dtos/job.dto.js';
@@ -7,6 +6,7 @@ import { AssetType, AssetVisibility, IntegrityReport, JobName, JobStatus, Manual
 import { ArgsOf } from 'src/repositories/event.repository.js';
 import { ForkAssetTask, type ForkAssetTaskName } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { BaseService } from 'src/services/base.service.js';
+import type { JobItem } from 'src/types.js';
 import { hexOrBufferToBase64 } from 'src/utils/bytes.js';
 
 const getAssetTaskName = (item: JobItem): ForkAssetTaskName | undefined => {

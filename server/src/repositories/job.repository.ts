@@ -1,10 +1,9 @@
 import { getQueueToken } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
-import { JobsOptions, Queue, Worker } from 'bullmq';
+import { JobType, JobsOptions, Queue, Worker } from 'bullmq';
 import { readFile } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
-import type { JobCounts, JobItem, JobOf } from 'src/types.js';
 import { DISABLED_JOB_QUEUES } from 'src/constants.js';
 import { JobConfig } from 'src/decorators.js';
 import { QueueJobResponseDto, QueueJobSearchDto } from 'src/dtos/queue.dto.js';
@@ -23,6 +22,7 @@ import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { ForkAssetTask, type ForkAssetTaskName } from 'src/schema/tables/fork-asset-task-status.table.js';
+import type { JobCounts, JobItem, JobOf } from 'src/types.js';
 import { ImmichStartupError, getKeyByValue, getMethodNames } from 'src/utils/misc.js';
 
 type JobMapItem = {
@@ -220,9 +220,10 @@ export class JobRepository {
       const photoJobs = await this.getQueue(QueueName.MetadataExtraction).getJobCounts(
         'active',
         'waiting',
-        'paused',
+        'paused' as JobType,
         'delayed',
       );
+      // 旧 BullMQ 实例留下的 paused 列表在首次恢复前仍与 waiting 分开存放。
       const photoWorkPending = photoJobs.active + photoJobs.waiting + photoJobs.paused + photoJobs.delayed > 0;
       // Require meaningful CPU headroom and little I/O contention before launching
       // another video probe. Current active probes are allowed to finish.
@@ -401,7 +402,8 @@ export class JobRepository {
       'failed',
       'delayed',
       'waiting',
-      'paused',
+      // BullMQ 6 的 Redis 实现仍能读取升级前持久化的 paused 列表。
+      'paused' as JobType,
     ) as unknown as Promise<JobCounts>;
   }
 
@@ -528,7 +530,13 @@ export class JobRepository {
   }
 
   async searchJobs(name: QueueName, dto: QueueJobSearchDto): Promise<QueueJobResponseDto[]> {
-    const jobs = await this.getQueue(name).getJobs(dto.status ?? Object.values(QueueJobStatus), 0, 1000);
+    const items = new Set<QueueJobStatus>(dto.status ?? Object.values(QueueJobStatus));
+    if (items.has(QueueJobStatus.Paused)) {
+      // 保留旧暂停列表，并包含新版本暂停期间留在 waiting 中的任务。
+      items.add(QueueJobStatus.Waiting);
+    }
+
+    const jobs = await this.getQueue(name).getJobs([...items] as JobType[], 0, 1000);
     return jobs.map((job) => {
       const { id, name, timestamp, data } = job;
       return { id, name: name as JobName, timestamp, data };
