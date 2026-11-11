@@ -6,23 +6,23 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   ForeignKeyColumn,
-  type Generated,
   Index,
   PrimaryGeneratedColumn,
   Table,
-  type Timestamp,
   TriggerFunction,
   UpdateDateColumn,
+  type Generated,
+  type Timestamp,
 } from '@immich/sql-tools';
 import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
 import { AssetStatus, AssetType, AssetVisibility, ChecksumAlgorithm } from 'src/enum.js';
 import { asset_checksum_algorithm_enum, asset_visibility_enum, assets_status_enum } from 'src/schema/enums.js';
+import { asset_delete_audit, asset_face_update_asset_state } from 'src/schema/functions.js';
 import {
   fork_iphone_client_checksum,
   fork_iphone_promote_checksum,
   fork_iphone_reference_state,
 } from 'src/schema/functions/fork-iphone-checksum.js';
-import { asset_delete_audit, asset_face_update_asset_state } from 'src/schema/functions.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
 import { StackTable } from 'src/schema/tables/stack.table.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
@@ -99,6 +99,7 @@ import { ASSET_CHECKSUM_CONSTRAINT } from 'src/utils/database.js';
   where: '"clientChecksum" IS NOT NULL',
 })
 @Index({ columns: ['id', 'stackId'] })
+@Index({ columns: ['ownerId', 'updateId'] })
 @Index({
   name: 'asset_originalFilename_trigram_idx',
   using: 'gin',

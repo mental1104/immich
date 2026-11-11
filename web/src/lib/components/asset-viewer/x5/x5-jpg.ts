@@ -1,5 +1,5 @@
+import { ProjectionType } from '#lib/constants.ts';
 import { AssetTypeEnum, type AssetResponseDto } from '@immich/sdk';
-import { ProjectionType } from '$lib/constants';
 
 /**
  * 为球形照片查看器识别投影元数据，或已核实的 X5 高分辨率 JPG 导出规格。

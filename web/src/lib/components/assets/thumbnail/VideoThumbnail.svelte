@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { cleanClass } from '$lib';
+  import { cleanClass } from '#lib';
+  import { authManager } from '#lib/managers/auth-manager.svelte.ts';
+  import { getAssetHlsSessionUrl, getAssetMediaUrl } from '#lib/utils.ts';
+  import { shouldPlaySmallVideoOriginal } from '#lib/utils/video-playback.ts';
+  import { AssetMediaSize, getAssetInfo } from '@immich/sdk';
   import { Icon, LoadingSpinner } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiPauseCircleOutline, mdiPlayCircleOutline } from '@mdi/js';
-  import { Duration } from 'luxon';
-  import { authManager } from '$lib/managers/auth-manager.svelte';
-  import { getAssetHlsSessionUrl, getAssetMediaUrl } from '$lib/utils';
-  import { shouldPlaySmallVideoOriginal } from '$lib/utils/video-playback';
-  import { AssetMediaSize, getAssetInfo } from '@immich/sdk';
   import 'hls-video-element';
   import type HlsVideoElement from 'hls-video-element';
   import Hls, { type HlsConfig } from 'hls.js';
+  import { Duration } from 'luxon';
   import type { ClassValue } from 'svelte/elements';
 
   interface Props {

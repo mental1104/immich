@@ -1,10 +1,10 @@
 <script lang="ts">
-  import AlbumCard from '$lib/components/album-page/AlbumCard.svelte';
-  import Portal from '$lib/elements/Portal.svelte';
-  import { Route } from '$lib/route';
-  import { getAlbumActions, isAlbumEditor } from '$lib/services/album.service';
-  import { albumViewSettings } from '$lib/stores/preferences.store';
-  import { type AlbumGroup, isAlbumGroupCollapsed, toggleAlbumGroupCollapsing } from '$lib/utils/album-utils';
+  import AlbumCard from '#lib/components/album-page/AlbumCard.svelte';
+  import Portal from '#lib/elements/Portal.svelte';
+  import { Route } from '#lib/route.ts';
+  import { getAlbumActions, isAlbumEditor } from '#lib/services/album.service.ts';
+  import { albumViewSettings } from '#lib/stores/preferences.store.ts';
+  import { isAlbumGroupCollapsed, toggleAlbumGroupCollapsing, type AlbumGroup } from '#lib/utils/album-utils.ts';
   import type { AlbumResponseDto } from '@immich/sdk';
   import { Checkbox, Icon, menuManager, type ActionItem } from '@immich/ui';
   import { mdiChevronRight } from '@mdi/js';
@@ -72,8 +72,8 @@
   {#if !isCollapsed}
     <div class="grid grid-auto-fill-56 gap-y-4" transition:slide={{ duration: 300 }}>
       {#each albums as album, index (album.id)}
-        {@const { Edit, Share, Download, Leave, Delete } = getAlbumActions($t, album)}
-        {@const items = [Edit, Share, Download, Leave, Delete]}
+        {const { Edit, Share, Download, Leave, Delete } = $derived(getAlbumActions($t, album))}
+        {const items = $derived([Edit, Share, Download, Leave, Delete])}
         <div class="relative h-fit" animate:flip={{ duration: 400 }}>
           {#if selectionMode && isAlbumEditor(album)}
             <div class="absolute top-7 left-7 z-10 rounded-md bg-white/90 p-1 dark:bg-immich-dark-gray/90">

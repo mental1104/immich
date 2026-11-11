@@ -1,9 +1,9 @@
+import { MediaType } from '#lib/constants.ts';
+import type { MediaCategory } from '#lib/utils/media-categories.ts';
 import type { MetadataSearchDto, QueueResponseDto } from '@immich/sdk';
 import type { ActionItem } from '@immich/ui';
 import type { DateTime } from 'luxon';
 import type { SvelteSet } from 'svelte/reactivity';
-import { MediaType } from '$lib/constants';
-import type { MediaCategory } from '$lib/utils/media-categories';
 
 export type LatLng = { lng: number; lat: number };
 

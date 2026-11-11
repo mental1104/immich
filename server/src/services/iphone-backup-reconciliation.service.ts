@@ -6,11 +6,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
-import type { ArgOf } from 'src/repositories/event.repository.js';
 import { IWorker } from 'src/constants.js';
 import { OnEvent } from 'src/decorators.js';
 import { AssetFileType, DatabaseLock, ImmichWorker, JobName, JobStatus, SyncEntityType } from 'src/enum.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
+import type { ArgOf } from 'src/repositories/event.repository.js';
 import { IphoneBackupImageRepository } from 'src/repositories/iphone-backup-image.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -104,7 +104,8 @@ export class IphoneBackupReconciliationService {
       defaultJobOptions: { attempts: 1, removeOnComplete: false, removeOnFail: false, stackTraceLimit: 0 },
     });
     this.queue.on('error', () => this.logger.error('Reference queue connection failed'));
-    const client = await this.queue.client;
+    // BullMQ 6 由 Redis backend 暴露客户端，继续使用原队列的键前缀和连接。
+    const client = await this.queue.getBackend().client;
     // 原子递增只保存数值世代，不把私人文件指纹放入队列元数据。
     client.defineCommand('forkIphoneAdvanceImageGeneration', {
       numberOfKeys: 1,
@@ -344,7 +345,7 @@ export class IphoneBackupReconciliationService {
   /** @param items 已限制归属的有限任务。@returns 本页已接收数，锁竞争或背压不推进未接收游标。 */
   private async enqueue(items: ReferenceJob[]): Promise<number> {
     if (items.length === 0) return 0;
-    const client = await this.queue!.client;
+    const client = await this.queue!.getBackend().client;
     const admissionKey = this.queue!.toKey('producer-admission');
     const token = randomUUID();
     if (!(await client.runCommand('forkIphoneAdmitReferences', [admissionKey, token]))) return 0;
@@ -422,7 +423,7 @@ export class IphoneBackupReconciliationService {
 
   /** @returns 持久索引世代；每次真实索引推进才递增，重启及多消费者使用相同的 Redis 值。 */
   private async generation(): Promise<number> {
-    const client = await this.queue!.client;
+    const client = await this.queue!.getBackend().client;
     return Number((await client.get(this.queue!.toKey('image-generation'))) ?? 0);
   }
 
@@ -564,7 +565,7 @@ export class IphoneBackupReconciliationService {
       });
       if (!cached || !cached.fileChecksum.equals(checksum) || cached.imageFingerprint !== image.image) {
         // 一个有限任务就是一批真实推进；下一页匹配及时重查，不等待全库扫描结束。
-        const client = await this.queue!.client;
+        const client = await this.queue!.getBackend().client;
         await client.runCommand('forkIphoneAdvanceImageGeneration', [this.queue!.toKey('image-generation')]);
       }
       return { status: data.action === 'refresh' ? 'refreshed' : 'indexed' };

@@ -1,12 +1,15 @@
-import { sdkMock } from '$lib/__mocks__/sdk.mock';
-import { requestIphoneBackupProgress } from '$lib/services/iphone-backup.service';
+import { requestIphoneBackupProgress } from '#lib/services/iphone-backup.service.ts';
+
+vi.mock('@immich/sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@immich/sdk')>()),
+  getBaseUrl: () => '/api',
+}));
 
 /** 验证管理页默认批量与服务端新契约一致，避免界面仍提交旧的 1000 上限。 */
 describe('fingerprint preparation requests', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
-    sdkMock.getBaseUrl.mockReturnValue('/api');
     fetchMock.mockReset().mockResolvedValue({ ok: true, json: () => Promise.resolve({ enabled: true }) });
     vi.stubGlobal('fetch', fetchMock);
   });

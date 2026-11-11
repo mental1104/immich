@@ -1,19 +1,19 @@
+import { MediaType, QueryType, validQueryTypes } from '#lib/constants.ts';
+import { Route } from '#lib/route.ts';
+import type { SearchExifCondition, SearchFilter } from '#lib/types.ts';
+import { asLocalTimeISO, parseUtcDate } from '#lib/utils/date-time.ts';
+import { mediaCategories } from '#lib/utils/media-categories.ts';
 import {
   AssetTypeEnum,
   AssetVisibility,
   Orientation,
-  type MetadataSearchDto,
   type SearchFilter as ApiSearchFilter,
+  type MetadataSearchDto,
   type SmartSearchDto,
 } from '@immich/sdk';
 import type { DateTime } from 'luxon';
 import { SvelteSet } from 'svelte/reactivity';
 import { goto } from '$app/navigation';
-import { MediaType, QueryType, validQueryTypes } from '$lib/constants';
-import { Route } from '$lib/route';
-import type { SearchExifCondition, SearchFilter } from '$lib/types';
-import { asLocalTimeISO, parseUtcDate } from '$lib/utils/date-time';
-import { mediaCategories } from '$lib/utils/media-categories';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
 const orientations = { landscape: Orientation.Landscape, portrait: Orientation.Portrait };
@@ -59,27 +59,27 @@ class SearchManager {
     const filter = this.#filter;
     return Boolean(
       filter.personIds.size ||
-        filter.tagIds === null ||
-        filter.tagIds?.size ||
-        filter.location.city !== undefined ||
-        filter.location.state !== undefined ||
-        filter.location.country !== undefined ||
-        filter.camera.make !== undefined ||
-        filter.camera.model !== undefined ||
-        filter.camera.lensModel !== undefined ||
-        filter.deviceModels?.length ||
-        filter.date.takenAfter ||
-        filter.date.takenBefore ||
-        filter.display.isArchive ||
-        filter.display.isFavorite ||
-        filter.display.albumStatus !== 'all' ||
-        filter.mediaType !== MediaType.All ||
-        filter.isPanorama ||
-        filter.mediaCategory ||
-        filter.resolution ||
-        filter.orientation ||
-        filter.rating !== undefined ||
-        filter.exifConditions.length > 0,
+      filter.tagIds === null ||
+      filter.tagIds?.size ||
+      filter.location.city !== undefined ||
+      filter.location.state !== undefined ||
+      filter.location.country !== undefined ||
+      filter.camera.make !== undefined ||
+      filter.camera.model !== undefined ||
+      filter.camera.lensModel !== undefined ||
+      filter.deviceModels?.length ||
+      filter.date.takenAfter ||
+      filter.date.takenBefore ||
+      filter.display.isArchive ||
+      filter.display.isFavorite ||
+      filter.display.albumStatus !== 'all' ||
+      filter.mediaType !== MediaType.All ||
+      filter.isPanorama ||
+      filter.mediaCategory ||
+      filter.resolution ||
+      filter.orientation ||
+      filter.rating !== undefined ||
+      filter.exifConditions.length > 0,
     );
   }
 
@@ -301,8 +301,7 @@ class SearchManager {
         type,
         rating: filter.rating,
         isFavorite: filter.display.isFavorite || undefined,
-        hasAlbums:
-          filter.display.albumStatus === 'all' ? undefined : filter.display.albumStatus === 'in',
+        hasAlbums: filter.display.albumStatus === 'all' ? undefined : filter.display.albumStatus === 'in',
         isPanorama: filter.isPanorama || undefined,
         isPhoneVideo: filter.mediaCategory === 'phone-video' || undefined,
         isScreenshot: filter.mediaCategory === 'screenshot' || undefined,

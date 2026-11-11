@@ -1,38 +1,38 @@
 <script lang="ts">
-  import QueuePanel from './QueuePanel.svelte';
-  import IphoneBackupPanel from './IphoneBackupPanel.svelte';
-  import { onMount } from 'svelte';
+  import { featureFlagsManager } from '#lib/managers/feature-flags-manager.svelte.ts';
   import {
     requestIphoneBackupProgress,
     type IphoneBackupCommand,
     type IphoneBackupProgress,
-  } from '$lib/services/iphone-backup.service';
-  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
-  import { asQueueItem } from '$lib/services/queue.service';
-  import { locale } from '$lib/stores/preferences.store';
+  } from '#lib/services/iphone-backup.service.ts';
+  import { asQueueItem } from '#lib/services/queue.service.ts';
+  import { locale } from '#lib/stores/preferences.store.ts';
   import {
-    getPipelineAncestors,
-    getPipelineState,
-    pipelineEdges,
-    pipelineNodes,
     PIPELINE_HEIGHT,
     PIPELINE_NODE_HEIGHT,
     PIPELINE_NODE_WIDTH,
     PIPELINE_WIDTH,
+    getPipelineAncestors,
+    getPipelineState,
+    pipelineEdges,
+    pipelineNodes,
     type PipelineNode,
     type PipelineQueue,
     type PipelineState,
-  } from '$lib/utils/asset-pipeline';
+  } from '#lib/utils/asset-pipeline.ts';
   import {
     AssetJobName,
-    getAssetInfo,
     QueueName,
+    getAssetInfo,
     runAssetJobs,
     type AssetResponseDto,
     type QueueResponseDto,
   } from '@immich/sdk';
   import { Icon } from '@immich/ui';
+  import { onMount } from 'svelte';
   import { t, type Translations } from 'svelte-i18n';
+  import IphoneBackupPanel from './IphoneBackupPanel.svelte';
+  import QueuePanel from './QueuePanel.svelte';
 
   let { queues }: { queues: QueueResponseDto[] } = $props();
   let selected = $state<PipelineQueue>(QueueName.MetadataExtraction);

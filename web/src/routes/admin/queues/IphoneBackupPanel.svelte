@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { IphoneBackupCommand, IphoneBackupProgress } from '$lib/services/iphone-backup.service';
-  import { locale } from '$lib/stores/preferences.store';
+  import type { IphoneBackupCommand, IphoneBackupProgress } from '#lib/services/iphone-backup.service.ts';
+  import { locale } from '#lib/stores/preferences.store.ts';
   import { t } from 'svelte-i18n';
 
   /** 管理员选中匹配节点后的控制面；进度来自服务端，不推断手机是否完成本地关联。 */

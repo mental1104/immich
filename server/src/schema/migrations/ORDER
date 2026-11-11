@@ -105,6 +105,9 @@
 1792410000000-CustomAlbumGroups
 1792420000000-ForkGeodataNames
 1792430000000-AlbumTags
+1792511451454-AddPasskeyTable
+1792517020180-AddUpdateIdIndexes
+1792568637987-AddAssetOwnerIdUpdateIdIndex
 1793664000000-ForkIphoneBackupChecksum
 1793664000001-ForkIphoneBackupIndexOverride
 1793718000000-ForkIphoneClientChecksum

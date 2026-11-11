@@ -114,6 +114,9 @@ export class MetadataRepository {
     taskTimeoutMillis: 2 * 60 * 1000,
   });
 
+  // ExifTool 进程加载 MWG 后无法卸载；备份等价校验需使用独立的原始标签进程池。
+  private backupExiftool = new ExifTool({ useMWG: false, taskTimeoutMillis: 2 * 60 * 1000 });
+
   constructor(private logger: LoggingRepository) {
     this.logger.setContext(MetadataRepository.name);
   }
@@ -123,7 +126,7 @@ export class MetadataRepository {
   }
 
   async teardown() {
-    await this.exiftool.end();
+    await Promise.all([this.exiftool.end(), this.backupExiftool.end()]);
   }
 
   readTags(path: string): Promise<ImmichTags> {
@@ -141,8 +144,7 @@ export class MetadataRepository {
    * @returns 原始分组字段；读取失败直接抛错，不能以空标签误判两份文件等价。
    */
   async readBackupTags(path: string): Promise<Record<string, unknown>> {
-    return this.exiftool.readRaw(path, {
-      useMWG: false,
+    return this.backupExiftool.readRaw(path, {
       readArgs: ['-G0:1', '-a', '-s', '-n', '-struct', '-api', 'ImageHashType=SHA256', '-ImageDataHash', '-all'],
     });
   }

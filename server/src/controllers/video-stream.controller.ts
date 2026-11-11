@@ -13,11 +13,11 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { ZodValidationException } from 'nestjs-zod';
 import type { NextFunction, Response } from 'express';
-import type { AuthDto } from 'src/dtos/auth.dto.js';
+import { ZodValidationException } from 'nestjs-zod';
 import { HLS_PLAYLIST_CONTENT_TYPE } from 'src/constants.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
+import type { AuthDto } from 'src/dtos/auth.dto.js';
 import {
   HlsPlaylistHeaderDto,
   HlsSegmentHeaderDto,

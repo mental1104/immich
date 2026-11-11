@@ -1,7 +1,8 @@
 <script lang="ts">
-  import AlbumCover from '$lib/components/album-page/AlbumCover.svelte';
-  import { handleUpdateAlbum } from '$lib/services/album.service';
-  import { type AlbumResponseDto } from '@immich/sdk';
+  import AlbumCover from '#lib/components/album-page/AlbumCover.svelte';
+  import { updateAlbumInfoMutation } from '#lib/queries/album.query.ts';
+  import { executeMutation } from '#lib/queries/client.ts';
+  import type { AlbumResponseDto } from '@immich/sdk';
   import { Field, FormModal, Input, Textarea } from '@immich/ui';
   import { mdiRenameOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -18,14 +19,20 @@
   let description = $state(album.description);
 
   const onSubmit = async () => {
-    const success = await handleUpdateAlbum(album, {
-      albumName,
-      customGroupName: customGroupName.trim() || null,
-      description: description || null,
-    });
-    if (success) {
-      onClose();
-    }
+    await executeMutation(
+      updateAlbumInfoMutation,
+      [
+        {
+          id: album.id,
+          updateAlbumDto: {
+            albumName,
+            customGroupName: customGroupName.trim() || null,
+            description: description || null,
+          },
+        },
+      ],
+      { onSuccess: onClose },
+    );
   };
 </script>
 

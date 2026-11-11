@@ -1,13 +1,13 @@
-import { getForkLocalizedNames } from '@immich/sdk';
-import { fromStore } from 'svelte/store';
-import { browser } from '$app/environment';
-import { lang } from '$lib/stores/preferences.store';
+import { lang } from '#lib/stores/preferences.store.ts';
 import {
   LocalizedLocationIndex,
   type LocationContext,
   type LocationFormatter,
   type LocationKind,
-} from '$lib/utils/localized-location';
+} from '#lib/utils/localized-location.ts';
+import { getForkLocalizedNames } from '@immich/sdk';
+import { fromStore } from 'svelte/store';
+import { browser } from '$app/env';
 
 const language = fromStore(lang);
 

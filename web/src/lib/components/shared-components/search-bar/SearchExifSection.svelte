@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { searchManager } from '$lib/managers/search-manager.svelte';
+  import { searchManager } from '#lib/managers/search-manager.svelte.ts';
 
   let exifField = $state<'iso' | 'fNumber' | 'exposureTime' | 'focalLength'>('iso');
   let exifOperator = $state<'gt' | 'gte' | 'lt' | 'lte' | 'eq'>('gt');
@@ -30,7 +30,7 @@
     const parts = rawParts.map((part) => Number(part.trim()));
     const value = parts.length === 2 ? parts[0] / parts[1] : parts[0];
     return Number.isFinite(value) && value > 0 && !(parts.length === 2 && parts[1] === 0) ? value : undefined;
-  }
+  };
 
   export function hasPendingCondition() {
     return parseValue() !== undefined;
@@ -47,7 +47,7 @@
     exifValue = '';
     fieldSelect?.focus();
     return true;
-  };
+  }
 </script>
 
 <section aria-label="曝光与镜头条件">
@@ -74,7 +74,9 @@
       {/each}
     </div>
   {:else}
-    <p class="mb-5 rounded-lg bg-immich-fg/5 px-3 py-2 text-sm text-immich-fg/60 dark:bg-immich-dark-fg/5 dark:text-immich-dark-fg/60">
+    <p
+      class="mb-5 rounded-lg bg-immich-fg/5 px-3 py-2 text-sm text-immich-fg/60 dark:bg-immich-dark-fg/5 dark:text-immich-dark-fg/60"
+    >
       例如：焦段大于 85 mm、ISO 小于等于 400。
     </p>
   {/if}
@@ -109,15 +111,13 @@
         class="min-w-0 rounded-lg border border-immich-fg/20 bg-white px-3 py-2 dark:bg-immich-dark-bg"
         type="text"
         inputmode="decimal"
-        placeholder={
-          exifField === 'exposureTime'
-            ? '例如 1/30'
-            : exifField === 'focalLength'
-              ? '例如 85'
-              : exifField === 'fNumber'
-                ? '例如 2.8'
-                : '例如 400'
-        }
+        placeholder={exifField === 'exposureTime'
+          ? '例如 1/30'
+          : exifField === 'focalLength'
+            ? '例如 85'
+            : exifField === 'fNumber'
+              ? '例如 2.8'
+              : '例如 400'}
         bind:value={exifValue}
         onkeydown={(event) => event.key === 'Enter' && event.preventDefault()}
       />

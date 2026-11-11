@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { authManager } from '#lib/managers/auth-manager.svelte.ts';
   import {
     listPhotoCopilotSessions,
     photoCopilotEventsUrl,
     requestPhotoCopilot,
     type PhotoCopilotSessionSummary,
     type PhotoCopilotSnapshot,
-  } from '$lib/services/photo-copilot.service';
+  } from '#lib/services/photo-copilot.service.ts';
   import { onMount } from 'svelte';
 
   /** 当前照片专属面板；父级以 Asset ID 为 key 重建，避免迟到结果串到另一张照片。 */

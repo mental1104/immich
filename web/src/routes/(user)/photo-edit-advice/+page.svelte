@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { page } from '$app/state';
-  import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
-  import { Route } from '$lib/route';
+  import UserPageLayout from '#lib/components/layouts/UserPageLayout.svelte';
+  import { Route } from '#lib/route.ts';
   import {
     photoEditFileUrl,
     photoEditGraph,
@@ -13,11 +12,12 @@
     type PhotoEditProject,
     type PhotoEditReport,
     type PhotoEditVersion,
-  } from '$lib/services/photo-edit-advice.service';
-  import { getAssetMediaUrl } from '$lib/utils';
+  } from '#lib/services/photo-edit-advice.service.ts';
+  import { getAssetMediaUrl } from '#lib/utils.ts';
   import { AssetMediaSize } from '@immich/sdk';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
+  import { page } from '$app/state';
 
   const software = { lightroom: 'Lightroom Mobile', snapseed: 'Snapseed', photomator: 'Photomator' } as const;
   let assetId = $derived(page.url.searchParams.get('assetId'));

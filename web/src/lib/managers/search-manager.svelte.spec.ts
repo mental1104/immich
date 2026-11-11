@@ -1,7 +1,7 @@
+import { MediaType } from '#lib/constants.ts';
+import { searchManager } from '#lib/managers/search-manager.svelte.ts';
 import { AssetTypeEnum } from '@immich/sdk';
 import { goto } from '$app/navigation';
-import { MediaType } from '$lib/constants';
-import { searchManager } from '$lib/managers/search-manager.svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 

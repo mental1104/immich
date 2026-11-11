@@ -1,12 +1,12 @@
 <script lang="ts">
+  import { MediaType } from '#lib/constants.ts';
+  import { searchManager } from '#lib/managers/search-manager.svelte.ts';
+  import { handlePromiseError } from '#lib/utils.ts';
+  import { cameraLabel, isCameraLens, isCameraMake, isCameraModel } from '#lib/utils/capture-devices.ts';
+  import { SearchSuggestionType, getSearchSuggestions } from '@immich/sdk';
+  import { Text } from '@immich/ui';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { getSearchSuggestions, SearchSuggestionType } from '@immich/sdk';
-  import { Text } from '@immich/ui';
-  import { MediaType } from '$lib/constants';
-  import { searchManager } from '$lib/managers/search-manager.svelte';
-  import { handlePromiseError } from '$lib/utils';
-  import { cameraLabel, isCameraMake, isCameraModel, isCameraLens } from '$lib/utils/capture-devices';
   import SearchButton from './SearchButton.svelte';
 
   let filters = $derived(searchManager.filter.camera);

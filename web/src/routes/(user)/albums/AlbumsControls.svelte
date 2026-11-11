@@ -1,18 +1,19 @@
 <script lang="ts">
-  import Dropdown from '$lib/elements/Dropdown.svelte';
-  import GroupTab from '$lib/elements/GroupTab.svelte';
-  import SearchBar from '$lib/elements/SearchBar.svelte';
+  import Dropdown from '#lib/elements/Dropdown.svelte';
+  import GroupTab from '#lib/elements/GroupTab.svelte';
+  import SearchBar from '#lib/elements/SearchBar.svelte';
+  import AddUsersModal from '#lib/modals/AddUsersModal.svelte';
+  import BulkAlbumCustomGroupModal from '#lib/modals/BulkAlbumCustomGroupModal.svelte';
+  import { handleAddUsersToAlbums, handleDeleteAlbums, isAlbumOwner } from '#lib/services/album.service.ts';
   import {
     AlbumFilter,
     AlbumGroupBy,
     AlbumSortBy,
     AlbumViewMode,
-    albumViewSettings,
     SortOrder,
-  } from '$lib/stores/preferences.store';
+    albumViewSettings,
+  } from '#lib/stores/preferences.store.ts';
   import {
-    type AlbumGroupOptionMetadata,
-    type AlbumSortOptionMetadata,
     collapseAllAlbumGroups,
     createAlbumAndRedirect,
     expandAllAlbumGroups,
@@ -22,29 +23,29 @@
     getSelectedAlbumGroupOption,
     groupOptionsMetadata,
     sortOptionsMetadata,
-  } from '$lib/utils/album-utils';
-  import { Button, IconButton, modalManager, Text } from '@immich/ui';
+    type AlbumGroupOptionMetadata,
+    type AlbumSortOptionMetadata,
+  } from '#lib/utils/album-utils.ts';
+  import type { AlbumResponseDto } from '@immich/sdk';
+  import { Button, IconButton, Text, modalManager } from '@immich/ui';
   import {
     mdiArrowDownThin,
     mdiArrowUpThin,
     mdiCheckboxMultipleMarkedOutline,
-    mdiFolderEditOutline,
     mdiFolderArrowDownOutline,
     mdiFolderArrowUpOutline,
+    mdiFolderEditOutline,
     mdiFolderRemoveOutline,
     mdiFormatListBulletedSquare,
     mdiPlusBoxOutline,
+    mdiShareVariantOutline,
+    mdiTrashCanOutline,
     mdiUnfoldLessHorizontal,
     mdiUnfoldMoreHorizontal,
     mdiViewGridOutline,
   } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
-  import BulkAlbumCustomGroupModal from '$lib/modals/BulkAlbumCustomGroupModal.svelte';
-  import AddUsersModal from '$lib/modals/AddUsersModal.svelte';
-  import { handleAddUsersToAlbums, handleDeleteAlbums, isAlbumOwner } from '$lib/services/album.service';
-  import type { AlbumResponseDto } from '@immich/sdk';
-  import { mdiShareVariantOutline, mdiTrashCanOutline } from '@mdi/js';
 
   interface Props {
     albumGroups: string[];

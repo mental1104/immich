@@ -1,19 +1,17 @@
-import '@testing-library/jest-dom';
-import { cleanup, fireEvent, render } from '@testing-library/svelte';
+import type { IphoneBackupProgress } from '#lib/services/iphone-backup.service.ts';
 import { init, register, waitLocale } from 'svelte-i18n';
-import type { IphoneBackupProgress } from '$lib/services/iphone-backup.service';
+import { render } from 'vitest-browser-svelte';
+import { page } from 'vitest/browser';
 import IphoneBackupPanel from './IphoneBackupPanel.svelte';
 
 /** 验证进度含义与控制按钮，避免空队列被误报为准备完成或页面自动触发任务。 */
 describe('iPhone backup progress panel', () => {
   /** 采用真实英文翻译，以便断言用户看到的完成数、剩余数和动作。 */
   beforeAll(async () => {
-    register('en-US', () => import('$i18n/en.json'));
+    register('en-US', () => import('#i18n/en.json'));
     await init({ fallbackLocale: 'en-US', initialLocale: 'en-US' });
     await waitLocale('en-US');
   });
-
-  afterEach(cleanup);
 
   const progress: IphoneBackupProgress = {
     enabled: true,
@@ -28,51 +26,51 @@ describe('iPhone backup progress panel', () => {
 
   it('shows database progress and waits for an explicit batch action', async () => {
     const oncommand = vi.fn();
-    const view = render(IphoneBackupPanel, { progress, busy: false, stale: false, oncommand });
-    expect(view.getByText(/Ready 24 \/ 162,662; remaining 162,638/)).toBeInTheDocument();
-    expect(view.getByText(/Phone uploads are paused/)).toBeInTheDocument();
+    await render(IphoneBackupPanel, { progress, busy: false, stale: false, oncommand });
+    await expect.element(page.getByText(/Ready 24 \/ 162,662; remaining 162,638/)).toBeInTheDocument();
+    await expect.element(page.getByText(/Phone uploads are paused/)).toBeInTheDocument();
     expect(oncommand).not.toHaveBeenCalled();
-    await fireEvent.click(view.getByRole('button', { name: 'Process next batch' }));
+    await page.getByRole('button', { name: 'Process next batch' }).click();
     expect(oncommand).toHaveBeenCalledWith('start');
   });
 
   it('offers explicit resume for a paused batch', async () => {
     const oncommand = vi.fn();
-    const view = render(IphoneBackupPanel, {
+    await render(IphoneBackupPanel, {
       progress: { ...progress, state: 'paused' },
       busy: false,
       stale: false,
       oncommand,
     });
-    await fireEvent.click(view.getByRole('button', { name: 'Process next batch' }));
+    await page.getByRole('button', { name: 'Process next batch' }).click();
     expect(oncommand).toHaveBeenCalledWith('resume');
   });
 
   it('starts continuous preparation only after an explicit action', async () => {
     const oncommand = vi.fn();
-    const view = render(IphoneBackupPanel, { progress, busy: false, stale: false, oncommand });
+    await render(IphoneBackupPanel, { progress, busy: false, stale: false, oncommand });
     expect(oncommand).not.toHaveBeenCalled();
-    await fireEvent.click(view.getByRole('button', { name: 'Start continuous preparation' }));
+    await page.getByRole('button', { name: 'Start continuous preparation' }).click();
     expect(oncommand).toHaveBeenCalledWith('continue');
   });
 
   it('shows persisted continuous mode and resumes it without switching to a manual batch', async () => {
     const oncommand = vi.fn();
-    const view = render(IphoneBackupPanel, {
+    await render(IphoneBackupPanel, {
       progress: { ...progress, continuous: true, state: 'paused' },
       busy: false,
       stale: false,
       oncommand,
     });
-    expect(view.getByText(/Continuous preparation is enabled/)).toBeInTheDocument();
-    expect(view.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
-    await fireEvent.click(view.getByRole('button', { name: 'Resume continuous preparation' }));
+    await expect.element(page.getByText(/Continuous preparation is enabled/)).toBeInTheDocument();
+    await expect.element(page.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Resume continuous preparation' }).click();
     expect(oncommand).toHaveBeenCalledWith('resume');
   });
 
   it('keeps failures visible and requires explicit retry', async () => {
     const oncommand = vi.fn();
-    const view = render(IphoneBackupPanel, {
+    await render(IphoneBackupPanel, {
       progress: {
         ...progress,
         state: 'failed',
@@ -82,15 +80,19 @@ describe('iPhone backup progress panel', () => {
       stale: false,
       oncommand,
     });
-    expect(view.getByRole('alert')).toHaveTextContent('ENOENT opaque-asset-id');
-    expect(view.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
-    await fireEvent.click(view.getByRole('button', { name: 'Retry failed batch' }));
+    await expect.element(page.getByRole('alert')).toHaveTextContent('ENOENT opaque-asset-id');
+    await expect.element(page.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Retry failed batch' }).click();
     expect(oncommand).toHaveBeenCalledWith('retry');
   });
 
-  it('marks stale data and prevents controls from submitting against it', () => {
-    const view = render(IphoneBackupPanel, { progress, busy: false, stale: true, oncommand: vi.fn() });
-    expect(view.getByRole('alert')).toHaveTextContent(/progress may be out of date/);
-    expect(view.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
+  it('marks stale data and prevents controls from submitting against it', async () => {
+    await render(IphoneBackupPanel, { progress, busy: false, stale: true, oncommand: vi.fn() });
+    await expect
+      .element(page.getByRole('alert'))
+      .toHaveTextContent(
+        'Unable to refresh or apply the command. Displayed progress may be out of date; retry after the connection recovers.',
+      );
+    await expect.element(page.getByRole('button', { name: 'Process next batch' })).toBeDisabled();
   });
 });

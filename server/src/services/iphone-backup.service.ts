@@ -234,7 +234,7 @@ export class IphoneBackupService {
 
   /** @param libraryId 目标库。 @returns Redis 中原子保存的模式与合法批次大小；无记录时默认手动。 */
   private async readContinuation(libraryId: string) {
-    const client = await this.queue!.client;
+    const client = await this.queue!.getBackend().client;
     const [enabled, rawLimit] = await client.hmget(this.queue!.toKey(`continuation-${libraryId}`), 'enabled', 'limit');
     const limit = Number(rawLimit ?? IPHONE_BACKUP_BATCH_LIMIT);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > IPHONE_BACKUP_BATCH_LIMIT) {
@@ -245,7 +245,7 @@ export class IphoneBackupService {
 
   /** @param libraryId 目标库。 @param enabled 是否显式启用接续。 @param limit 后续每批数量上限。 @returns 控制意图已原子写入 Redis。 */
   private async writeContinuation(libraryId: string, enabled: boolean, limit: number): Promise<void> {
-    const client = await this.queue!.client;
+    const client = await this.queue!.getBackend().client;
     await client.hset(this.queue!.toKey(`continuation-${libraryId}`), {
       enabled: String(enabled),
       limit: String(limit),

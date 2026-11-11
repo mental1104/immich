@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
-import type { JobItem } from 'src/types.js';
 import { AssetType, ChecksumAlgorithm, ImmichWorker, JobName, JobStatus, QueueName } from 'src/enum.js';
 import { JobService } from 'src/services/job.service.js';
+import type { JobItem } from 'src/types.js';
 import { AssetEditFactory } from 'test/factories/asset-edit.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { newUuid } from 'test/small.factory.js';
@@ -186,19 +186,6 @@ describe(JobService.name, () => {
       }
     });
 
-    it('should queue metadata extraction when sidecar discovery is skipped', async () => {
-      const job: JobItem = { name: JobName.SidecarCheck, data: { id: 'asset-1', source: 'upload' } };
-      mocks.assetJob.getAssetType.mockResolvedValue({ type: AssetType.Image });
-      mocks.job.run.mockResolvedValue(JobStatus.Skipped);
-
-      await sut.onJobRun(QueueName.Sidecar, job);
-
-      expect(mocks.job.queue).toHaveBeenCalledExactlyOnceWith({
-        name: JobName.AssetExtractMetadata,
-        data: { ...job.data, assetType: AssetType.Image, force: true },
-      });
-    });
-
     it('should process a successful job', async () => {
       mocks.job.run.mockResolvedValue(JobStatus.Success);
 
@@ -255,15 +242,34 @@ describe(JobService.name, () => {
       expect(mocks.assetJob.completeAssetTask).toHaveBeenCalledWith('raw-1', 'raw-pairing');
     });
 
+    it.each([JobStatus.Success, JobStatus.Skipped])(
+      'should queue metadata extraction after a %s sidecar check and preserve its source',
+      async (status) => {
+        // Sidecar 检查完成或跳过时，使用真实资产类型继续原上传的元数据任务。
+        mocks.assetJob.getAssetType.mockResolvedValue({ type: AssetType.Image });
+        mocks.job.run.mockResolvedValue(status);
+        const job: JobItem = { name: JobName.SidecarCheck, data: { id: 'asset-1', source: 'upload' } };
+
+        await sut.onJobRun(QueueName.Sidecar, job);
+
+        expect(mocks.job.queue).toHaveBeenCalledExactlyOnceWith({
+          name: JobName.AssetExtractMetadata,
+          data: { id: 'asset-1', source: 'upload', assetType: AssetType.Image, force: true },
+        });
+        expect(mocks.job.queueAll).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should not queue metadata extraction after a failed sidecar check', async () => {
+      mocks.job.run.mockResolvedValue(JobStatus.Failed);
+
+      await sut.onJobRun(QueueName.Sidecar, { name: JobName.SidecarCheck, data: { id: 'asset-1', source: 'upload' } });
+
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+      expect(mocks.job.queueAll).not.toHaveBeenCalled();
+    });
+
     const tests: Array<{ item: JobItem; jobs: JobName[]; stub?: any }> = [
-      {
-        item: { name: JobName.SidecarCheck, data: { id: 'asset-1' } },
-        jobs: [JobName.AssetExtractMetadata],
-      },
-      {
-        item: { name: JobName.SidecarCheck, data: { id: 'asset-1' } },
-        jobs: [JobName.AssetExtractMetadata],
-      },
       {
         item: { name: JobName.StorageTemplateMigrationSingle, data: { id: 'asset-1', source: 'upload' } },
         jobs: [JobName.AssetGenerateThumbnails],

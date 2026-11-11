@@ -1,7 +1,7 @@
+import { factory } from '#test/common/factories.ts';
 import { AssetTypeEnum } from '@immich/sdk';
 import { describe, expect, it } from 'vitest';
-import { assetFactory } from '@test-data/factories/asset-factory';
-import { isX5InspAsset, readX5InspCalibration, selectPanoramaDimensions, X5InspError } from './x5-insp';
+import { X5InspError, isX5InspAsset, readX5InspCalibration, selectPanoramaDimensions } from './x5-insp';
 
 /**
  * 创建只包含检测与标定所需字段的轻量 INSP Blob，避免把私人样片提交进仓库。
@@ -19,13 +19,13 @@ const createInspFixture = (model: string, calibration?: string): Blob => {
 
 describe(isX5InspAsset.name, () => {
   it('detects an image by its case-insensitive original filename', () => {
-    const asset = assetFactory.build({ type: AssetTypeEnum.Image, originalFileName: 'IMG_2026_001.INSP' });
+    const asset = factory.asset({ type: AssetTypeEnum.Image, originalFileName: 'IMG_2026_001.INSP' });
 
     expect(isX5InspAsset(asset)).toBe(true);
   });
 
   it('uses the original path when the filename does not expose the extension', () => {
-    const asset = assetFactory.build({
+    const asset = factory.asset({
       type: AssetTypeEnum.Image,
       originalFileName: 'IMG_2026_001',
       originalPath: '/external/Photos/IMG_2026_001.insp',
@@ -35,8 +35,8 @@ describe(isX5InspAsset.name, () => {
   });
 
   it('does not intercept videos or ordinary images', () => {
-    const video = assetFactory.build({ type: AssetTypeEnum.Video, originalFileName: 'clip.insp' });
-    const image = assetFactory.build({ type: AssetTypeEnum.Image, originalFileName: 'photo.jpg' });
+    const video = factory.asset({ type: AssetTypeEnum.Video, originalFileName: 'clip.insp' });
+    const image = factory.asset({ type: AssetTypeEnum.Image, originalFileName: 'photo.jpg' });
 
     expect(isX5InspAsset(video)).toBe(false);
     expect(isX5InspAsset(image)).toBe(false);
