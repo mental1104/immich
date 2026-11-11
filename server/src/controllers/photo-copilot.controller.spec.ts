@@ -9,7 +9,7 @@ import { ControllerContext, controllerSetup } from 'test/utils.js';
 /** 公开 HTTP 合同测试：沿用 Immich 登录规则，拒绝非法消息及客户端指定的服务器路径。 */
 describe(PhotoCopilotController.name, () => {
   let context: ControllerContext;
-  const service = { status: vi.fn(), open: vi.fn(), send: vi.fn(), stop: vi.fn(), events: vi.fn() };
+  const service = { status: vi.fn(), list: vi.fn(), open: vi.fn(), send: vi.fn(), stop: vi.fn(), events: vi.fn() };
   const assetId = '00000000-0000-4000-8000-000000000001';
   const id = '00000000-0000-4000-8000-000000000002';
   const auth = AuthFactory.create();
@@ -27,7 +27,21 @@ describe(PhotoCopilotController.name, () => {
   it('uses existing Immich authentication', async () => {
     context.authenticate.mockRejectedValue(new UnauthorizedException());
     await request(context.getHttpServer()).get('/fork/photo-copilot').expect(401);
+    await request(context.getHttpServer())
+      .get('/fork/photo-copilot/assets/' + assetId + '/sessions')
+      .expect(401);
     expect(service.status).not.toHaveBeenCalled();
+    expect(service.list).not.toHaveBeenCalled();
+  });
+
+  /** 历史列表带有登录身份和路由照片，返回可重开的会话摘要。 */
+  it('lists saved sessions for the requested photo', async () => {
+    const summaries = [{ id, title: 'Explain the light' }];
+    service.list.mockResolvedValue(summaries);
+    await request(context.getHttpServer())
+      .get('/fork/photo-copilot/assets/' + assetId + '/sessions')
+      .expect(200, summaries);
+    expect(service.list).toHaveBeenCalledWith(auth, assetId);
   });
 
   /** 当前照片从 URL 进入服务层，请求无法覆盖服务端文件源。 */
@@ -41,7 +55,7 @@ describe(PhotoCopilotController.name, () => {
   });
 
   /** 空消息和超长消息在进入模型层前被拒绝。 */
-  it.each(['', ' '.repeat(4), 'x'.repeat(16_001)])('rejects invalid message length', async (message) => {
+  it.each(['', ' '.repeat(4), 'x'.repeat(16_001), 'text\0'])('rejects invalid message text', async (message) => {
     await request(context.getHttpServer())
       .post(`/fork/photo-copilot/assets/${assetId}/sessions/${id}/messages`)
       .send({ message })

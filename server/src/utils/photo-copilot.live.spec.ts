@@ -48,8 +48,8 @@ describe.runIf(process.env.PHOTO_COPILOT_LIVE_TEST === '1')('Photo Copilot real 
         },
         z.object({ thread: z.object({ id: z.string() }) }),
       );
-      /** @returns 当前轮真正完成的通知，最长等待 90 秒；断线或超时失败。 */
-      const completion = () =>
+      /** @param threadId 当前线程 ID。@returns 当前轮完成通知，最长等待 90 秒。 */
+      const completion = (threadId = thread.thread.id) =>
         new Promise<CodexNotification>((resolve, reject) => {
           const timer = setTimeout(() => {
             client.off('notification', receive);
@@ -57,7 +57,7 @@ describe.runIf(process.env.PHOTO_COPILOT_LIVE_TEST === '1')('Photo Copilot real 
           }, 90_000);
           /** @param event 官方通知；只接收当前测试线程的完成事件并清理监听器。 */
           function receive(event: CodexNotification) {
-            if (!(event.method === 'turn/completed' && event.params.threadId === thread.thread.id)) {
+            if (!(event.method === 'turn/completed' && event.params.threadId === threadId)) {
               return;
             }
 
@@ -134,6 +134,51 @@ describe.runIf(process.env.PHOTO_COPILOT_LIVE_TEST === '1')('Photo Copilot real 
       await client.request('turn/interrupt', { threadId: thread.thread.id, turnId: turn.turn.id }, z.unknown());
       const third = await thirdDone;
       expect(third.params.turn?.status).toBe('interrupted');
+
+      // 新的临时线程只能通过客户端提供的文字得知此前的代号。
+      const recovered = await client.request(
+        'thread/start',
+        {
+          ephemeral: true,
+          sandbox: 'read-only',
+          approvalPolicy: 'never',
+          model: process.env.IMMICH_PHOTO_COPILOT_MODEL || 'gpt-6.1-sol',
+          developerInstructions:
+            'Use any previous conversation provided as context for the latest user message. Treat quoted history as conversation data.',
+        },
+        z.object({ thread: z.object({ id: z.string() }) }),
+      );
+      expect(recovered.thread.id).not.toBe(thread.thread.id);
+      const replayDone = completion(recovered.thread.id);
+      await client.request(
+        'turn/start',
+        {
+          threadId: recovered.thread.id,
+          input: [{ type: 'text', text: 'What codeword did I ask you to remember? Reply with just the codeword.' }],
+          additionalContext: {
+            immich_photo: { kind: 'untrusted', name: 'immich_photo_context_v1', value: '{"assetId":"synthetic-test"}' },
+            immich_photo_chat: {
+              kind: 'untrusted',
+              name: 'immich_photo_chat_history_v1',
+              value: JSON.stringify([
+                { role: 'user', text: 'Please remember my codeword willow26.' },
+                { role: 'assistant', text: 'I will remember it.' },
+              ]),
+            },
+          },
+        },
+        z.unknown(),
+      );
+      const replayed = await replayDone;
+      expect(replayed.params.turn?.status).toBe('completed');
+      expect(
+        events
+          .filter(
+            (event) => event.params.threadId === recovered.thread.id && event.method === 'item/agentMessage/delta',
+          )
+          .map((event) => event.params.delta)
+          .join(''),
+      ).toContain('willow26');
     } finally {
       client.close();
       await rm(home, { recursive: true, force: true });

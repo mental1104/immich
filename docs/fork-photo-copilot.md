@@ -4,6 +4,8 @@ Photo Copilot 在照片查看器内提供原生 Codex 聊天面板。Codex 在 N
 
 2026-11-10 已部署到 NAS 正式 Immich，运行镜像为 `immich-server:nas-dev-d3d32e845ef8`。刷新网页，打开照片后点击工具栏的机器人按钮 Photo Copilot 即可。正式专用 HOME 为 `/volume2/docker/immich/photo-copilot`，固定二进制目录为 `/volume2/docker/immich/photo-codex-0.166.0`；部署配置由 homelab-services 的 Immich override 管理，详细证据与回退边界见根目录 `change.log`。
 
+本文下方的聊天持久化行为属于后续开发版本。上述正式镜像中的会话仍保存在进程内存。
+
 ## 当前实现
 
 ```text
@@ -19,7 +21,7 @@ Photo Copilot 在照片查看器内提供原生 Codex 聊天面板。Codex 在 N
 - 现有 Immich 插件接口用于 workflow 方法与模板，没有照片查看器 UI 插槽，因此直接添加小范围原生组件，避免 DOM 注入及浏览器跨源 localhost 问题。
 - 服务端复用 `AssetService.get`、`AlbumRepository.getByAssetId` 和现有 AssetRead/View/Download 权限。客户端只能提交 Asset ID、会话 ID、消息，不能指定文件路径、系统提示词、模型或执行命令。
 - Codex 接口对照本机 `0.166.0` CLI 的 `generate-json-schema --experimental` 输出及[官方 App Server 文档](https://developers.openai.com/codex/app-server)。使用 `initialize`、`thread/start`、`turn/start`、`turn/interrupt`、`thread/unsubscribe` 和助手增量/终态通知。`additionalContext` 是该版本的实验字段，握手显式启用 `experimentalApi`，传递包含版本号的结构化 JSON 上下文；升级 CLI 后需重新验证。
-- Fork API 使用 `ApiExcludeController`，不进入官方 OpenAPI/移动 SDK 生成链路，不修改官方接口或数据库。
+- Fork API 使用 `ApiExcludeController`，不进入官方 OpenAPI 或移动 SDK。聊天持久化使用独立的 Fork 表。
 
 ## 图片和上下文
 
@@ -35,7 +37,7 @@ Photo Copilot 在照片查看器内提供原生 Codex 聊天面板。Codex 在 N
 | 解码失败、其他格式、原片离线或超限 | 使用未编辑的 Immich 预览，存在且不超过 20 MiB                                       | Immich preview         |
 | 原片和可用预览均不存在             | 仅元数据对话，模型明确获知没有图片                                                  | not attached           |
 
-转换图最长边 4096px，输入上限 1 亿像素。临时图只写独立 Codex HOME 的 `workspace`，正常完成、停止和异常时清理，不写回图库、不更新 EXIF 或数据库。进程被 SIGKILL 时可能留下临时 JPEG，可在停止服务后清理该独立 workspace 中的 `.jpg` 文件。
+转换图最长边 4096px，输入上限 1 亿像素。临时图只写独立 Codex HOME 的 `workspace`，正常完成、停止和异常时清理。照片和 EXIF 仅读取。进程被 SIGKILL 时可能留下临时 JPEG，可在停止服务后清理该独立 workspace 中的 `.jpg` 文件。
 
 ## 配置与启动
 
@@ -43,7 +45,7 @@ Photo Copilot 在照片查看器内提供原生 Codex 聊天面板。Codex 在 N
 
 | 环境变量                          | 默认值         | 含义                                                              |
 | --------------------------------- | -------------- | ----------------------------------------------------------------- |
-| `IMMICH_PHOTO_COPILOT_ENABLED`    | 未启用         | `true` 才启动助手；没有数据库迁移                                 |
+| `IMMICH_PHOTO_COPILOT_ENABLED`    | 未启用         | `true` 才接受聊天和历史请求                                       |
 | `IMMICH_PHOTO_COPILOT_HOME`       | 无             | 必须为绝对路径、专用于此功能的可写目录，不能使用现有 `~/.codex`   |
 | `IMMICH_PHOTO_COPILOT_EXECUTABLE` | `codex`        | NAS/容器内可执行的 Codex 路径；容器必须能访问该二进制及其配套资源 |
 | `IMMICH_PHOTO_COPILOT_MODEL`      | Codex 默认模型 | 可选模型名，需当前登录账号支持                                    |
@@ -79,15 +81,24 @@ IMMICH_SERVER_URL=http://127.0.0.1:2283 pnpm dev
 
 容器部署可参考 `docker/compose.photo-copilot.example.yml`，在隔离环境中与 `docker/compose.nas-dev.yml` 组合；示例本身不会执行部署。`PHOTO_COPILOT_CODEX_RELEASE` 指向包含 `codex` 与配套资源的 Linux release 目录，`PHOTO_COPILOT_HOME` 指向专用登录/缓存目录。只新增只读二进制挂载和专用状态卷，没有新端口或 Bridge 服务。不要把宿主机的 macOS/Windows 二进制挂到 Linux 容器中。
 
-模型配置和登录属于服务器侧配置。Web 中进入一张照片，点击工具栏的机器人按钮 Photo Copilot 即可；首次打开会创建线程，首次发送会附加图片。面板顶部始终显示文件名、Asset ID、连接/任务状态及实际图片来源，展开 Photo context 可检查元数据。
+模型配置和登录属于服务器侧配置。在照片查看器点击 Photo Copilot 打开聊天。首次发送时启动 Codex 并按权限附加图片。面板顶部显示文件名、Asset ID、连接状态和图片来源，展开 Photo context 可检查元数据。
+
+## 聊天历史
+
+新版本启动时，Immich 的正常迁移流程会创建 `fork_photo_copilot_session` 和 `fork_photo_copilot_message`。两张表使用 PostgreSQL 标准类型和索引。会话绑定登录用户和照片，消息按顺序保存用户和助手可见的文字。永久删除用户或照片时，数据库级联清理对应聊天。
+
+发送时先保存问题，再请求 Codex。流式文字在一轮结束时随状态提交。正常停止时会保存已经收到的文字，进程突然退出时会保留问题和以前的消息，将未提交的这一轮显示为中断。照片、附件、原片路径、结构化 EXIF、登录信息和隐藏推理均不作为历史字段保存。
+
+照片面板的 **History** 可打开同一用户在这张照片上的其他会话。新的浏览器标签页默认打开最近有消息的会话。会话仍要求当前照片可读。查看历史不启动模型。Codex 线程仍是临时的，重启后追问会创建新线程，并传入最近最多 12 条文字，每条最多 4,000 字符，合计最多 16,000 字符。界面会显示全部已保存的消息。
+
+历史从新版本收到的消息开始保存。旧进程退出时，此前仅存于内存的会话会丢失。关闭功能开关会暂停历史和模型入口，聊天表仍保留。旧版 Immich 启动时会检查已应用的迁移，回退镜像前需按备份方案还原兼容的数据库。迁移的 `down` 会删除两张聊天表及其中的记录。
 
 ## 停止、刷新与故障
 
 - Stop 调用官方 `turn/interrupt`，显示 stopping，收到 interrupted 才确认结束。10 秒无终态会关闭本功能的 App Server，所有相关会话明确显示失败。
-- 关闭侧栏、切图或刷新只断开观察，已提交任务在后台继续；重新打开按用户/Asset ID 从本标签页 `sessionStorage` 恢复。新照片使用新会话，旧照片输出不会串入。
+- 关闭侧栏、切图或刷新只断开观察，已提交任务在后台继续。重新打开优先恢复本标签页选择的会话，切图后读取该照片自己的历史。
 - New session 开始新的照片会话；运行中的会话需先停止。HTTP/SSE 重连不重复提交用户消息。
-- 服务端重启会丢失内存会话；前端发现 404 后创建新会话，不能恢复旧聊天历史。App Server 线程为 ephemeral；服务器本地仍可能保存 Codex 自身的运行状态，专用 HOME 应按私人数据保护。
-- 每个 API 进程最多保留 32 个会话、同时运行 2 个任务、每会话最多 100 条消息，单轮 5 分钟后请求停止。只回收空闲会话。当前仅支持单 API 实例；多副本需要粘性路由或另行实现共享状态。
+- 每个 API 进程最多缓存 32 个会话，同时运行 2 个任务。会话达到 100 条消息后需新开会话。单轮 5 分钟后请求停止。缓存只回收空闲会话，历史仍可重新读取。运行中的任务由当前单 API 实例管理。
 - 连接错误先检查功能开关、容器内 Codex 可执行路径、HOME 写权限、登录有效性、模型可用性和反向代理的 SSE buffering。Nginx 应允许长连接并关闭该路径的 proxy buffering。
 - 前台开发用 Ctrl+C 停止；容器正常停止时随 Immich 清理自己的 Codex 子进程。禁用环境开关并重启服务即可停止整个功能，无数据库回退。不会停止 NAS 上其他 Codex 会话。
 - 不记录用户消息、照片字节、EXIF 或 Codex stderr；既有请求日志仍可能记录 URL/Asset ID。全局 verbose body logging 对 Photo Copilot 路径跳过正文。
@@ -100,6 +111,11 @@ IMMICH_SERVER_URL=http://127.0.0.1:2283 pnpm dev
 # server/：服务、HTTP/SSE 合同测试及静态检查；数据库用替身，不访问生产。
 pnpm exec vitest run --config test/vitest.config.mjs src/services/photo-copilot.service.spec.ts src/controllers/photo-copilot.controller.spec.ts
 pnpm exec tsc --noEmit --incremental false
+```
+
+```sh
+# server/：在独立 PostgreSQL 检查消息事务、历史隔离和级联删除。
+pnpm test:medium run test/medium/specs/repositories/photo-copilot.repository.spec.ts
 ```
 
 ```sh
@@ -125,6 +141,6 @@ pnpm exec playwright test --project=ui --workers=1 src/ui/specs/asset-viewer/pho
 
 ## 目前的边界
 
-尚未实现描述/标签等数据富化写入、批量分析、相似搜索、持久化聊天、跨浏览器恢复、视频理解、完整 RAW 显影及移动端适配。没有授予 Codex 通用本机工具和 NAS 管理权限；后续富化应增加明确的结构化结果及写入确认，不能直接放开 shell 或让模型改数据库。iPhone 虚拟原片/恢复引用没有单独接入原片重建路径，原路径不可读时使用可用预览。
+目前范围为单张照片的问答和历史。数据富化、批量分析、相似搜索、视频理解、完整 RAW 显影和移动端适配尚未实现。iPhone 虚拟原片或恢复引用在原路径不可读时使用可用预览。
 
-既有官方 API、数据库迁移、原片、官方移动端及 SDK 保持原有行为。没有以服务健康检查替代真机或实际照片验收。
+Photo Copilot 使用 Fork API 和独立迁移。官方移动端及 SDK 不依赖此功能。

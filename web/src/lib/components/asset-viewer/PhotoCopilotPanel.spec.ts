@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import {
+  listPhotoCopilotSessions,
   photoCopilotEventsUrl,
   requestPhotoCopilot,
   type PhotoCopilotSnapshot,
@@ -8,6 +9,7 @@ import PhotoCopilotPanel from './PhotoCopilotPanel.svelte';
 
 vi.mock('$lib/managers/auth-manager.svelte', () => ({ authManager: { user: { id: 'synthetic-user' } } }));
 vi.mock('$lib/services/photo-copilot.service', () => ({
+  listPhotoCopilotSessions: vi.fn(),
   requestPhotoCopilot: vi.fn(),
   photoCopilotEventsUrl: vi.fn(),
 }));
@@ -51,6 +53,7 @@ describe('PhotoCopilotPanel', () => {
     TestEventSource.instances = [];
     vi.stubGlobal('EventSource', TestEventSource);
     vi.mocked(photoCopilotEventsUrl).mockReturnValue('/synthetic-events');
+    vi.mocked(listPhotoCopilotSessions).mockResolvedValue([]);
     vi.mocked(requestPhotoCopilot).mockResolvedValue(stateFor());
     Element.prototype.scrollTo = vi.fn();
   });
@@ -75,7 +78,10 @@ describe('PhotoCopilotPanel', () => {
       expect.any(AbortSignal),
     );
     const state = stateFor();
-    state.messages = [{ id: 'reply', role: 'assistant', text: '<script>safe text</script>' }];
+    state.messages = [
+      { id: 'question', role: 'user', text: 'Describe this' },
+      { id: 'reply', role: 'assistant', text: '<script>safe text</script>' },
+    ];
     stream.snapshot(state);
     await waitFor(() => expect(screen.getByText('<script>safe text</script>')).toBeInTheDocument());
     expect(document.querySelector('article script')).toBeNull();
@@ -146,5 +152,36 @@ describe('PhotoCopilotPanel', () => {
     await waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
     TestEventSource.instances[0].dispatchEvent(new Event('error'));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Connection lost'));
+  });
+
+  /** 清空浏览器会话指针后仍可打开最近记录，再切换到同一照片的另一段对话。 */
+  it('opens server history on a new browser and switches to an older conversation', async () => {
+    const latest = {
+      ...stateFor(),
+      id: 'latest',
+      messages: [{ id: 'question', role: 'user' as const, text: 'Explain the light' }],
+    };
+    const older = {
+      ...stateFor(),
+      id: 'older',
+      messages: [{ id: 'other-question', role: 'user' as const, text: 'What time was this taken?' }],
+    };
+    vi.mocked(listPhotoCopilotSessions).mockResolvedValue([
+      { id: 'latest', title: latest.messages[0].text },
+      { id: 'older', title: older.messages[0].text },
+    ]);
+    vi.mocked(requestPhotoCopilot).mockResolvedValueOnce(latest).mockResolvedValueOnce(older);
+    render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose: vi.fn() });
+    await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('Explain the light'));
+    expect(requestPhotoCopilot).toHaveBeenLastCalledWith(
+      'asset-a',
+      'sessions',
+      { sessionId: 'latest' },
+      expect.any(AbortSignal),
+    );
+    await fireEvent.change(screen.getByLabelText('History'), { target: { value: 'older' } });
+    await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('What time was this taken?'));
+    TestEventSource.instances[0].snapshot(latest);
+    expect(screen.getByRole('log')).not.toHaveTextContent('Explain the light');
   });
 });

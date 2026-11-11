@@ -13,6 +13,12 @@ export interface PhotoCopilotSnapshot {
   messages: { id: string; role: 'user' | 'assistant'; text: string }[];
 }
 
+/** 当前照片的历史选择项，由服务端按最近活动排序。 */
+export interface PhotoCopilotSessionSummary {
+  id: string;
+  title: string;
+}
+
 /**
  * 用现有同源 Cookie 访问照片助手；无需侧栏配对或额外登录。
  * @param assetId 当前照片 ID，不允许传入磁盘路径。
@@ -21,18 +27,30 @@ export interface PhotoCopilotSnapshot {
  * @param signal 面板关闭/切图的请求取消信号；只取消传输。
  * @returns 后台快照；HTTP 错误保留状态码用于会话过期恢复。
  */
-export async function requestPhotoCopilot(
+export function requestPhotoCopilot(
   assetId: string,
   suffix: string,
   body: object,
   signal?: AbortSignal,
 ): Promise<PhotoCopilotSnapshot> {
-  const response = await fetch(`${getBaseUrl()}/fork/photo-copilot/assets/${encodeURIComponent(assetId)}/${suffix}`, {
+  return fetchPhotoCopilot(assetId, suffix, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal,
+  });
+}
+
+/** @param assetId 当前照片。@param signal 关闭面板时取消读取。@returns 当前登录用户保存过消息的会话。 */
+export function listPhotoCopilotSessions(assetId: string, signal?: AbortSignal): Promise<PhotoCopilotSessionSummary[]> {
+  return fetchPhotoCopilot(assetId, 'sessions', { signal });
+}
+
+/** @param assetId 当前照片。@param suffix 照片助手相对路径。@param init 请求参数。@returns 已解码响应，错误带 HTTP 状态。 */
+async function fetchPhotoCopilot<T>(assetId: string, suffix: string, init: RequestInit): Promise<T> {
+  const response = await fetch(`${getBaseUrl()}/fork/photo-copilot/assets/${encodeURIComponent(assetId)}/${suffix}`, {
+    ...init,
+    credentials: 'include',
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));

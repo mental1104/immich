@@ -1,8 +1,10 @@
 <script lang="ts">
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import {
+    listPhotoCopilotSessions,
     photoCopilotEventsUrl,
     requestPhotoCopilot,
+    type PhotoCopilotSessionSummary,
     type PhotoCopilotSnapshot,
   } from '$lib/services/photo-copilot.service';
   import { onMount } from 'svelte';
@@ -15,6 +17,7 @@
   }
   let { assetId, fileName, onClose }: Props = $props();
   let snapshot = $state<PhotoCopilotSnapshot>();
+  let history = $state<PhotoCopilotSessionSummary[]>([]);
   let input = $state('');
   let error = $state<string | null>(null);
   let connection = $state('Connecting');
@@ -30,17 +33,23 @@
     if (state.assetId !== assetId || controller.signal.aborted) return;
     snapshot = state;
     error = state.error;
+    if (state.messages.length > 0 && history.every(({ id }) => id !== state.id)) {
+      history = [{ id: state.id, title: state.messages[0].text.slice(0, 100) }, ...history];
+    }
     requestAnimationFrame(() => transcript?.scrollTo({ top: transcript.scrollHeight, behavior: 'instant' }));
   }
 
   /** @param id 已创建会话；断线后浏览器自动重连，服务端立即提供完整快照。 */
   function subscribe(id: string) {
     stream?.close();
-    stream = new EventSource(photoCopilotEventsUrl(assetId, id), { withCredentials: true });
-    stream.addEventListener('open', () => {
+    const source = new EventSource(photoCopilotEventsUrl(assetId, id), { withCredentials: true });
+    stream = source;
+    source.addEventListener('open', () => {
+      if (stream !== source) return;
       connection = 'Connected';
     });
-    stream.addEventListener('message', (event) => {
+    source.addEventListener('message', (event) => {
+      if (stream !== source) return;
       try {
         const state = JSON.parse(event.data);
         if (!state.heartbeat && state.id === id) accept(state);
@@ -48,27 +57,35 @@
         error = 'Invalid response from Photo Copilot';
       }
     });
-    stream.addEventListener('error', () => {
+    source.addEventListener('error', () => {
+      if (stream !== source) return;
       connection = 'Connection lost - reconnecting';
     });
   }
 
-  /** @param fresh 为 true 时明确新建会话；否则刷新后恢复本标签页的会话。 */
-  async function open(fresh = false) {
+  /**
+   * 优先恢复显式选择或本标签页的会话，新标签页默认打开最近的历史。
+   * @param fresh 为 true 时创建空会话。@param selected 用户选中的历史会话 ID。
+   */
+  async function open(fresh = false, selected?: string) {
     if (opening) return;
     opening = true;
     connection = 'Connecting';
     error = null;
     stream?.close();
+    stream = undefined;
     try {
-      const id = fresh ? null : sessionStorage.getItem(storageKey);
+      history = await listPhotoCopilotSessions(assetId, controller.signal);
+      const id = fresh ? null : selected || sessionStorage.getItem(storageKey) || history[0]?.id;
       let state: PhotoCopilotSnapshot;
       try {
         state = await requestPhotoCopilot(assetId, 'sessions', id ? { sessionId: id } : {}, controller.signal);
       } catch (error_) {
-        // API 重启后会话过期，通过新会话恢复连接，不伪造历史。
+        // 旧版内存会话重启后可能已不存在；尝试当前照片最新的已保存会话。
         if (!(error_ instanceof Error && 'status' in error_ && error_.status === 404) || !id) throw error_;
-        state = await requestPhotoCopilot(assetId, 'sessions', {}, controller.signal);
+        history = history.filter((item) => item.id !== id);
+        const latest = history[0]?.id;
+        state = await requestPhotoCopilot(assetId, 'sessions', latest ? { sessionId: latest } : {}, controller.signal);
       }
       if (controller.signal.aborted) return;
       accept(state);
@@ -76,6 +93,7 @@
       subscribe(state.id);
     } catch (error_) {
       if (!controller.signal.aborted) {
+        snapshot = undefined;
         error = error_ instanceof Error ? error_.message : 'Photo Copilot is unavailable';
         connection = 'Unavailable';
       }
@@ -148,7 +166,7 @@
               ? 'Immich preview'
               : 'not attached'}</small
     >
-    <p>Read-only. Images and context are sent to the server's Codex model provider.</p>
+    <p>Chats are saved in Immich. Images and context are sent to the server's Codex model provider.</p>
     {#if snapshot}
       <details>
         <summary>Photo context</summary>
@@ -167,6 +185,23 @@
   </div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <form onsubmit={send}>
+    {#if history.length}
+      <label class="history">
+        History
+        <select
+          value={snapshot?.id ?? ''}
+          disabled={opening || submitting}
+          onchange={(event) => open(false, event.currentTarget.value)}
+        >
+          {#if history.every(({ id }) => id !== snapshot?.id)}
+            <option value="" disabled>New conversation</option>
+          {/if}
+          {#each history as session (session.id)}
+            <option value={session.id}>{session.title}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     <label for="photo-copilot-message">Message about this photo</label>
     <textarea
       id="photo-copilot-message"
@@ -184,7 +219,7 @@
       {#if snapshot?.busy || submitting}<button
           type="button"
           onclick={stop}
-          disabled={!snapshot?.busy || snapshot?.status === 'stopping'}>Stop</button
+          disabled={opening || !snapshot?.busy || snapshot?.status === 'stopping'}>Stop</button
         >
       {:else}<button class="send" type="submit" disabled={!snapshot || !input.trim() || opening}>Send</button>{/if}
     </div>
@@ -285,6 +320,21 @@
   }
   form {
     border-top: 1px solid #4b4d58;
+  }
+  .history {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  select {
+    min-width: 0;
+    width: 100%;
+    border: 1px solid #626777;
+    border-radius: 8px;
+    background: #252936;
+    color: inherit;
+    padding: 6px;
   }
   textarea {
     display: block;

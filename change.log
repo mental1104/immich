@@ -2,6 +2,16 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-11：Photo Copilot 聊天历史落盘
+
+- 来源：`codex/feature-photo-copilot-history` 从本地 `dev` 的 `2ac3a0c29` 创建。官方基线为 `v3.3.6`，本次没有同步上游。
+- 行为：用户问题提交到 PostgreSQL 后才调用 Codex。SSE 继续流式展示，终态提交助手已显示的文字。重启后原会话可读可续聊，崩溃中未提交的本轮显示为中断。Web 照片面板的 History 按当前用户和照片提供会话选择，新标签页默认打开最近会话。
+- 数据库：迁移 `1794381302009-ForkPhotoCopilotHistory` 新增两张 Fork 表 `fork_photo_copilot_session`、`fork_photo_copilot_message`。使用常规 PostgreSQL 类型、外键和索引，无新增扩展。照片或用户永久删除时级联清理对应记录。数据库错误日志不输出本功能 SQL 的消息参数和错误详情。
+- API 与 Fork 保留项：新增 Fork 专用 `GET /api/fork/photo-copilot/assets/:id/sessions`。仍沿用 Immich 登录和 AssetRead，历史按用户及照片隔离。照片处理、原片读取和 Codex 进程隔离沿用现有实现。Codex 新临时线程接收有界文本上下文。隔离实例和正式基线的官方 OpenAPI JSON 排序后完全一致，移动端和 SDK 无变更。
+- 验证：服务和 HTTP/SSE 单测、Svelte 面板单测、隔离 PostgreSQL 事务及级联测试通过。独立 PostgreSQL 已验证新迁移及其回退，迁移清单 114 项且已发布迁移相对 `2ac3a0c29` 无变更。隔离 API 通过合成 PNG 和真实 Codex 发出首轮消息，重启后按原会话 ID 读取相同的两条消息并完成流式追问，PostgreSQL 最终保存四条消息。Chromium 照片查看器使用合成 API 验证刷新、清除会话缓存后从服务端历史打开和切图隔离。
+- 检查范围：服务和 Web 类型检查及修改路径的格式检查已执行。数据库通用工具文件在既有 iPhone 逻辑中仍有六条 ESLint 报错，已对照基线确认。未执行生产迁移、生产验收或官方移动端真机验证。历史从新版本收到的消息开始保存。
+- 回退：禁用 `IMMICH_PHOTO_COPILOT_ENABLED` 并重启可关闭入口，数据库继续保留聊天。旧镜像不识别已应用的新迁移，若需回退镜像，须先保护聊天并恢复兼容数据库。迁移的 `down` 会删除聊天表和其中的记录。
+
 ## 2026-11-10：Photo Copilot 正式部署
 
 - 来源：用户授权部署已验证的 `dev` 功能提交 `d3d32e845ef84ee7e47f2a3a5233953398487422`；部署记录分支 `codex/deploy-photo-copilot-20261110`。本次没有同步官方提交，官方基线仍为 `v3.3.6`，没有修改业务源码、API 合同、数据库迁移、移动端或 SDK。

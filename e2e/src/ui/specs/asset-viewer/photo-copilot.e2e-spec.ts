@@ -46,6 +46,9 @@ test('Photo Copilot opens in the native viewer, changes assets and reconnects af
     if (url.pathname.endsWith('/events')) {
       return route.fulfill({ contentType: 'text/event-stream', body: `data: ${JSON.stringify(state)}\n\n` });
     }
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ json: history.length ? [{ id: assetId, title: history[0].text }] : [] });
+    }
     const body = route.request().postDataJSON();
     if (body.sessionId) {
       restored = true;
@@ -75,6 +78,12 @@ test('Photo Copilot opens in the native viewer, changes assets and reconnects af
   await page.getByRole('button', { name: 'Photo Copilot', exact: true }).click();
   await expect(panel.getByText('Synthetic photo response')).toBeVisible();
   expect(restored).toBe(true);
+  await panel.getByLabel('Close Photo Copilot').click();
+  // 不依赖标签页缓存，按当前照片从历史列表打开已有正文。
+  await page.evaluate(() => sessionStorage.clear());
+  await page.getByRole('button', { name: 'Photo Copilot', exact: true }).click();
+  await expect(panel.getByText('Synthetic photo response')).toBeVisible();
+  await expect(panel.getByLabel('History')).toHaveValue(assets[0].id);
   // 同一 SvelteKit 查看器内切换照片，不重新加载整个浏览器页面。
   await page.getByLabel('View next asset', { exact: true }).click();
   await expect(page.getByTestId('copilot-asset-id')).toHaveText(assets[1].id);

@@ -64,6 +64,8 @@ import { ForkGeodataNameTable } from 'src/schema/tables/fork-geodata-name.table.
 import { ForkIphoneImageFingerprintTable } from 'src/schema/tables/fork-iphone-image-fingerprint.table.js';
 import { ForkIphoneSourceSnapshotTable } from 'src/schema/tables/fork-iphone-source-snapshot.table.js';
 import { ForkIphoneUploadOriginTable } from 'src/schema/tables/fork-iphone-upload-origin.table.js';
+import { ForkPhotoCopilotMessageTable } from 'src/schema/tables/fork-photo-copilot-message.table.js';
+import { ForkPhotoCopilotSessionTable } from 'src/schema/tables/fork-photo-copilot-session.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -134,6 +136,8 @@ export class ImmichDatabase {
     ForkIphoneImageFingerprintTable,
     ForkIphoneSourceSnapshotTable,
     ForkIphoneUploadOriginTable,
+    ForkPhotoCopilotSessionTable,
+    ForkPhotoCopilotMessageTable,
     AssetOcrTable,
     AssetOcrAuditTable,
     AssetTable,
@@ -267,6 +271,8 @@ export interface DB {
   fork_iphone_image_fingerprint: ForkIphoneImageFingerprintTable;
   fork_iphone_source_snapshot: ForkIphoneSourceSnapshotTable;
   fork_iphone_upload_origin: ForkIphoneUploadOriginTable;
+  fork_photo_copilot_session: ForkPhotoCopilotSessionTable;
+  fork_photo_copilot_message: ForkPhotoCopilotMessageTable;
 
   integrity_report: IntegrityReportTable;
 

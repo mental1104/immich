@@ -9,6 +9,7 @@ import { AssetType, RawExtractedFormat } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { PhotoCopilotRepository } from 'src/repositories/photo-copilot.repository.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { PhotoCopilotService } from 'src/services/photo-copilot.service.js';
 import { PhotoCodexClient } from 'src/utils/photo-copilot.js';
@@ -32,6 +33,14 @@ describe(PhotoCopilotService.name, () => {
   const albums = automock(AlbumRepository, { strict: false });
   const media = newMediaRepositoryMock();
   const access = newAccessRepositoryMock();
+  const history = automock(PhotoCopilotRepository, { strict: false });
+  const saved = new Map<
+    string,
+    NonNullable<Awaited<ReturnType<PhotoCopilotRepository['get']>>> & {
+      ownerId: string;
+      assetId: string;
+    }
+  >();
   let service: PhotoCopilotService;
   let home: string;
   let client: PhotoCodexClient;
@@ -46,6 +55,18 @@ describe(PhotoCopilotService.name, () => {
       schema.parse(
         method === 'thread/start' ? { thread: { id: `thread-${++threadIndex}` } } : { turn: { id: 'turn-test' } },
       ),
+    );
+  }
+
+  /** @returns 共享同一历史存储的新实例，模拟服务重启。 */
+  function startService() {
+    return new PhotoCopilotService(
+      assets,
+      records,
+      albums,
+      access as unknown as AccessRepository,
+      media as unknown as ConstructorParameters<typeof PhotoCopilotService>[4],
+      history,
     );
   }
 
@@ -66,13 +87,30 @@ describe(PhotoCopilotService.name, () => {
     records.getById.mockResolvedValue({ ...getForAsset(asset), originalPath: path.join(home, 'synthetic.png') });
     albums.getByAssetId.mockResolvedValue([]);
     access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset.id]));
-    service = new PhotoCopilotService(
-      assets,
-      records,
-      albums,
-      access as unknown as AccessRepository,
-      media as unknown as ConstructorParameters<typeof PhotoCopilotService>[4],
-    );
+    saved.clear();
+    history.create.mockImplementation((id, ownerId, assetId) => {
+      saved.set(id, { ownerId, assetId, status: 'idle', messages: [] });
+      return Promise.resolve();
+    });
+    history.get.mockImplementation((id, ownerId, assetId) => {
+      const row = saved.get(id);
+      return Promise.resolve(row?.ownerId === ownerId && row.assetId === assetId ? structuredClone(row) : undefined);
+    });
+    history.begin.mockImplementation((id, position, message) => {
+      const row = saved.get(id)!;
+      if (row.messages.length !== position) return Promise.resolve(false);
+      row.status = 'starting';
+      row.messages.push(structuredClone(message));
+      return Promise.resolve(true);
+    });
+    history.finish.mockImplementation((id, position, messages, status) => {
+      const row = saved.get(id)!;
+      if (row.status !== 'starting' || row.messages.length !== position) return Promise.resolve(false);
+      row.status = status;
+      row.messages.push(...structuredClone(messages));
+      return Promise.resolve(true);
+    });
+    service = startService();
   });
   afterEach(async () => {
     service.onModuleDestroy();
@@ -127,7 +165,7 @@ describe(PhotoCopilotService.name, () => {
       method: 'turn/completed',
       params: { threadId, turn: { id: 'turn-test', status: 'completed' } },
     });
-    expect(state.busy).toBe(false);
+    await vi.waitFor(() => expect(state.busy).toBe(false));
     await service.send(auth, asset.id, state.id, 'what color was it?');
     expect(state.messages.filter((item) => item.role === 'user')).toHaveLength(2);
     expect(await readFile(path.join(home, 'synthetic.png'))).toEqual(original);
@@ -142,11 +180,16 @@ describe(PhotoCopilotService.name, () => {
     expect(state.status).toBe('stopping');
     expect(state.busy).toBe(true);
     client.emit('notification', {
+      method: 'item/agentMessage/delta',
+      params: { threadId: `thread-${threadIndex}`, itemId: 'partial', delta: 'The start of a reply' },
+    });
+    client.emit('notification', {
       method: 'turn/completed',
       params: { threadId: `thread-${threadIndex}`, turn: { id: 'turn-test', status: 'interrupted' } },
     });
-    expect(state.status).toBe('interrupted');
+    await vi.waitFor(() => expect(state.status).toBe('interrupted'));
     expect(state.busy).toBe(false);
+    expect(saved.get(state.id)?.messages.at(-1)?.text).toBe('The start of a reply');
   });
 
   /** 不同线程的流不应污染当前照片。 */
@@ -159,7 +202,7 @@ describe(PhotoCopilotService.name, () => {
     });
     expect(state.messages).toHaveLength(1);
     client.emit('disconnected');
-    expect(state.status).toBe('failed');
+    await vi.waitFor(() => expect(state.status).toBe('failed'));
     expect(state.error).toContain('disconnected');
   });
 
@@ -207,8 +250,71 @@ describe(PhotoCopilotService.name, () => {
   it('preserves an existing unrelated Codex configuration', async () => {
     const previous = 'model = "existing-model"\n';
     await writeFile(path.join(home, 'config.toml'), previous);
-    await expect(service.open(auth, asset.id)).rejects.toThrow('dedicated directory');
+    const state = await service.open(auth, asset.id);
+    const reply = await service.send(auth, asset.id, state.id, 'Describe the photo');
+    expect(reply.error).toContain('dedicated directory');
     expect(await readFile(path.join(home, 'config.toml'), 'utf8')).toBe(previous);
+    expect(PhotoCodexClient.prototype.connect).not.toHaveBeenCalled();
+  });
+
+  /** 重启后直接读原会话，追问时才创建新模型线程并传入历史文字。 */
+  it('restores saved messages and gives a new Codex thread the previous conversation', async () => {
+    const state = await service.open(auth, asset.id);
+    await service.send(auth, asset.id, state.id, 'Remember the word cedar');
+    const originalThread = `thread-${threadIndex}`;
+    client.emit('notification', {
+      method: 'item/completed',
+      params: { threadId: originalThread, item: { id: 'reply', type: 'agentMessage', text: 'I will remember it.' } },
+    });
+    client.emit('notification', {
+      method: 'turn/completed',
+      params: { threadId: originalThread, turn: { id: 'turn-test', status: 'completed' } },
+    });
+    await vi.waitFor(() => expect(state.status).toBe('completed'));
+    service.onModuleDestroy();
+    service = startService();
+    const restored = await service.open(auth, asset.id, state.id);
+    expect(restored.messages).toEqual(state.messages);
+    expect(restored.status).toBe('completed');
+    expect(`thread-${threadIndex}`).toBe(originalThread);
+    await service.send(auth, asset.id, state.id, 'What was the word?');
+    expect(client.request).toHaveBeenLastCalledWith(
+      'turn/start',
+      expect.objectContaining({
+        threadId: `thread-${threadIndex}`,
+        additionalContext: expect.objectContaining({
+          immich_photo_chat: {
+            kind: 'untrusted',
+            name: 'immich_photo_chat_history_v1',
+            value: JSON.stringify([
+              { role: 'user', text: 'Remember the word cedar' },
+              { role: 'assistant', text: 'I will remember it.' },
+            ]),
+          },
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(`thread-${threadIndex}`).not.toBe(originalThread);
+  });
+
+  /** 重启后仍能看到已保存的问题，本轮状态变为中断。 */
+  it('restores an unfinished turn as interrupted with the saved question', async () => {
+    const state = await service.open(auth, asset.id);
+    await service.send(auth, asset.id, state.id, 'Question before restart');
+    service.onModuleDestroy();
+    service = startService();
+    const restored = await service.open(auth, asset.id, state.id);
+    expect(restored).toMatchObject({ status: 'interrupted', busy: false });
+    expect(restored.messages).toEqual([{ id: state.messages[0].id, role: 'user', text: 'Question before restart' }]);
+  });
+
+  /** 保存失败的请求不应调用模型，错误也不回显数据库详情。 */
+  it('rejects an unsaved question before starting Codex', async () => {
+    history.begin.mockRejectedValueOnce(new Error('Sensitive database error'));
+    const state = await service.open(auth, asset.id);
+    await expect(service.send(auth, asset.id, state.id, 'Private question')).rejects.toThrow('Could not save');
+    expect(state).toMatchObject({ busy: false, status: 'idle', messages: [] });
     expect(PhotoCodexClient.prototype.connect).not.toHaveBeenCalled();
   });
 });
