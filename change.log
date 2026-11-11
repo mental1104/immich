@@ -2,6 +2,15 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-11：Homelab 部署照片后期工作台
+
+- 来源：部署本地 `dev` 上已验收的 `22def29e113df104076c6148d9b12a683cd48b0c`。正式服务基线为 Immich 3.3.6，本次没有部署后续同步的 3.4.0。候选镜像为 `immich-server:nas-dev-22def29e113d`，镜像 ID 为 `sha256:bcdb5ff0be3b5feefeb8e2e1f2a4c2859db4c952e336f8ae9d0a9139491ccc69`。
+- Compose：在 `homelab-services/services/immich/docker-compose.override.yml` 更新 Server 镜像，设置 `IMMICH_PHOTO_EDIT_DIR=/photo-edit-workbench`，将 HDD 的 `/volume1/docker/immich/photo-edit-workbench` 独立可写挂载。宿主机目录模式 0700，位于现有 Immich 挂载和外部图库之外。规范化后的其余 Compose 配置一致。
+- 切换：北京时间 20:26:22 开始，20:27:19 健康检查通过。仅重建 `home` 项目的 `immich-server`，现有 37 个挂载、端口及网络成员关系一致。PostgreSQL、Redis 和 ML 容器 ID 一致。23 个队列的暂停标记和 active/wait/paused 数量前后一致。
+- 迁移：候选镜像中的 113 条既有迁移与原生产镜像逐文件 SHA-256 一致。独立 PG17 恢复生产在线备份后，候选运行时只执行聊天历史和工作台两条新增迁移，重复执行无待处理迁移。正式迁移账本与演练结果一致，共 115 条。
+- 验收：候选镜像使用独立 PostgreSQL、Redis、媒体目录和合成 PNG，真实 Codex 生成三套流程、效果 JPEG 与三份评估。HTTP 验证版本分支、重启恢复、重复提交、原片与叠放封面保留。Chromium 通过候选镜像的静态 Web 验证详情入口、Photomator、父版本对比和已提交叠放。正式服务通过工作台页面、脚本 SHA-256、匿名 API 401、挂载读写和真实 Codex 合成图探针，官方 OpenAPI 与切换前完全一致。生产已登录 Web 的真实照片操作及移动端真机尚未验收。
+- 备份与回退：保存切换前 Compose、原镜像、生产在线归档及停机时点归档。两份归档各自已在隔离 PG17 完整恢复，SSD 与 HDD 副本 SHA-256 一致。私有证据目录为 `/volume2/workflow/immich-deploy-private/photo-edit-workbench-20261111.ZNl1Jf`，HDD 备份位置见其 `hdd-location.txt`。停用工作台可在当前镜像取消 `IMMICH_PHOTO_EDIT_DIR`。回到旧镜像前需保全切换后新增写入，并恢复与旧镜像兼容的数据库和 Compose 配置。
+
 ## 2026-11-11：同步官方 Immich v3.4.0 稳定版
 
 - 来源：官方稳定标签 `v3.4.0` 为 `0715bcf8dab4b91118d6184479e2be2767ef8294`，此前官方基线为 `v3.3.6`（`587f549f4`）。Fork `main` 由 `5a05dae95` 合并为 `2101f6185`，已推送至 `origin/main`。同步分支 `codex/sync-v3.4.0` 从本地 `dev` 的 `22def29e1` 创建并合入 `main`。

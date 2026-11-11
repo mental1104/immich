@@ -11,6 +11,8 @@
 
 ## 运行与存储
 
+Homelab 于 2026-11-11 部署此工作台，运行镜像为 `immich-server:nas-dev-22def29e113d`，基线为 Immich 3.3.6。当前 `home` 项目从 Immich 的 Compose override 加载配置，将 NAS 上的 `/volume1/docker/immich/photo-edit-workbench` 挂到 `/photo-edit-workbench`。这个目录位于 HDD，模式为 0700。上线与回退证据见 `change.log`。
+
 准备一个存在且可写的私有目录，在 Docker 中把它单独挂载到容器内。通过环境变量 `IMMICH_PHOTO_EDIT_DIR` 指定容器内绝对路径，例如 `/photo-edit-workbench`。目录必须在 Immich 媒体目录和外部图库导入路径之外。生产运维需把该目录与 Immich PostgreSQL 一起备份。
 
 Codex 分析复用既有 `IMMICH_PHOTO_COPILOT_*` 配置和只读 App Server。照片输入按现有原图、转换图、内嵌预览或 Immich 预览路径读取。任务通过已配置的模型服务处理照片及统计。完整报告使用简体中文。模型功能关闭时可浏览或上传版本，历史图与手工提交仍可用。
