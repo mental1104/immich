@@ -82,8 +82,8 @@ export const getKyselyConfig = (connection: DatabaseConnectionParams): KyselyCon
       }
 
       // Kysely 的错误对象和参数可能包含用户的聊天正文。
-      if (event.query.sql.includes('"fork_photo_copilot_')) {
-        console.error('Photo Copilot database query failed');
+      if (event.query.sql.includes('"fork_photo_copilot_') || event.query.sql.includes('"fork_photo_edit_version"')) {
+        console.error('Photo assistant database query failed');
         return;
       }
 

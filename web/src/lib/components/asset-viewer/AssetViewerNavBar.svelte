@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import type { OnAction, PreAction } from '$lib/components/asset-viewer/actions/action';
   import ArchiveAction from '$lib/components/asset-viewer/actions/ArchiveAction.svelte';
@@ -10,6 +11,7 @@
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import { languageManager } from '$lib/managers/language-manager.svelte';
+  import { Route } from '$lib/route';
   import { getAlbumAssetActions } from '$lib/services/album.service';
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetActions } from '$lib/services/asset.service';
@@ -27,7 +29,14 @@
     type StackResponseDto,
   } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider, Tooltip, type ActionItem } from '@immich/ui';
-  import { mdiArrowLeft, mdiArrowRight, mdiDotsVertical, mdiVideoOutline, mdiRobotOutline } from '@mdi/js';
+  import {
+    mdiArrowLeft,
+    mdiArrowRight,
+    mdiDotsVertical,
+    mdiImageEditOutline,
+    mdiVideoOutline,
+    mdiRobotOutline,
+  } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   interface Props {
@@ -118,6 +127,15 @@
     <ActionButton action={Actions.Info} />
     {#if authManager.authenticated && !sharedLink && asset.type === AssetTypeEnum.Image}
       <ActionButton action={{ title: 'Photo Copilot', icon: mdiRobotOutline, onAction: () => onPhotoCopilot?.() }} />
+    {/if}
+    {#if isOwner && !sharedLink && !isLocked && !asset.isTrashed && asset.type === AssetTypeEnum.Image}
+      <ActionButton
+        action={{
+          title: $t('photo_edit_advice'),
+          icon: mdiImageEditOutline,
+          onAction: () => goto(Route.photoEditAdvice(asset.id)),
+        }}
+      />
     {/if}
     <ActionButton action={Actions.Favorite} />
     <ActionButton action={Actions.Unfavorite} />

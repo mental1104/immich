@@ -6,6 +6,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { DateTime } from 'luxon';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { copyFile, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import picomatch from 'picomatch';
 import sanitize from 'sanitize-filename';
@@ -250,12 +253,86 @@ export class AssetMediaService extends BaseService {
   }
 
   /**
+   * @param auth 提交手工版本的当前用户。
+   * @param versionId 稳定的原生资产 ID，用于重启后继续提交同一个版本。
+   * @param sourcePath 工作台保存的原始上传字节，调用方已验证归属和格式。
+   * @param filename 公开成片名称，后缀与实际格式匹配。
+   * @param capturedAt 原片时间，作为无 EXIF 时的回退。
+   * @returns 普通 Immich 上传结果。确认提交以前从不调用；刻意不走 iPhone 外部备份路由。
+   */
+  async importPhotoEdit(
+    auth: AuthDto,
+    versionId: string,
+    sourcePath: string,
+    filename: string,
+    capturedAt: Date,
+  ): Promise<AssetMediaResponseDto> {
+    const existing = await this.assetRepository.getById(versionId, { exifInfo: true });
+    if (existing) {
+      if (existing.ownerId !== auth.user.id || existing.deletedAt) {
+        throw new BadRequestException('The reserved photo asset is unavailable');
+      }
+      if (existing.visibility === AssetVisibility.Hidden) {
+        // 进程可能在建档后、元数据任务入队前退出。先补齐原生记录再允许叠放可见。
+        const info = await stat(existing.originalPath);
+        if (!existing.exifInfo) {
+          await this.assetRepository.upsertExif({
+            exif: { assetId: versionId, fileSizeInByte: info.size },
+            lockedPropertiesBehavior: 'override',
+          });
+        }
+        await this.jobRepository.queue({
+          name: JobName.AssetExtractMetadata,
+          data: { id: versionId, source: 'upload', assetType: existing.type },
+        });
+      }
+      return { id: versionId, status: AssetMediaStatus.CREATED };
+    }
+    const uuid = randomUUID();
+    const originalPath = StorageCore.getNestedPath(
+      StorageFolder.Upload,
+      auth.user.id,
+      uuid + getFilenameExtension(filename),
+    );
+    const hash = createHash('sha1');
+    for await (const bytes of createReadStream(sourcePath)) hash.update(bytes);
+    const info = await stat(sourcePath);
+    this.storageRepository.mkdirSync(path.dirname(originalPath));
+    try {
+      await copyFile(sourcePath, originalPath);
+    } catch (error) {
+      await unlink(originalPath).catch(() => {});
+      throw error;
+    }
+    // 先作为隐藏资产登记；只有事务成功加入叠放才切换至原片所在的可见范围。
+    return this.storeUpload(
+      auth,
+      {
+        fileCreatedAt: capturedAt,
+        fileModifiedAt: new Date(),
+        visibility: AssetVisibility.Hidden,
+      },
+      {
+        uuid,
+        originalPath,
+        originalName: filename,
+        size: info.size,
+        checksum: hash.digest(),
+      },
+      undefined,
+      undefined,
+      versionId,
+    );
+  }
+
+  /**
    * 执行上传建档及原有后处理；外部库分支由调用者持有发布锁。
    * @param auth 已鉴权用户，仍需通过原有上传权限检查。
    * @param dto 上传元数据，不修改。
    * @param file 完整暂存文件，备份成功后安排删除此副本。
    * @param sidecarFile 可选 XMP 暂存文件。
    * @param backup 显式启用且验证过归属的目标，缺省时沿用普通上传。
+   * @param stableAssetId 工作台提交使用的固定资产 UUID，普通上传由数据库分配。
    * @returns 已创建或已存在的资产 ID；失败清理本次文件与资产记录。
    */
   private async storeUpload(
@@ -264,6 +341,7 @@ export class AssetMediaService extends BaseService {
     file: UploadFile,
     sidecarFile?: UploadFile,
     backup?: IphoneBackupTarget,
+    stableAssetId?: string,
   ): Promise<AssetMediaResponseDto> {
     let asset: Asset | undefined;
     const published: string[] = [];
@@ -312,6 +390,7 @@ export class AssetMediaService extends BaseService {
       }
 
       asset = await this.assetRepository.create({
+        ...(stableAssetId && { id: stableAssetId }),
         ownerId: auth.user.id,
         libraryId: backup?.libraryId ?? null,
 

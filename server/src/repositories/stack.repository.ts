@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { sql } from 'kysely';
 import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
@@ -77,6 +77,18 @@ export class StackRepository {
       .where('asset.ownerId', '=', ownerId)
       .where('asset.type', '=', AssetType.Image)
       .where('asset.deletedAt', 'is', null)
+      // 工作台提交由用户明确选择叠放，避免被 RAW 配对提前或重复移动。
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom('fork_photo_edit_version')
+              .select('id')
+              .whereRef('id', '=', 'asset.id')
+              .where('kind', '=', 'upload'),
+          ),
+        ),
+      )
       .executeTakeFirst();
     if (
       !anchor ||
@@ -112,6 +124,17 @@ export class StackRepository {
         .where('asset.type', '=', AssetType.Image)
         .where('asset.visibility', '=', anchor.visibility)
         .where('asset.deletedAt', 'is', null)
+        .where((eb) =>
+          eb.not(
+            eb.exists(
+              eb
+                .selectFrom('fork_photo_edit_version')
+                .select('id')
+                .whereRef('id', '=', 'asset.id')
+                .where('kind', '=', 'upload'),
+            ),
+          ),
+        )
         .where(
           sql<boolean>`(lower(asset."originalPath") in (${sql.join(candidatePaths)}) or (
             ${anchor.model ? sql`asset_exif.model = ${anchor.model}` : sql`false`} and
@@ -286,6 +309,70 @@ export class StackRepository {
         .select(withAssets)
         .where('id', '=', newRecord.id)
         .executeTakeFirstOrThrow();
+    });
+  }
+
+  /**
+   * @param ownerId 两张照片及叠放的所有者。
+   * @param originalId 工作台对应的图库照片，可以是已有叠放的成员。
+   * @param editedId 用户明确提交的原生资产 ID。
+   * @returns 更新后的叠放 ID、是否新建以及是否需要通知客户端。
+   */
+  appendPhotoEdit(ownerId: string, originalId: string, editedId: string) {
+    return this.db.transaction().execute(async (tx) => {
+      // 与自动配对串行。同一原片的多个提交在锁内读取最新的成员关系。
+      await sql`select pg_advisory_xact_lock(hashtextextended(${`raw-pair:${ownerId}`}, 0))`.execute(tx);
+      const assets = await tx
+        .selectFrom('asset')
+        .select(['id', 'stackId', 'visibility'])
+        .where('id', 'in', [originalId, editedId])
+        .where('ownerId', '=', ownerId)
+        .where('type', '=', AssetType.Image)
+        .where('deletedAt', 'is', null)
+        .orderBy('id')
+        .forUpdate()
+        .execute();
+      const original = assets.find(({ id }) => id === originalId);
+      const edited = assets.find(({ id }) => id === editedId);
+      if (
+        !original ||
+        !edited ||
+        original.id === edited.id ||
+        (original.visibility !== AssetVisibility.Timeline && original.visibility !== AssetVisibility.Archive)
+      ) {
+        throw new NotFoundException('Original or edited photo is unavailable');
+      }
+      if (edited.stackId && edited.stackId !== original.stackId) {
+        throw new ConflictException('The edited photo belongs to another stack');
+      }
+      if (original.stackId) {
+        const stack = await tx
+          .selectFrom('stack')
+          .select('id')
+          .where('id', '=', original.stackId)
+          .where('ownerId', '=', ownerId)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!stack) throw new ConflictException('The original stack changed. Retry the commit.');
+        if (edited.stackId === stack.id) return { id: stack.id, created: false, changed: false };
+        await tx
+          .updateTable('asset')
+          .set({ stackId: stack.id, visibility: original.visibility, updatedAt: new Date() })
+          .where('id', '=', editedId)
+          .execute();
+        return { id: stack.id, created: false, changed: true };
+      }
+      const { id } = await tx
+        .insertInto('stack')
+        .values({ ownerId, primaryAssetId: originalId })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await tx
+        .updateTable('asset')
+        .set({ stackId: id, visibility: original.visibility, updatedAt: new Date() })
+        .where('id', 'in', [originalId, editedId])
+        .execute();
+      return { id, created: true, changed: true };
     });
   }
 

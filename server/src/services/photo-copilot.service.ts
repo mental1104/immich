@@ -249,8 +249,8 @@ export class PhotoCopilotService implements OnModuleDestroy {
     }
   }
 
-  /** @param client 当前隔离的 Codex 客户端。@returns 专用临时线程 ID，线程只在本进程内复用。 */
-  private async startThread(client: PhotoCodexClient): Promise<string> {
+  /** @param client 当前隔离的 Codex 客户端。@param extraInstructions 单次照片分析的服务端附加指令。@returns 专用临时线程 ID。 */
+  private async startThread(client: PhotoCodexClient, extraInstructions?: string): Promise<string> {
     const result = await client.request(
       'thread/start',
       {
@@ -258,12 +258,77 @@ export class PhotoCopilotService implements OnModuleDestroy {
         approvalPolicy: 'never',
         sandbox: 'read-only',
         ephemeral: true,
-        developerInstructions: instructions,
+        developerInstructions: extraInstructions ? instructions + '\n' + extraInstructions : instructions,
         ...(process.env.IMMICH_PHOTO_COPILOT_MODEL && { model: process.env.IMMICH_PHOTO_COPILOT_MODEL }),
       },
       z.object({ thread: z.object({ id: z.string() }) }),
     );
     return result.thread.id;
+  }
+
+  /**
+   * @param prompt 固定的服务端分析任务，不能由上传文件指定。
+   * @param images 由服务端选定的本地图片，顺序与提示词一致。
+   * @param context 可信度受限的图像来源和统计数据。
+   * @param schema 模型终态的 JSON 结构；结果仍用同一 Schema 校验。
+   * @returns 单次分析结果；终态失败、超时或无效 JSON 时拒绝，不产生聊天记录。
+   */
+  async analyzePhoto<T>(prompt: string, images: string[], context: object, schema: z.ZodType<T>): Promise<T> {
+    const client = await this.getClient();
+    const threadId = await this.startThread(client, 'Return the requested JSON result in Simplified Chinese.');
+    const answer = Promise.withResolvers<string>();
+    const replies = new Map<string, string>();
+    let turnId: string | undefined;
+    let terminal = false;
+    /** @param event Codex 通知，只接收当前临时线程中的完整正文与终态。 */
+    const receive = ({ method, params }: CodexNotification) => {
+      if (params.threadId !== threadId) return;
+      turnId ??= params.turnId ?? params.turn?.id;
+      if (method === 'item/completed' && params.item?.type === 'agentMessage' && params.item.text) {
+        replies.set(params.item.id, params.item.text);
+      }
+      if (method !== 'turn/completed') return;
+      terminal = true;
+      const text = replies.values().toArray().at(-1);
+      if (params.turn?.status === 'completed' && text) answer.resolve(text);
+      else answer.reject(new Error('Codex did not return a complete photo analysis'));
+    };
+    /** 子进程退出时立即结束当前等待。 */
+    const disconnected = () => answer.reject(new Error('Codex disconnected'));
+    const timeout = setTimeout(() => answer.reject(new Error('Photo analysis timed out')), 3 * 60_000);
+    client.on('notification', receive);
+    client.on('disconnected', disconnected);
+    try {
+      const request = client
+        .request(
+          'turn/start',
+          {
+            threadId,
+            input: [{ type: 'text', text: prompt }, ...images.map((image) => ({ type: 'localImage', path: image }))],
+            outputSchema: z.toJSONSchema(schema),
+            additionalContext: {
+              photo_edit: { kind: 'untrusted', name: 'photo_edit_input_v1', value: JSON.stringify(context) },
+            },
+            approvalPolicy: 'never',
+            sandboxPolicy: { type: 'readOnly', networkAccess: false },
+          },
+          z.object({ turn: z.object({ id: z.string() }) }),
+        )
+        .then(({ turn }) => {
+          turnId ??= turn.id;
+        });
+      const [, text] = await Promise.all([request, answer.promise]);
+      if (text.length > 100_000) throw new Error('Photo analysis result is too long');
+      return schema.parse(JSON.parse(text));
+    } finally {
+      clearTimeout(timeout);
+      client.off('notification', receive);
+      client.off('disconnected', disconnected);
+      if (!terminal && turnId) {
+        await client.request('turn/interrupt', { threadId, turnId }, z.unknown()).catch(() => {});
+      }
+      await client.request('thread/unsubscribe', { threadId }, z.unknown()).catch(() => {});
+    }
   }
 
   /** @param asset 官方响应。@param albums 当前用户可见相册。@returns 去除路径、凭据及无关字段的结构化上下文。 */
@@ -340,7 +405,7 @@ export class PhotoCopilotService implements OnModuleDestroy {
    * @param assetId 当前照片 UUID。
    * @returns 服务器内路径及实际图像来源；转换图标记 temporary，由 turn 终态清理。
    */
-  private async image(
+  async photoImage(
     auth: AuthDto,
     assetId: string,
   ): Promise<{ path?: string; source: PhotoCopilotSnapshot['image']; temporary?: boolean }> {
@@ -431,7 +496,7 @@ export class PhotoCopilotService implements OnModuleDestroy {
         await this.finish(session, turn, 'interrupted');
         return session.state;
       }
-      const image = await this.image(auth, assetId);
+      const image = await this.photoImage(auth, assetId);
       if (image.temporary) turn.temporaryImage = image.path;
       session.state.image = image.source;
       if (['stopping'].includes(session.state.status)) {

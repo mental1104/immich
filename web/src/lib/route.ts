@@ -94,6 +94,8 @@ export const Route = {
   // photos
   photos: (params?: { at?: string }) => '/photos' + asQueryString(params),
   viewAsset: ({ id }: { id: string }) => `/photos/${id}`,
+  /** @param assetId 可选原片 UUID。@returns 工作台索引或该照片的后期历史。 */
+  photoEditAdvice: (assetId?: string) => '/photo-edit-advice' + asQueryString({ assetId }),
   archive: () => '/archive',
   favorites: () => '/favorites',
   locked: () => '/locked',

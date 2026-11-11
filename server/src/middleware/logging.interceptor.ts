@@ -39,7 +39,12 @@ export class LoggingInterceptor implements NestInterceptor {
 
         this.logger.debug(`${method} ${url} ${statusCode} ${duration}ms ${ip}`);
         // 照片助手的消息可能包含私人描述或位置；即使 verbose 也不记录正文。
-        if (!url.startsWith('/api/fork/photo-copilot') && req.body && Object.keys(req.body).length > 0) {
+        if (
+          !url.startsWith('/api/fork/photo-copilot') &&
+          !url.startsWith('/api/fork/photo-edit-advice') &&
+          req.body &&
+          Object.keys(req.body).length > 0
+        ) {
           this.logger.verbose(JSON.stringify(req.body, replacer));
         }
       }),

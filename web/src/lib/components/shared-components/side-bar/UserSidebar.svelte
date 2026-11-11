@@ -26,6 +26,7 @@
     mdiLock,
     mdiLockOutline,
     mdiMagnify,
+    mdiImageEditOutline,
     mdiMap,
     mdiMapOutline,
     mdiTagMultipleOutline,
@@ -41,6 +42,7 @@
 
 <Sidebar ariaLabel={$t('primary')}>
   <NavbarItem title={$t('photos')} href={Route.photos()} icon={mdiImageMultipleOutline} activeIcon={mdiImageMultiple} />
+  <NavbarItem title={$t('photo_edit_advice')} href={Route.photoEditAdvice()} icon={mdiImageEditOutline} />
 
   {#if featureFlagsManager.value.search}
     <NavbarItem title={$t('explore')} href={Route.explore()} icon={mdiMagnify} />

@@ -2,6 +2,16 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-11：照片后期建议工作台
+
+- 来源：`codex/feature-photo-edit-workbench` 从本地 `dev` 的 `c51a20a59` 创建，官方基线仍为 `v3.3.6`，没有同步上游。
+- 行为：照片查看器和 Web 左侧导航增加工作台。Codex 生成 Lightroom Mobile、Snapseed、Photomator 操作流及独立效果图。每次手工上传保留完整文件和父版本，后台对照原片及父版本评估。历史可分支，无版本数量上限。明确确认后才将上传版复制入库并加入原生叠放，保留原组和封面。Codex 效果图不能直接提交。
+- 文件与迁移：`server/src/{controllers,dtos,repositories,services,utils}/photo-edit-advice*`、`1794385000000-ForkPhotoEditWorkbench`、Web `photo-edit-advice` 路由和中英翻译。版本索引使用单独的 `fork_photo_edit_version` 表。报告、预览和上传文件在配置的 `IMMICH_PHOTO_EDIT_DIR`。新增 API 位于 `/api/fork/photo-edit-advice`，沿用登录及原片权限。
+- 兼容：保留普通上传、叠放和 RAW 配对入口。工作台成片用普通上传后处理和专门的叠放追加事务，避免自动 RAW 配对移动已确认的成员。运行时官方 OpenAPI JSON 与正式基线完全一致。移动端和 SDK 无变更。
+- 验证：Nest、Web 生产构建及 Server/Web 类型检查通过，Web 构建仍报告既有 WASM 路径提示。180 项定向服务和渲染单测、6 项 Web 测试、4 项隔离 PostgreSQL 测试通过。真实 Codex 使用合成 PNG 生成三套流程、JPEG 和三个上传评估。实际 HTTP 验证未提交版本未入库、已提交字节与上传一致、重复提交只入库一次、原片及原叠放封面保留。隔离服务重启后，四条版本、分支、报告及提交结果仍可读取。Chromium 经真实 API 验证详情入口、Photomator、父版本对比、取消及确认提交和上传分支。真实 Immich worker 成功生成原片与两张提交成片的原生预览。
+- 迁移与回退：隔离实例自动执行新增迁移，115 条迁移对照 `c51a20a59` 校验通过。独立克隆库的 `down` 只删除工作台索引，保留图库、叠放及聊天表。正式回退须备份工作台和数据库并恢复兼容账本。取消 `IMMICH_PHOTO_EDIT_DIR` 可停用入口，已提交资产继续使用原生机制。
+- 验证边界：未执行正式部署、生产迁移或移动端真机测试。本轮端到端素材为合成 PNG，其他支持格式未逐项实测。首版效果图使用全局调整，复杂曲线、蒙版和修复由各软件手工执行。
+
 ## 2026-11-11：Photo Copilot 聊天历史落盘
 
 - 来源：`codex/feature-photo-copilot-history` 从本地 `dev` 的 `2ac3a0c29` 创建。官方基线为 `v3.3.6`，本次没有同步上游。

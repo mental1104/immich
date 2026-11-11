@@ -57,6 +57,21 @@ export class StackService extends BaseService {
     return mapStack(stack, { auth });
   }
 
+  /**
+   * @param auth 当前登录用户，必须能更新待修原片。
+   * @param originalId 待修原片。
+   * @param editedId 同一用户明确提交的后期成片。
+   * @returns 原生叠放 ID；已有叠放只追加成员，沿用原生通知机制。
+   */
+  async appendPhotoEdit(auth: AuthDto, originalId: string, editedId: string): Promise<string> {
+    await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [originalId] });
+    const { id, created, changed } = await this.stackRepository.appendPhotoEdit(auth.user.id, originalId, editedId);
+    if (changed) {
+      await this.eventRepository.emit(created ? 'StackCreate' : 'StackUpdate', { stackId: id, userId: auth.user.id });
+    }
+    return id;
+  }
+
   async get(auth: AuthDto, id: string): Promise<StackResponseDto> {
     await this.requireAccess({ auth, permission: Permission.StackRead, ids: [id] });
     const stack = await this.findOrFail(id);
