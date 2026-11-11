@@ -2,6 +2,15 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-11：后期标注图、成品图和实时分析进度
+
+- 来源：`codex/feature-photo-edit-annotations` 从 `dev` 的 `a7acc8566` 创建，沿用官方 `v3.4.0` 开发基线。本次没有同步上游。生产补丁从已部署的 `22def29e1` 构建，提交为 `4fba01ef4c9d`，基线仍为 `v3.3.6`。
+- 行为：`photo-edit-advice` 工作台共用一份结构化编辑计划。在原片预览上压暗裁掉区域、框出保留范围、绘制带 EV 的椭圆或矩形选区。成品应用裁剪、全局调整和羽化局部曝光。Web 支持切换和分别下载 PNG、JPEG，首版历史报告仍可读。沿用独立工作台目录及原生手工入栈边界。
+- 进度：Fork API 在已授权的版本响应中提供排队、准备、分析、渲染、保存状态。App Server 0.166.0 的公开摘要增量随现有轮询展示，摘要只在当前任务的内存快照中保留。官方 OpenAPI 的 195 条路径及其 Schema 在候选和生产检查中一致。无新增迁移、SDK 或官方移动端改动。
+- 验证：24 项后端测试通过，覆盖双图像素、旧报告读取和公开摘要过滤。开发基线的 Server 类型检查、Web 构建、Web 类型和 Svelte 检查通过。定向 lint 的既有文档注释与旧 Svelte 标签诊断仍在。隔离 `v3.3.6` 镜像使用合成 PNG 与真实 Codex，在 Chromium 验证详情入口、成品前收到摘要、两图切换、下载与重启后读取。原片字节一致，Codex 结果仍留在工作台。合成场景使用一个局部选区，裁剪和羽化曝光另经像素测试。
+- 部署：北京时间 20:56:18–20:56:49，`home` 仅替换 `immich-server` 为 `immich-server:nas-dev-4fba01ef4c9d`。Compose 规范化结果仅镜像字段变化。生产 115 个迁移文件与前镜像逐字节一致，PostgreSQL、Redis 和 ML 容器 ID 一致。生产检查通过 Server 健康、工作台页面、新前端脚本、匿名 API 401 和独立目录可写。生产已登录 Web 的真实照片及移动端真机尚未验证。
+- 回退：把 Homelab override 的镜像改回 `immich-server:nas-dev-22def29e113d` 并单独重建 Server。两镜像的迁移文件一致，工作台文件保留。私有验证证据保存在 `/volume2/workflow/immich-deploy-private/photo-edit-annotations-20261111.WYZ39j`。
+
 ## 2026-11-11：Homelab 部署照片后期工作台
 
 - 来源：部署本地 `dev` 上已验收的 `22def29e113df104076c6148d9b12a683cd48b0c`。正式服务基线为 Immich 3.3.6，本次没有部署后续同步的 3.4.0。候选镜像为 `immich-server:nas-dev-22def29e113d`，镜像 ID 为 `sha256:bcdb5ff0be3b5feefeb8e2e1f2a4c2859db4c952e336f8ae9d0a9139491ccc69`。

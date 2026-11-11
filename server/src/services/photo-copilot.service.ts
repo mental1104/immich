@@ -267,23 +267,46 @@ export class PhotoCopilotService implements OnModuleDestroy {
   }
 
   /**
-   * @param prompt 固定的服务端分析任务，不能由上传文件指定。
-   * @param images 由服务端选定的本地图片，顺序与提示词一致。
-   * @param context 可信度受限的图像来源和统计数据。
-   * @param schema 模型终态的 JSON 结构；结果仍用同一 Schema 校验。
-   * @returns 单次分析结果；终态失败、超时或无效 JSON 时拒绝，不产生聊天记录。
-   */
-  async analyzePhoto<T>(prompt: string, images: string[], context: object, schema: z.ZodType<T>): Promise<T> {
+  @param prompt 固定的服务端分析任务，不能由上传文件指定。
+  @param images 由服务端选定的本地图片，顺序与提示词一致。
+  @param context 可信度受限的图像来源和统计数据。
+  @param schema 模型终态的 JSON 结构；结果仍用同一 Schema 校验。
+  @param onSummary 当前轮可公开的推理摘要增量，缺省时不申请摘要。
+  @returns 单次分析结果；终态失败、超时或无效 JSON 时拒绝，不产生聊天记录。
+  */
+  async analyzePhoto<T>(
+    prompt: string,
+    images: string[],
+    context: object,
+    schema: z.ZodType<T>,
+    onSummary?: (delta: string) => void,
+  ): Promise<T> {
     const client = await this.getClient();
-    const threadId = await this.startThread(client, 'Return the requested JSON result in Simplified Chinese.');
+    const threadId = await this.startThread(
+      client,
+      'Write the requested JSON result and any public summary in Simplified Chinese.',
+    );
     const answer = Promise.withResolvers<string>();
     const replies = new Map<string, string>();
     let turnId: string | undefined;
     let terminal = false;
-    /** @param event Codex 通知，只接收当前临时线程中的完整正文与终态。 */
+    let summaryPart: string | undefined;
+    /** @param event 当前临时线程的公开摘要、完整正文或终态通知。 */
     const receive = ({ method, params }: CodexNotification) => {
-      if (params.threadId !== threadId) return;
-      turnId ??= params.turnId ?? params.turn?.id;
+      const eventTurnId = params.turnId ?? params.turn?.id;
+      if (terminal || params.threadId !== threadId || (turnId && eventTurnId !== turnId)) return;
+      turnId ??= eventTurnId;
+      // 仅转发公开摘要事件，原始推理事件和结构化正文增量都不进入进度接口。
+      if (
+        method === 'item/reasoning/summaryTextDelta' &&
+        params.delta &&
+        params.itemId &&
+        params.summaryIndex !== undefined
+      ) {
+        const part = `${params.itemId}:${params.summaryIndex}`;
+        onSummary?.((summaryPart && part !== summaryPart ? '\n\n' : '') + params.delta);
+        summaryPart = part;
+      }
       if (method === 'item/completed' && params.item?.type === 'agentMessage' && params.item.text) {
         replies.set(params.item.id, params.item.text);
       }
@@ -306,6 +329,7 @@ export class PhotoCopilotService implements OnModuleDestroy {
             threadId,
             input: [{ type: 'text', text: prompt }, ...images.map((image) => ({ type: 'localImage', path: image }))],
             outputSchema: z.toJSONSchema(schema),
+            ...(onSummary && { summary: 'concise' }),
             additionalContext: {
               photo_edit: { kind: 'untrusted', name: 'photo_edit_input_v1', value: JSON.stringify(context) },
             },

@@ -14,6 +14,10 @@ export class PhotoEditUploadDto extends createZodDto(
 export class PhotoEditVersionParamsDto extends createZodDto(z.object({ assetId: z.uuid(), id: z.uuid() })) {}
 
 /** 界面只能请求预先定义的文件类型，不能提供文件路径。 */
+export const photoEditFile = z.enum(['original', 'preview', 'image', 'annotation', 'report']);
+export type PhotoEditFile = z.infer<typeof photoEditFile>;
+
+/** 将文件类型与已授权的原片、版本组合为固定路由参数。 */
 export class PhotoEditFileParamsDto extends createZodDto(
-  z.object({ assetId: z.uuid(), id: z.uuid(), file: z.enum(['original', 'preview', 'image', 'report']) }),
+  z.object({ assetId: z.uuid(), id: z.uuid(), file: photoEditFile }),
 ) {}

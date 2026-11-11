@@ -28,7 +28,13 @@
   let parent = $derived(project?.versions.find((item) => item.id === selected?.parentId));
   let graph = $derived(photoEditGraph(project?.versions ?? []));
   let reportVersion = $derived(selected?.state === 'ready' ? selected.id : null);
-  let report = $state<PhotoEditReport | null>(null);
+  let loadedReport = $state<{ versionId: string; report: PhotoEditReport | null } | null>(null);
+  let report = $derived(loadedReport?.versionId === reportVersion ? loadedReport.report : null);
+  let annotatedPlan = $derived(
+    report?.kind === 'codex' && report.plan.render.regions !== undefined ? report.plan.render : null,
+  );
+  let resultView = $state<'annotation' | 'preview'>('annotation');
+  let showAnnotation = $derived(annotatedPlan !== null && resultView === 'annotation');
   let againstParent = $state(false);
   let busy = $state(false);
   let showUpload = $state(false);
@@ -38,6 +44,14 @@
   let file = $state<File>();
   let tab = $state<keyof typeof software>('lightroom');
   let error = $state('');
+  let clock = $state(Date.now());
+  const progressLabels = {
+    queued: 'photo_edit_stage_queued',
+    preparing: 'photo_edit_stage_preparing',
+    analyzing: 'photo_edit_stage_analyzing',
+    rendering: 'photo_edit_stage_rendering',
+    saving: 'photo_edit_stage_saving',
+  } as const;
   const control =
     'inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-800';
   const primary =
@@ -70,6 +84,7 @@
   function select(id: string | null) {
     selectedId = id;
     againstParent = false;
+    resultView = 'annotation';
     confirmId = null;
   }
 
@@ -121,7 +136,7 @@
         photoEditUrl(id) + '/versions/' + versionId,
         { signal },
       );
-      if (!signal.aborted) report = detail.report;
+      if (!signal.aborted) loadedReport = { versionId, report: detail.report };
     } catch (error_) {
       if (!signal.aborted) error = error_ instanceof Error ? error_.message : $t('photo_edit_failed');
     }
@@ -159,7 +174,7 @@
     const id = assetId;
     const version = reportVersion;
     const controller = new AbortController();
-    report = null;
+    loadedReport = null;
     if (id && version) void loadReport(id, version, controller.signal);
     return () => controller.abort();
   });
@@ -169,6 +184,7 @@
     const timer = setInterval(() => {
       const id = assetId;
       if (!busy && id && project?.versions.some(({ analyzing }) => analyzing)) {
+        clock = Date.now();
         void refresh(id).catch(() => {});
       }
     }, 1800);
@@ -333,6 +349,22 @@
               >
             </div>
           {/if}
+          {#if annotatedPlan}
+            <div class="flex flex-wrap gap-2" role="group" aria-label={$t('photo_edit_compare')}>
+              <button
+                class={showAnnotation ? primary : control}
+                aria-pressed={showAnnotation}
+                type="button"
+                onclick={() => (resultView = 'annotation')}>{$t('photo_edit_annotation')}</button
+              >
+              <button
+                class={showAnnotation ? control : primary}
+                aria-pressed={!showAnnotation}
+                type="button"
+                onclick={() => (resultView = 'preview')}>{$t('photo_edit_final_image')}</button
+              >
+            </div>
+          {/if}
           <div class={`grid gap-3 ${selected ? 'sm:grid-cols-2' : ''}`}>
             <figure class="overflow-hidden rounded-xl bg-gray-950 text-white">
               <img
@@ -353,24 +385,76 @@
                 {#if selected.kind === 'upload' || selected.state === 'ready'}
                   <img
                     class="aspect-4/3 w-full object-contain"
-                    src={photoEditFileUrl(assetId, selected.id, 'preview')}
-                    alt={versionName(selected)}
+                    src={photoEditFileUrl(assetId, selected.id, showAnnotation ? 'annotation' : 'preview')}
+                    alt={annotatedPlan
+                      ? $t(showAnnotation ? 'photo_edit_annotation' : 'photo_edit_final_image')
+                      : versionName(selected)}
                   />
                 {:else}
-                  <div class="grid aspect-4/3 place-items-center p-4 text-sm text-gray-300" role="status">
-                    {$t(selected.analyzing ? 'photo_edit_analyzing' : 'photo_edit_no_preview')}
+                  <div class="grid aspect-4/3 place-items-center p-4 text-sm text-gray-300">
+                    {$t(
+                      selected.progress
+                        ? progressLabels[selected.progress.stage]
+                        : selected.analyzing
+                          ? 'photo_edit_analyzing'
+                          : 'photo_edit_no_preview',
+                    )}
                   </div>
                 {/if}
-                <figcaption class="px-3 py-2 text-sm break-all">{versionName(selected)}</figcaption>
+                <figcaption class="px-3 py-2 text-sm break-all">
+                  {annotatedPlan
+                    ? $t(showAnnotation ? 'photo_edit_annotation' : 'photo_edit_final_image')
+                    : versionName(selected)}
+                </figcaption>
               </figure>
             {/if}
           </div>
 
           {#if selected}
+            {#if showAnnotation && annotatedPlan}
+              <div class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                {#if Object.values(annotatedPlan.crop).some((value) => value > 0)}
+                  <p>{$t('photo_edit_crop_legend')}</p>
+                {/if}
+                {#if annotatedPlan.regions?.length}
+                  <ol class="list-decimal space-y-1 pl-6">
+                    {#each annotatedPlan.regions as region, index (index)}
+                      <li>
+                        {region.target} · {$t(region.kind === 'light' ? 'photo_edit_region_light' : 'photo_edit_mask')} ·
+                        {region.exposure === 0
+                          ? $t('photo_edit_region_manual')
+                          : `${region.exposure > 0 ? '+' : ''}${region.exposure.toFixed(2)} EV`}
+                      </li>
+                    {/each}
+                  </ol>
+                {/if}
+              </div>
+            {/if}
+            {#if selected.progress}
+              <div class="space-y-2 rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p role="status" class="font-medium">{$t(progressLabels[selected.progress.stage])}</p>
+                  <span class="text-gray-500 tabular-nums dark:text-gray-400"
+                    >{$t('photo_edit_elapsed', {
+                      values: { seconds: Math.max(0, Math.floor((clock - selected.progress.queuedAt) / 1000)) },
+                    })}</span
+                  >
+                </div>
+                {#if selected.progress.summary.trim()}
+                  <h3 class="font-medium">{$t('photo_edit_reasoning_summary')}</h3>
+                  <p class="max-h-48 overflow-auto wrap-break-word whitespace-pre-wrap">{selected.progress.summary}</p>
+                {/if}
+              </div>
+            {/if}
             <div class="flex flex-wrap items-center gap-2">
+              {#if annotatedPlan}
+                <a class={control} href={photoEditFileUrl(assetId, selected.id, 'annotation')} download="annotation.png"
+                  >{$t('photo_edit_download_annotation')}</a
+                >
+              {/if}
               {#if selected.kind === 'upload' || selected.state === 'ready'}
                 <a class={control} href={photoEditFileUrl(assetId, selected.id, 'image')}
-                  >{$t('photo_edit_download_image')}</a
+                  >{$t(annotatedPlan ? 'photo_edit_download_final' : 'photo_edit_download_image')}</a
                 >
               {/if}
               {#if selected.state === 'ready'}
@@ -378,9 +462,9 @@
                   >{$t('photo_edit_download_report')}</a
                 >
               {/if}
-              {#if selected.analyzing}
+              {#if selected.analyzing && !selected.progress}
                 <span role="status" class="text-sm text-gray-500">{$t('photo_edit_analyzing')}</span>
-              {:else if selected.state !== 'ready'}
+              {:else if !selected.analyzing && selected.state !== 'ready'}
                 <span class="text-sm text-gray-500"
                   >{$t(selected.state === 'failed' ? 'photo_edit_failed' : 'photo_edit_waiting')}</span
                 >
@@ -453,7 +537,9 @@
                     <dd>{report.plan.limits}</dd>
                   </div>
                 </dl>
-                <p class="text-xs text-gray-500">{$t('photo_edit_preview_limit')}</p>
+                <p class="text-xs text-gray-500">
+                  {$t(annotatedPlan ? 'photo_edit_final_limit' : 'photo_edit_preview_limit')}
+                </p>
               {:else}
                 <h3 class="text-lg font-semibold">{report.review.verdict}</h3>
                 {#if report.review.improvements.length}

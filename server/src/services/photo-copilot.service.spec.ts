@@ -206,6 +206,42 @@ describe(PhotoCopilotService.name, () => {
     expect(state.error).toContain('disconnected');
   });
 
+  /** 只把当前工作台轮次的公开摘要交给进度接口，终态 JSON 仍独立校验。 */
+  it('forwards public analysis summary deltas without forwarding raw reasoning', async () => {
+    const onSummary = vi.fn();
+    const result = service.analyzePhoto('analyze', [], {}, z.object({ verdict: z.string() }), onSummary);
+    await vi.waitFor(() => {
+      expect(client?.request).toHaveBeenCalledWith(
+        'turn/start',
+        expect.objectContaining({ summary: 'concise' }),
+        expect.anything(),
+      );
+    });
+    const threadId = `thread-${threadIndex}`;
+    const turnId = 'turn-test';
+    const params = { threadId, turnId, itemId: 'reasoning', summaryIndex: 0 };
+    client.emit('notification', { method: 'item/reasoning/summaryTextDelta', params: { ...params, delta: 'Crop' } });
+    client.emit('notification', { method: 'item/reasoning/textDelta', params: { ...params, delta: 'hidden' } });
+    client.emit('notification', {
+      method: 'item/reasoning/summaryTextDelta',
+      params: { ...params, turnId: 'another-turn', delta: 'unrelated' },
+    });
+    client.emit('notification', {
+      method: 'item/reasoning/summaryTextDelta',
+      params: { ...params, summaryIndex: 1, delta: 'Light' },
+    });
+    expect(onSummary.mock.calls).toEqual([['Crop'], ['\n\nLight']]);
+    client.emit('notification', {
+      method: 'item/completed',
+      params: { threadId, turnId, item: { id: 'answer', type: 'agentMessage', text: '{"verdict":"ok"}' } },
+    });
+    client.emit('notification', {
+      method: 'turn/completed',
+      params: { threadId, turn: { id: turnId, status: 'completed' } },
+    });
+    await expect(result).resolves.toEqual({ verdict: 'ok' });
+  });
+
   /** NEF 只提取内嵌图；临时图在完成后清理，原片不变。 */
   it('extracts a NEF embedded preview and cleans it after completion', async () => {
     const bytes = await readFile(path.join(home, 'synthetic.png'));

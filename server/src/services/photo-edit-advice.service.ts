@@ -12,10 +12,10 @@ import { mkdir, readFile, realpath, rename, rm, stat, unlink, writeFile } from '
 import path from 'node:path';
 import sanitize from 'sanitize-filename';
 import sharp from 'sharp';
-import type { AuthDto } from 'src/dtos/auth.dto.js';
-import type { PhotoEditUploadDto } from 'src/dtos/photo-edit-advice.dto.js';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { AssetMediaStatus } from 'src/dtos/asset-media-response.dto.js';
+import type { AuthDto } from 'src/dtos/auth.dto.js';
+import type { PhotoEditFile, PhotoEditUploadDto } from 'src/dtos/photo-edit-advice.dto.js';
 import { AssetType, AssetVisibility, Permission } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
@@ -27,13 +27,14 @@ import { StackService } from 'src/services/stack.service.js';
 import { requireAccess } from 'src/utils/access.js';
 import { isWithinDirectory } from 'src/utils/iphone-backup.js';
 import {
-  type PhotoEditReport,
   measurePhotoEditImage,
   photoEditMarkdown,
   photoEditPlan,
   photoEditReport,
   photoEditReview,
   renderPhotoEdit,
+  renderPhotoEditAnnotation,
+  type PhotoEditReport,
 } from 'src/utils/photo-edit-advice.js';
 
 const planPrompt = `你是高标准摄影后期指导专家。先判断是否值得修和后期可救分 0–10，直说最大后期问题。
@@ -42,8 +43,12 @@ const planPrompt = `你是高标准摄影后期指导专家。先判断是否值
 仅保留适用步骤。每步写具体工具、起始范围或方向以及画面检查点。Photomator 按其基本、白平衡、曲线、选择性颜色和局部选区工具，
 Snapseed 按调整图片、局部、画笔等实际能力写。软件滑块刻度不能直接互换。给蒙版和曲线是否需要、目的及停止条件。
 若不值得精修，给三套简短止损流。区分可改善与不可修。解释提供的 8 位亮度统计；预览不能证明 RAW 剩余动态范围。
-render 字段只用于轻度自动效果图：crop 四边裁掉的百分比，exposure 为 EV，warmth 为 RGB 暖度近似（0 中性），
-contrast 为相对增量（0 中性），saturation 为倍数（1 中性）。能保持的项目用中性值。禁止虚构已经使用局部工具。`;
+render 同时生成原片标注图和自动成品：crop 是四边裁掉的百分比，exposure 为 EV，warmth 为 RGB 暖度近似（0 中性），
+contrast 为相对增量（0 中性），saturation 为倍数（1 中性）。regions 给出最有价值的 0–4 个选区，能保持时使用中性值。
+每个选区用原片左上角为原点，x/y 是选区左上坐标，width/height 是宽高，均为原片宽高的百分比。x+width、y+height 不得超过 100。
+按实际图像位置紧贴主体或受影响范围，选区应尽量落在裁剪保留区。target 简短写清部位和目的。kind 用 mask 表示蒙版或 light 表示局部打光。
+shape 可用 ellipse 或 rectangle。exposure 为实际应用的局部羽化曝光量，正数提亮，负数压暗，0 只标范围供手工调整。
+三套操作中保持裁剪和局部建议一致，区分成品可应用的曝光与需手工做的曲线、精细选区和修复。`;
 
 const reviewPrompt = `你是高标准摄影后期指导专家。第 1 张是原片输入，第 2 张是当前手工上传的后期版本，
 第 3 张若存在则是它的直接父版本。先评价当前是否可用，再说明相对原片和父版本有哪些改善、退步和修过头的地方。
@@ -59,11 +64,18 @@ const imageMime = {
   heic: 'image/heic',
 } as const;
 
+/** 只在当前后台任务中保留的进度，不写入报告或日志。 */
+interface PhotoEditProgress {
+  stage: 'queued' | 'preparing' | 'analyzing' | 'rendering' | 'saving';
+  queuedAt: number;
+  summary: string;
+}
+
 /** 工作台文件只在受配置保护的目录发布，版本任务与 Codex 线程不写图库。 */
 @Injectable()
 export class PhotoEditAdviceService {
   private analysisTail = Promise.resolve();
-  private analyzing = new Set<string>();
+  private progress = new Map<string, PhotoEditProgress>();
   private commits = new Map<string, Promise<PhotoEditVersion>>();
 
   /**
@@ -188,7 +200,7 @@ export class PhotoEditAdviceService {
     await this.validateRoot();
     await this.source(auth, assetId);
     const version = await this.version(auth, assetId, id);
-    if (version.state === 'ready' || this.analyzing.has(id)) return this.view(version);
+    if (version.state === 'ready' || this.progress.has(id)) return this.view(version);
     const pending = await this.versions.update(id, { state: 'pending' });
     this.enqueue(auth, pending);
     return this.view(pending);
@@ -213,26 +225,22 @@ export class PhotoEditAdviceService {
   }
 
   /** @param auth 登录用户。@param assetId 待修原片。@param id 版本。@param file 文件用途。@returns 私有文件流。 */
-  async file(auth: AuthDto, assetId: string, id: string, file: 'original' | 'preview' | 'image' | 'report') {
+  async file(auth: AuthDto, assetId: string, id: string, file: PhotoEditFile) {
     await this.source(auth, assetId);
     const version = await this.version(auth, assetId, id);
     if (version.state !== 'ready' && (version.kind === 'codex' || file === 'report' || file === 'original')) {
       throw new NotFoundException('Photo edit result is not ready');
     }
-    const inline = file === 'original' || file === 'preview';
-    const name =
-      file === 'original'
-        ? 'original-input.jpg'
-        : file === 'preview'
-          ? 'preview.jpg'
-          : file === 'report'
-            ? 'report.md'
-            : 'image.' + version.extension;
-    const type = inline
-      ? 'image/jpeg'
-      : file === 'report'
-        ? 'text/markdown; charset=utf-8'
-        : imageMime[version.extension];
+    if (file === 'annotation' && version.kind !== 'codex')
+      throw new NotFoundException('Photo edit file is unavailable');
+    const files = {
+      original: { name: 'original-input.jpg', type: 'image/jpeg', inline: true },
+      preview: { name: 'preview.jpg', type: 'image/jpeg', inline: true },
+      annotation: { name: 'annotation.png', type: 'image/png', inline: true },
+      image: { name: 'image.' + version.extension, type: imageMime[version.extension], inline: false },
+      report: { name: 'report.md', type: 'text/markdown; charset=utf-8', inline: false },
+    };
+    const { name, type, inline } = files[file];
     const filename = path.join(this.directory(version), name);
     const info = await stat(filename).catch(() => null);
     if (!info?.isFile()) throw new NotFoundException('Photo edit file is unavailable');
@@ -297,7 +305,8 @@ export class PhotoEditAdviceService {
 
   /** @param version 数据库行。@returns Web 使用的字段及当前进程中是否正在排队或分析。 */
   private view({ ownerId: _ownerId, ...version }: PhotoEditVersion) {
-    return { ...version, analyzing: this.analyzing.has(version.id) };
+    const progress = this.progress.get(version.id);
+    return { ...version, analyzing: Boolean(progress), ...(progress && { progress: { ...progress } }) };
   }
 
   /** @param input 已授权图像或上传字节。@param target 工作台内 JPEG。生成统一定向的 sRGB 图供模型和浏览器使用。 */
@@ -313,22 +322,24 @@ export class PhotoEditAdviceService {
 
   /** @param auth 任务所属用户。@param version 已持久化版本。单个后台分析顺序运行，关闭浏览器不取消。 */
   private enqueue(auth: AuthDto, version: PhotoEditVersion): void {
-    if (this.analyzing.has(version.id)) return;
-    this.analyzing.add(version.id);
+    if (this.progress.has(version.id)) return;
+    const progress: PhotoEditProgress = { stage: 'queued', queuedAt: Date.now(), summary: '' };
+    this.progress.set(version.id, progress);
     this.analysisTail = this.analysisTail.then(async () => {
       try {
-        await this.analyze(auth, version);
+        progress.stage = 'preparing';
+        await this.analyze(auth, version, progress);
         await this.versions.update(version.id, { state: 'ready' });
       } catch {
         await this.versions.update(version.id, { state: 'failed' }).catch(() => {});
       } finally {
-        this.analyzing.delete(version.id);
+        this.progress.delete(version.id);
       }
     });
   }
 
-  /** @param auth 当前任务用户。@param version 目标版本。保存真实分析输入、报告和可选的 Codex 效果图。 */
-  private async analyze(auth: AuthDto, version: PhotoEditVersion): Promise<void> {
+  /** @param auth 当前任务用户。@param version 目标版本。@param progress 当前任务的实时快照。 */
+  private async analyze(auth: AuthDto, version: PhotoEditVersion, progress: PhotoEditProgress): Promise<void> {
     await this.source(auth, version.assetId);
     const directory = this.directory(version);
     await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -342,15 +353,23 @@ export class PhotoEditAdviceService {
     }
 
     const histogram = await measurePhotoEditImage(input);
+    /** @param delta 当前任务的公开摘要增量，限制快照大小。 */
+    const onSummary = (delta: string) => {
+      progress.summary = (progress.summary + delta).slice(0, 5000);
+    };
     let report: PhotoEditReport;
     if (version.kind === 'codex') {
+      progress.stage = 'analyzing';
       const plan = await this.copilot.analyzePhoto(
         planPrompt,
         [input],
         { source: original.source, histogram },
         photoEditPlan,
+        onSummary,
       );
+      progress.stage = 'rendering';
       await renderPhotoEdit(input, path.join(directory, 'image.jpg'), plan.render);
+      await renderPhotoEditAnnotation(input, path.join(directory, 'annotation.png'), plan.render);
       await this.preview(path.join(directory, 'image.jpg'), path.join(directory, 'preview.jpg'));
       report = { kind: 'codex', source: original.source, original: histogram, plan };
     } else {
@@ -367,6 +386,7 @@ export class PhotoEditAdviceService {
         }
       }
       const edited = await measurePhotoEditImage(editedFile);
+      progress.stage = 'analyzing';
       const review = await this.copilot.analyzePhoto(
         reviewPrompt,
         images,
@@ -379,9 +399,11 @@ export class PhotoEditAdviceService {
           note: version.note,
         },
         photoEditReview,
+        onSummary,
       );
       report = { kind: 'upload', source: original.source, original: histogram, parent, edited, review };
     }
+    progress.stage = 'saving';
     await writeFile(path.join(directory, 'report.md.tmp'), photoEditMarkdown(report), { mode: 0o600 });
     await writeFile(path.join(directory, 'report.json.tmp'), JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
     await rename(path.join(directory, 'report.md.tmp'), path.join(directory, 'report.md'));

@@ -11,6 +11,7 @@ export const codexNotificationSchema = z.object({
     turnId: z.string().optional(),
     itemId: z.string().optional(),
     delta: z.string().optional(),
+    summaryIndex: z.number().int().nonnegative().optional(),
     willRetry: z.boolean().optional(),
     turn: z
       .object({

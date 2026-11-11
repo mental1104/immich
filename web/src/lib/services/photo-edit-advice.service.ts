@@ -13,6 +13,11 @@ export interface PhotoEditVersion {
   note: string;
   state: 'pending' | 'ready' | 'failed';
   analyzing: boolean;
+  progress?: {
+    stage: 'queued' | 'preparing' | 'analyzing' | 'rendering' | 'saving';
+    queuedAt: number;
+    summary: string;
+  };
   createdAt: string;
   committedAt: string | null;
 }
@@ -63,6 +68,10 @@ export type PhotoEditReport = { source: string; original: PhotoEditHistogram } &
         lightroom: PhotoEditStep[];
         snapseed: PhotoEditStep[];
         photomator: PhotoEditStep[];
+        render: {
+          crop: { left: number; top: number; right: number; bottom: number };
+          regions?: { kind: 'mask' | 'light'; target: string; exposure: number }[];
+        };
       };
     }
   | {
@@ -82,7 +91,7 @@ export function photoEditUrl(assetId?: string): string {
 export function photoEditFileUrl(
   assetId: string,
   versionId: string,
-  file: 'original' | 'preview' | 'image' | 'report',
+  file: 'original' | 'preview' | 'image' | 'annotation' | 'report',
 ) {
   return `${photoEditUrl(assetId)}/versions/${encodeURIComponent(versionId)}/files/${file}`;
 }

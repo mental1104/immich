@@ -4,14 +4,14 @@
 
 ## 生成、上传和提交
 
-1. 点击「生成建议和效果图」，查看照片值不值得修、推荐方向以及 Lightroom Mobile、Snapseed、Photomator 三套操作。对比原片输入和效果图，可以下载 JPEG 和 Markdown。
+1. 点击「生成后期建议」。运行期间页面显示排队、准备、分析、绘图和保存阶段，以及模型提供的公开分析摘要。完成后切换「后期标注图」和「最终成品图」，也可分别下载 PNG 和 JPEG。标注图压暗将裁掉的边缘，用虚线框出保留区，并圈出局部选区、标记曝光值。图下的编号对应中文操作说明。报告提供 Lightroom Mobile、Snapseed、Photomator 三套操作，可以下载 Markdown。
 2. 完成手工修图后，先在历史里选中原片或一个已有版本，再点「上传后期版本」。选择软件并上传原始导出文件。版本立即保存，Codex 在后台对照原片和可用的父版本评估。评估失败或服务重启后，已有上传保留，可以手动重试评估。
 3. 核对成片后点「提交到叠放」并确认。Immich 把上传的原始字节复制进图库。已有叠放保留 ID、封面和其他成员。原片尚无叠放时以原片为封面新建一组。已提交的版本可以从历史图打开对应叠放。同一版本重复提交复用相同的原生资产。若图库已有相同内容，工作台提示冲突，不移动已有照片。
 4. 可以从任意旧节点继续上传。历史图记录父子关系，完整上传文件、报告和未提交分支都保留。版本数量没有上限，也没有自动清理任务。
 
 ## 运行与存储
 
-Homelab 于 2026-11-11 部署此工作台，运行镜像为 `immich-server:nas-dev-22def29e113d`，基线为 Immich 3.3.6。当前 `home` 项目从 Immich 的 Compose override 加载配置，将 NAS 上的 `/volume1/docker/immich/photo-edit-workbench` 挂到 `/photo-edit-workbench`。这个目录位于 HDD，模式为 0700。上线与回退证据见 `change.log`。
+Homelab 于 2026-11-11 部署此工作台，当前标注图与分析进度版本运行在 `immich-server:nas-dev-4fba01ef4c9d`，基线为 Immich 3.3.6。`home` 项目从 Immich 的 Compose override 加载配置，将 NAS 上的 `/volume1/docker/immich/photo-edit-workbench` 挂到 `/photo-edit-workbench`。这个目录位于 HDD，模式为 0700。上线与回退证据见 `change.log`。
 
 准备一个存在且可写的私有目录，在 Docker 中把它单独挂载到容器内。通过环境变量 `IMMICH_PHOTO_EDIT_DIR` 指定容器内绝对路径，例如 `/photo-edit-workbench`。目录必须在 Immich 媒体目录和外部图库导入路径之外。生产运维需把该目录与 Immich PostgreSQL 一起备份。
 
@@ -19,7 +19,8 @@ Codex 分析复用既有 `IMMICH_PHOTO_COPILOT_*` 配置和只读 App Server。�
 
 ```text
 <IMMICH_PHOTO_EDIT_DIR>/<用户 UUID>/<版本 UUID>/
-  image.<扩展名>       手工上传的完整文件或 Codex 效果 JPEG
+  image.<扩展名>       手工上传的完整文件或 Codex 成品 JPEG
+  annotation.png     Codex 原片标注图，首版历史没有此文件
   preview.jpg         工作台预览
   original-input.jpg  实际用于分析的原片输入
   report.json         结构化建议或评估
@@ -31,6 +32,6 @@ PostgreSQL 表 `fork_photo_edit_version` 记录项目归属、父版本、报告
 ## 首版范围
 
 - 手工上传支持单张 JPEG、PNG、WebP、TIFF 和 HEIC，受服务器解码能力和 32 MiB 单文件限制。上传原始字节保留，浏览及评估图按 sRGB 定向并缩放至最长边不超过 2400px。
-- Codex 效果图可应用裁剪、曝光、暖度、对比度和饱和度。报告中的曲线、蒙版、修复和软件专有操作由用户在对应软件执行。亮度统计来自实际输入的 8 位图像，RAW 内嵌预览的统计不能说明 RAW 显影空间。
-- 分析任务在当前单 API 实例内串行运行。应用重启后，可从历史手动重试仍待评估的版本。
+- Codex 成品图可应用裁剪、全局曝光、暖度、对比度、饱和度和最多四个椭圆或矩形选区的羽化曝光。精细蒙版、曲线、修复和软件专有操作可照报告在对应软件执行。亮度统计来自实际输入的 8 位图像，RAW 内嵌预览的统计不能说明 RAW 显影空间。已有报告和成品可继续读取，重新生成即可获得对应标注图。
+- 分析任务在当前单 API 实例内串行运行。进度和公开摘要随任务提供，完成后保留报告与图像。应用重启后，可从历史手动重试仍待评估的版本。
 - 禁用入口可取消 `IMMICH_PHOTO_EDIT_DIR` 并重启。旧镜像不识别新增迁移。回退前应备份 PostgreSQL 与工作台文件，恢复与目标镜像兼容的数据库。该迁移的 `down` 只删除工作台索引，既有图库资产及工作台目录由各自的生命周期管理。
