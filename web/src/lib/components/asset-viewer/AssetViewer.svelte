@@ -3,7 +3,7 @@
   import { shortcuts } from '#lib/actions/shortcut.ts';
   import OnEvents from '#lib/components/OnEvents.svelte';
   import AssetViewerNavBar from '#lib/components/asset-viewer/AssetViewerNavBar.svelte';
-  import PhotoCopilotPanel from '#lib/components/asset-viewer/PhotoCopilotPanel.svelte';
+  import PhotoAiPanel from '#lib/components/asset-viewer/PhotoAiPanel.svelte';
   import { preloadManager } from '#lib/components/asset-viewer/PreloadManager.svelte.ts';
   import NextAssetAction from '#lib/components/asset-viewer/actions/NextAssetAction.svelte';
   import PreviousAssetAction from '#lib/components/asset-viewer/actions/PreviousAssetAction.svelte';
@@ -30,6 +30,7 @@
   import { toTimelineAsset } from '#lib/utils/timeline-util.ts';
   import {
     AssetTypeEnum,
+    AssetVisibility,
     getAssetInfo,
     getStack,
     type AlbumResponseDto,
@@ -119,8 +120,7 @@
   let fullscreenElement = $state<Element>();
 
   let isPlayingOriginalVideo = $state($alwaysLoadOriginalVideo);
-  // 侧栏独立于预览布局；关闭后后台任务继续，按照片恢复会话。
-  let isPhotoCopilotOpen = $state(false);
+  let isPhotoAiOpen = $state(false);
   let slideshowStartAssetId = $state<string>();
   let x5FallbackAssetId = $state<string>();
 
@@ -494,6 +494,35 @@
       assetViewerManager.isShowDetailPanel &&
       !assetViewerManager.isShowEditor,
   );
+  const showActivityPanel = $derived(
+    isShared && album && assetViewerManager.isShowActivityPanel && authManager.authenticated,
+  );
+  const canOpenPhotoAi = $derived(authManager.authenticated && !sharedLink && asset.type === AssetTypeEnum.Image);
+  const canOpenWorkbench = $derived(
+    authManager.authenticated &&
+      asset.ownerId === authManager.user.id &&
+      !asset.isTrashed &&
+      (asset.visibility === AssetVisibility.Timeline || asset.visibility === AssetVisibility.Archive),
+  );
+  const showPhotoAiPanel = $derived(
+    isPhotoAiOpen &&
+      canOpenPhotoAi &&
+      $slideshowState === SlideshowState.None &&
+      !assetViewerManager.isShowEditor &&
+      !showDetailPanel &&
+      !showActivityPanel,
+  );
+
+  /** AI 入口与信息、活动使用同一侧，打开 AI 时先让出该位置。 */
+  function togglePhotoAi() {
+    if (showPhotoAiPanel) {
+      isPhotoAiOpen = false;
+      return;
+    }
+    assetViewerManager.closeDetailPanel();
+    assetViewerManager.closeActivityPanel();
+    isPhotoAiOpen = true;
+  }
 
   const onSwipe = (event: SwipeCustomEvent) => {
     if (assetViewerManager.zoom > 1) {
@@ -550,7 +579,7 @@
         onClose={onClose ? () => onClose(stack?.primaryAssetId ?? asset.id) : undefined}
         {isPlayingOriginalVideo}
         {setPlayOriginalVideo}
-        onPhotoCopilot={() => (isPhotoCopilotOpen = !isPhotoCopilotOpen)}
+        onTogglePhotoAi={canOpenPhotoAi ? togglePhotoAi : undefined}
       />
     </div>
   {/if}
@@ -651,9 +680,7 @@
   {#if $slideshowState === SlideshowState.None && showNavigation && !assetViewerManager.isShowEditor && !assetViewerManager.isFaceEditMode && nextAsset}
     <div
       class="col-span-1 col-start-4 row-span-full row-start-1 my-auto justify-self-end"
-      style:margin-inline-end={isPhotoCopilotOpen && asset.type === AssetTypeEnum.Image
-        ? 'min(420px, 42vw)'
-        : undefined}
+      style:margin-inline-end={showPhotoAiPanel ? 'var(--photo-ai-panel-width)' : undefined}
     >
       <NextAssetAction onNextAsset={() => navigateAsset('next')} />
     </div>
@@ -716,7 +743,7 @@
     </div>
   {/if}
 
-  {#if isShared && album && assetViewerManager.isShowActivityPanel && authManager.authenticated}
+  {#if showActivityPanel && album}
     <div
       transition:fly={{ duration: 150 }}
       id="activity-panel"
@@ -732,20 +759,26 @@
       />
     </div>
   {/if}
-  {#if isPhotoCopilotOpen && authManager.authenticated && asset.type === AssetTypeEnum.Image && !sharedLink}
-    {#key asset.id}
-      <PhotoCopilotPanel
-        assetId={asset.id}
-        fileName={asset.originalFileName}
-        onClose={() => (isPhotoCopilotOpen = false)}
-      />
-    {/key}
+  {#if showPhotoAiPanel}
+    <PhotoAiPanel
+      assetId={asset.id}
+      fileName={asset.originalFileName}
+      {canOpenWorkbench}
+      onClose={() => (isPhotoAiOpen = false)}
+    />
   {/if}
 </section>
 
 <style>
   #immich-asset-viewer {
+    --photo-ai-panel-width: min(420px, 42vw);
     contain: layout;
+  }
+
+  @media (max-width: 700px) {
+    #immich-asset-viewer {
+      --photo-ai-panel-width: min(420px, 90vw);
+    }
   }
 
   .horizontal-scrollbar::-webkit-scrollbar {

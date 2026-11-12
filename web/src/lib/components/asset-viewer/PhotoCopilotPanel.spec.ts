@@ -6,6 +6,7 @@ import {
 } from '#lib/services/photo-copilot.service.ts';
 import { render } from 'vitest-browser-svelte';
 import { page } from 'vitest/browser';
+import PhotoAiPanel from './PhotoAiPanel.svelte';
 import PhotoCopilotPanel from './PhotoCopilotPanel.svelte';
 
 vi.mock('#lib/managers/auth-manager.svelte.ts', () => ({ authManager: { user: { id: 'synthetic-user' } } }));
@@ -65,7 +66,7 @@ describe('PhotoCopilotPanel', () => {
 
   /** 照片标识始终可见，流文本以纯文本呈现。 */
   it('opens, streams a reply and sends another message in the same session', async () => {
-    await render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose: vi.fn() });
+    await render(PhotoCopilotPanel, { assetId: 'asset-a' });
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
     const stream = TestEventSource.instances[0];
     stream.dispatchEvent(new Event('open'));
@@ -99,7 +100,17 @@ describe('PhotoCopilotPanel', () => {
   /** 停止是显式命令；关闭面板只断开流。 */
   it('stops explicitly and does not stop a task on close', async () => {
     const onClose = vi.fn();
-    const view = await render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose });
+    const view = await render(PhotoAiPanel, {
+      assetId: 'asset-a',
+      fileName: 'asset-a.png',
+      canOpenWorkbench: true,
+      onClose,
+    });
+    await expect
+      .element(page.getByRole('link', { name: 'photo_edit_advice' }))
+      .toHaveAttribute('href', '/photo-edit-advice?assetId=asset-a');
+    expect(requestPhotoCopilot).not.toHaveBeenCalled();
+    await page.getByRole('button', { name: 'photo_ai_copilot' }).click();
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
     TestEventSource.instances[0].snapshot({ ...stateFor(), busy: true, status: 'running' });
     await page.getByRole('button', { name: 'Stop' }).click();
@@ -110,7 +121,7 @@ describe('PhotoCopilotPanel', () => {
       expect.any(AbortSignal),
     );
     const count = vi.mocked(requestPhotoCopilot).mock.calls.length;
-    await page.getByLabelText('Close Photo Copilot').click();
+    await page.getByRole('button', { name: 'close', exact: true }).click();
     expect(onClose).toHaveBeenCalledOnce();
     await view.unmount();
     expect(requestPhotoCopilot).toHaveBeenCalledTimes(count);
@@ -119,11 +130,11 @@ describe('PhotoCopilotPanel', () => {
 
   /** 模拟 keyed 父组件切图：旧流不能污染新照片，并能按照片恢复会话。 */
   it('keeps asset contexts separate and restores a saved session after remount', async () => {
-    const first = await render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose: vi.fn() });
+    const first = await render(PhotoCopilotPanel, { assetId: 'asset-a' });
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
     await first.unmount();
     vi.mocked(requestPhotoCopilot).mockResolvedValue(stateFor('asset-b'));
-    const second = await render(PhotoCopilotPanel, { assetId: 'asset-b', fileName: 'asset-b.png', onClose: vi.fn() });
+    const second = await render(PhotoCopilotPanel, { assetId: 'asset-b' });
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(2));
     TestEventSource.instances[0].snapshot({
       ...stateFor(),
@@ -133,7 +144,7 @@ describe('PhotoCopilotPanel', () => {
     await expect.element(page.getByTestId('copilot-asset-id')).toHaveTextContent('asset-b');
     await second.unmount();
     vi.mocked(requestPhotoCopilot).mockResolvedValue(stateFor());
-    await render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose: vi.fn() });
+    await render(PhotoCopilotPanel, { assetId: 'asset-a' });
     await vi.waitFor(() =>
       expect(requestPhotoCopilot).toHaveBeenLastCalledWith(
         'asset-a',
@@ -147,7 +158,7 @@ describe('PhotoCopilotPanel', () => {
   /** 连接故障提供可读错误和重连；服务重启后明确新建会话。 */
   it('reports an unavailable backend and recovers an expired session', async () => {
     vi.mocked(requestPhotoCopilot).mockRejectedValueOnce(new Error('Photo Copilot is disabled'));
-    await render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose: vi.fn() });
+    await render(PhotoCopilotPanel, { assetId: 'asset-a' });
     await expect.element(page.getByRole('alert')).toHaveTextContent('Photo Copilot is disabled');
     await page.getByRole('button', { name: 'Reconnect' }).click();
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
@@ -172,7 +183,7 @@ describe('PhotoCopilotPanel', () => {
       { id: 'older', title: older.messages[0].text },
     ]);
     vi.mocked(requestPhotoCopilot).mockResolvedValueOnce(latest).mockResolvedValueOnce(older);
-    await render(PhotoCopilotPanel, { assetId: 'asset-a', fileName: 'asset-a.png', onClose: vi.fn() });
+    await render(PhotoCopilotPanel, { assetId: 'asset-a' });
     await expect.element(page.getByRole('log')).toHaveTextContent('You Explain the light');
     expect(requestPhotoCopilot).toHaveBeenLastCalledWith(
       'asset-a',

@@ -10,7 +10,6 @@
   import { assetViewerManager } from '#lib/managers/asset-viewer-manager.svelte.ts';
   import { authManager } from '#lib/managers/auth-manager.svelte.ts';
   import { languageManager } from '#lib/managers/language-manager.svelte.ts';
-  import { Route } from '#lib/route.ts';
   import { getAlbumAssetActions } from '#lib/services/album.service.ts';
   import { getGlobalActions } from '#lib/services/app.service.ts';
   import { getAssetActions } from '#lib/services/asset.service.ts';
@@ -28,16 +27,8 @@
     type StackResponseDto,
   } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider, Tooltip, type ActionItem } from '@immich/ui';
-  import {
-    mdiArrowLeft,
-    mdiArrowRight,
-    mdiDotsVertical,
-    mdiImageEditOutline,
-    mdiRobotOutline,
-    mdiVideoOutline,
-  } from '@mdi/js';
+  import { mdiArrowLeft, mdiArrowRight, mdiDotsVertical, mdiRobotOutline, mdiVideoOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
-  import { goto } from '$app/navigation';
 
   interface Props {
     asset: AssetResponseDto;
@@ -50,8 +41,8 @@
     onClose?: () => void;
     isPlayingOriginalVideo: boolean;
     setPlayOriginalVideo: (value: boolean) => void;
-    /** 打开本张照片的只读 Codex 面板；不改变现有浏览操作。 */
-    onPhotoCopilot?: () => void;
+    /** 当前照片支持 AI 时，切换右侧的统一入口。 */
+    onTogglePhotoAi?: () => void;
   }
 
   let {
@@ -65,7 +56,7 @@
     onClose,
     isPlayingOriginalVideo = false,
     setPlayOriginalVideo,
-    onPhotoCopilot,
+    onTogglePhotoAi,
   }: Props = $props();
 
   const isOwner = $derived(authManager.authenticated && asset.ownerId === authManager.user.id);
@@ -126,17 +117,8 @@
     <ActionButton action={Actions.Copy} />
     <ActionButton action={Actions.SharedLinkDownload} />
     <ActionButton action={Actions.Info} />
-    {#if authManager.authenticated && !sharedLink && asset.type === AssetTypeEnum.Image}
-      <ActionButton action={{ title: 'Photo Copilot', icon: mdiRobotOutline, onAction: () => onPhotoCopilot?.() }} />
-    {/if}
-    {#if isOwner && !sharedLink && !isLocked && !asset.isTrashed && asset.type === AssetTypeEnum.Image}
-      <ActionButton
-        action={{
-          title: $t('photo_edit_advice'),
-          icon: mdiImageEditOutline,
-          onAction: () => goto(Route.photoEditAdvice(asset.id)),
-        }}
-      />
+    {#if onTogglePhotoAi}
+      <ActionButton action={{ title: $t('photo_ai'), icon: mdiRobotOutline, onAction: onTogglePhotoAi }} />
     {/if}
     <ActionButton action={Actions.Favorite} />
     <ActionButton action={Actions.Unfavorite} />

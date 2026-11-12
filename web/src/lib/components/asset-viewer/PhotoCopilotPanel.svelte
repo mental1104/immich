@@ -9,13 +9,11 @@
   } from '#lib/services/photo-copilot.service.ts';
   import { onMount } from 'svelte';
 
-  /** 当前照片专属面板；父级以 Asset ID 为 key 重建，避免迟到结果串到另一张照片。 */
+  /** 当前照片的聊天内容；AI 面板以 Asset ID 为 key 重建，隔离会话与订阅。 */
   interface Props {
     assetId: string;
-    fileName: string;
-    onClose: () => void;
   }
-  let { assetId, fileName, onClose }: Props = $props();
+  let { assetId }: Props = $props();
   let snapshot = $state<PhotoCopilotSnapshot>();
   let history = $state<PhotoCopilotSessionSummary[]>([]);
   let input = $state('');
@@ -146,13 +144,8 @@
   });
 </script>
 
-<aside class="copilot" aria-label="Photo Copilot" data-testid="photo-copilot-panel">
-  <header>
-    <strong>Photo Copilot</strong>
-    <button type="button" onclick={onClose} aria-label="Close Photo Copilot" title="Close">&#x2715;</button>
-  </header>
+<div class="copilot-chat" data-testid="photo-copilot-panel">
   <div class="context">
-    <strong title={fileName}>{fileName}</strong>
     <small data-testid="copilot-asset-id">{assetId}</small>
     <small role="status">{connection} {snapshot ? ` / ${snapshot.status}` : ''}</small>
     <small
@@ -224,38 +217,27 @@
       {:else}<button class="send" type="submit" disabled={!snapshot || !input.trim() || opening}>Send</button>{/if}
     </div>
   </form>
-</aside>
+</div>
 
 <style>
-  .copilot {
-    position: absolute;
-    inset: 64px 0 0 auto;
-    z-index: 50;
-    width: min(420px, 42vw);
+  .copilot-chat {
     display: flex;
+    flex: 1;
+    min-height: 0;
     flex-direction: column;
-    background: var(--color-immich-dark-bg, #16181e);
-    color: #eceef6;
-    border-left: 1px solid #4b4d58;
-    box-shadow: -8px 0 24px #0005;
     font:
       14px/1.5 system-ui,
       sans-serif;
   }
-  header,
   .actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
   }
-  header,
   form,
   .context {
     padding: 12px 16px;
-  }
-  header {
-    border-bottom: 1px solid #4b4d58;
   }
   button {
     cursor: pointer;
@@ -275,15 +257,9 @@
   .context {
     border-bottom: 1px solid #4b4d58;
   }
-  .context strong,
   small {
     display: block;
     overflow-wrap: anywhere;
-  }
-  .context strong {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
   small,
   .context p {
@@ -353,10 +329,5 @@
     padding: 8px 16px;
     color: #ffb5b5;
     overflow-wrap: anywhere;
-  }
-  @media (max-width: 700px) {
-    .copilot {
-      width: min(420px, 90vw);
-    }
   }
 </style>

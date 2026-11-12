@@ -2,6 +2,14 @@
 
 新记录置顶；每次功能、修复及上游同步都在对应变更中更新。只记录实际证据，自动测试、接口检查和客户端真机验收分别标注。
 
+## 2026-11-12：照片查看器统一 AI 入口
+
+- 来源：`codex/feature-photo-ai-panel` 从 `dev` 的 `d6f3dd63a` 创建，沿用官方 `v3.4.0` 开发基线。本次没有同步上游。生产补丁从 `4fba01ef4c9d` 构建，提交为 `f1cee19db9a1`，生产基线仍为 `v3.3.6`。
+- 行为：照片查看器工具栏以单个「AI」按钮打开右侧 `PhotoAiPanel`。点击「AI Copilot」才会加载当前照片的聊天。拥有可编辑原片时可从同一面板打开该照片的后期工作台。切图保留聊天展开状态，按当前 Asset ID 重新订阅。后期工作台左侧导航和历史深链接继续可用。
+- 验证：Web 类型检查、Svelte 检查、变更文件格式检查及 5 项 Chromium 组件测试通过。定向 lint 仍报告 Copilot 文件内既有文档注释格式问题。独立 `v3.3.6` 候选镜像在 Chromium 使用两张合成照片验证单按钮、按需创建会话、切图、关闭重开和跳转当前照片的工作台。本轮未执行官方移动端真机验收，也未在生产用私人照片测试。
+- 部署与兼容：北京时间 14:51:05–14:51:37，`home` 只替换 `immich-server` 为 `immich-server:nas-dev-f1cee19db9a1`。规范化 Compose 只有镜像字段变化，PostgreSQL、Redis 和 ML 容器 ID 一致。候选与旧镜像的 513 个服务端 JavaScript 文件逐字节一致，生产官方 OpenAPI 的 195 条路径及 Schema 一致。API、SDK、数据库和官方移动端无源码改动。生产健康与新版前端脚本校验通过。
+- 回退：将 Homelab override 镜像改回 `immich-server:nas-dev-4fba01ef4c9d`，仅重建 Server。私有验证证据位于 `/volume2/workflow/immich-deploy-private/photo-ai-panel-20261112.ykhsmz`。
+
 ## 2026-11-11：后期标注图、成品图和实时分析进度
 
 - 来源：`codex/feature-photo-edit-annotations` 从 `dev` 的 `a7acc8566` 创建，沿用官方 `v3.4.0` 开发基线。本次没有同步上游。生产补丁从已部署的 `22def29e1` 构建，提交为 `4fba01ef4c9d`，基线仍为 `v3.3.6`。

@@ -1,6 +1,6 @@
 # 照片后期建议工作台
 
-从已登录的 Immich Web 打开自己的一张照片，点击照片查看器的「照片后期建议」。左侧导航也能重新打开已有项目。
+从已登录的 Immich Web 打开自己的一张照片，在照片查看器工具栏点击「AI」，再从右侧面板选择「照片后期建议」。左侧导航也能重新打开已有项目。
 
 ## 生成、上传和提交
 
@@ -11,7 +11,7 @@
 
 ## 运行与存储
 
-Homelab 于 2026-11-11 部署此工作台，当前标注图与分析进度版本运行在 `immich-server:nas-dev-4fba01ef4c9d`，基线为 Immich 3.3.6。`home` 项目从 Immich 的 Compose override 加载配置，将 NAS 上的 `/volume1/docker/immich/photo-edit-workbench` 挂到 `/photo-edit-workbench`。这个目录位于 HDD，模式为 0700。上线与回退证据见 `change.log`。
+Homelab 于 2026-11-11 部署此工作台，当前统一 AI 入口版本运行在 `immich-server:nas-dev-f1cee19db9a1`，基线为 Immich 3.3.6。`home` 项目从 Immich 的 Compose override 加载配置，将 NAS 上的 `/volume1/docker/immich/photo-edit-workbench` 挂到 `/photo-edit-workbench`。这个目录位于 HDD，模式为 0700。上线与回退证据见 `change.log`。
 
 准备一个存在且可写的私有目录，在 Docker 中把它单独挂载到容器内。通过环境变量 `IMMICH_PHOTO_EDIT_DIR` 指定容器内绝对路径，例如 `/photo-edit-workbench`。目录必须在 Immich 媒体目录和外部图库导入路径之外。生产运维需把该目录与 Immich PostgreSQL 一起备份。
 
