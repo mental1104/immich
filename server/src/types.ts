@@ -261,6 +261,8 @@ export interface ILibraryFileJob {
   paths: string[];
   progressCounter?: number;
   totalAssets?: number;
+  /** 目录监听任务的作用域及待复查子树，普通扫描任务省略。 */
+  directoryWatch?: { root: string; directories: string[] };
 }
 
 export interface ILibraryBulkIdsJob {
@@ -270,6 +272,10 @@ export interface ILibraryBulkIdsJob {
   assetIds: string[];
   progressCounter: number;
   totalAssets: number;
+  /** 增量任务只把确认不存在的文件视为离线，权限和 I/O 错误向上抛出。 */
+  fromDirectoryWatch?: boolean;
+  /** 来自明确的文件变化事件，强制刷新已有文件以处理保留 mtime 的覆盖写入。 */
+  forceRefresh?: boolean;
 }
 
 export interface IDeleteFilesJob extends IBaseJob {
