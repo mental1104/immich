@@ -1,6 +1,45 @@
 import { AssetType, JobName, JobStatus, QueueName } from 'src/enum.js';
 import { shouldPauseVideoMetadataExtraction } from 'src/repositories/job.repository.js';
 
+describe('pending external library imports', () => {
+  /** 验证只读取导入任务的文件列表，并处理重复扫描及任务在读取期间完成的情况。 */
+  it('deduplicates discovered files within each library without reading asset check payloads', async () => {
+    const { JobRepository } = await import('src/repositories/job.repository.js');
+    const repository = Object.create(JobRepository.prototype) as InstanceType<typeof JobRepository>;
+    const importJob = JobName.LibrarySyncFiles;
+    const jobs = new Map([
+      ['first', { name: importJob, data: { libraryId: 'library-a', paths: ['/scan/a.jpg', '/scan/a.jpg'] } }],
+      ['second', { name: importJob, data: { libraryId: 'library-a', paths: ['/scan/a.jpg', '/scan/b.jpg'] } }],
+      ['other', { name: importJob, data: { libraryId: 'library-b', paths: ['/scan/a.jpg'] } }],
+    ]);
+    const pipeline = {
+      hget: vi.fn(),
+      exec: vi.fn().mockResolvedValue([
+        [null, importJob],
+        [null, JobName.LibrarySyncAssets],
+        [null, importJob],
+        [null, importJob],
+        [null, importJob],
+      ]),
+    };
+    const queue = {
+      getRanges: vi.fn().mockResolvedValue(['first', 'check', 'second', 'other', 'finished']),
+      getBackend: vi.fn().mockReturnValue({ client: Promise.resolve({ pipeline: () => pipeline }) }),
+      toKey: (id: string) => id,
+      getJob: vi.fn((id: string) => jobs.get(id)),
+    };
+    repository['moduleRef'] = { get: vi.fn().mockReturnValue(queue) } as never;
+
+    await expect(repository.getPendingLibraryImportPaths()).resolves.toEqual([
+      { libraryId: 'library-a', path: '/scan/a.jpg' },
+      { libraryId: 'library-a', path: '/scan/b.jpg' },
+      { libraryId: 'library-b', path: '/scan/a.jpg' },
+    ]);
+    expect(queue.getJob.mock.calls.flat()).toEqual(['first', 'second', 'other', 'finished']);
+    expect(queue.getRanges).toHaveBeenCalledWith(['active', 'waiting', 'delayed', 'prioritized', 'paused'], 0, -1);
+  });
+});
+
 describe('shouldPauseVideoMetadataExtraction', () => {
   it('pauses on I/O pressure even when CPU is mostly idle', () => {
     expect(

@@ -105,9 +105,20 @@
     }
     return false;
   };
+  /**
+   * 外部库扫描仍可能发现新文件，因此接入节点始终使用实时队列状态。
+   * @param node 当前绘制的流程节点。
+   * @returns 单资产记录或全局节点状态。
+   */
   const stateFor = (node: PipelineNode) => {
     const progress = pipelineCountFor(node.queue);
-    if (!asset && progress && progress.total > 0 && progress.completed >= progress.total) {
+    if (
+      node.queue !== QueueName.Library &&
+      !asset &&
+      progress &&
+      progress.total > 0 &&
+      progress.completed >= progress.total
+    ) {
       return 'completed';
     }
     return getPipelineState(
@@ -414,7 +425,7 @@
                     },
                   })}
                 {:else if node.queue === QueueName.Library && pipelineCount}
-                  {$t('pipeline.assets_count', {
+                  {$t('pipeline.ingest_count', {
                     values: {
                       completed: pipelineCount.completed.toLocaleString($locale),
                       total: pipelineCount.total.toLocaleString($locale),
@@ -436,7 +447,16 @@
                   })}
                 {:else}{$t('pipeline.state.unknown')}{/if}
               </span>
-              {#if !asset && pipelineCount?.notStarted !== undefined}
+              {#if !asset && node.queue === QueueName.Library && pipelineCount && queue}
+                <span class="text-[10px] leading-tight text-gray-600 dark:text-gray-300">
+                  {$t('pipeline.queue_count', {
+                    values: {
+                      active: queue.statistics.active,
+                      waiting: queue.statistics.waiting + queue.statistics.paused + queue.statistics.delayed,
+                    },
+                  })}
+                </span>
+              {:else if !asset && pipelineCount?.notStarted !== undefined}
                 <span class="text-[10px] leading-tight text-gray-600 dark:text-gray-300">
                   {$t('pipeline.remaining_count', {
                     values: {

@@ -1,6 +1,7 @@
 import { Kysely } from 'kysely';
 import { AssetFileType } from 'src/enum.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
+import { LibraryRepository } from 'src/repositories/library.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { DB } from 'src/schema/index.js';
 import { BaseService } from 'src/services/base.service.js';
@@ -30,6 +31,48 @@ beforeAll(async () => {
 });
 
 describe(AssetJobRepository.name, () => {
+  /** 已入库路径和备份暂存路径不增加分母；同路径在不同图库中是独立候选。 */
+  it('counts only unregistered paths in the library intake denominator', async () => {
+    const { ctx, sut } = setup();
+    const { user } = await ctx.newUser();
+    const libraryRepository = ctx.get(LibraryRepository);
+    const libraryDto = { ownerId: user.id, name: 'Intake progress', importPaths: [], exclusionPatterns: [] };
+    const library = await libraryRepository.create(libraryDto);
+    const otherLibrary = await libraryRepository.create(libraryDto);
+    const deletedLibrary = await libraryRepository.create(libraryDto);
+    await libraryRepository.update(deletedLibrary.id, { deletedAt: new Date() });
+
+    const originalPath = '/intake/imported.jpg';
+    const backupOriginalPath = '/intake/version.jpg';
+    await ctx.newAsset({ ownerId: user.id, libraryId: library.id, isExternal: true, originalPath, backupOriginalPath });
+
+    const baseline = await sut.getMetadataExtractionProgress([]);
+    const pendingPath = '/intake/pending.jpg';
+    const pending = [
+      { libraryId: library.id, path: originalPath },
+      { libraryId: library.id, path: backupOriginalPath },
+      { libraryId: library.id, path: pendingPath },
+      { libraryId: otherLibrary.id, path: originalPath },
+      { libraryId: deletedLibrary.id, path: pendingPath },
+    ];
+    const progress = await sut.getMetadataExtractionProgress(pending);
+    expect(progress.pipeline.library).toMatchObject({
+      completed: baseline.pipeline.library.completed,
+      total: baseline.pipeline.library.total + 2,
+      queued: 2,
+    });
+    expect(progress.total).toBe(baseline.total);
+
+    // 导入任务可能在写入资产后仍处于运行状态，分母必须保持稳定。
+    await ctx.newAsset({ ownerId: user.id, libraryId: library.id, isExternal: true, originalPath: pendingPath });
+    const afterImport = await sut.getMetadataExtractionProgress(pending);
+    expect(afterImport.pipeline.library).toMatchObject({
+      completed: baseline.pipeline.library.completed + 1,
+      total: progress.pipeline.library.total,
+      queued: 1,
+    });
+  });
+
   describe('streamForThumbnailJob', () => {
     it('should work', async () => {
       const { sut } = setup();

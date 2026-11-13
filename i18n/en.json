@@ -2590,6 +2590,7 @@
     "zoom_in": "Zoom in",
     "canvas": "Directed asset processing graph; scroll and select nodes",
     "ingest": "Upload / library intake",
+    "ingest_count": "Imported {completed} / {total} known files",
     "metadata_count": "Database completed {completed} / {total}",
     "faces_count": "Grouped {completed} / {total} faces",
     "remaining_count": "Pending {pending} · Failed {failed} · Blocked {blocked}",
@@ -2609,7 +2610,7 @@
       "present": "Asset present"
     },
     "hint": {
-      "library": "Uploads or external library scans begin processing. Global counts here cover only the external library queue.",
+      "library": "The total includes imported assets and files already discovered and queued for import. A scan can discover more files.",
       "sidecar": "Checks for a sidecar and triggers metadata extraction, including when no sidecar exists.",
       "metadataExtraction": "Reads file metadata and video playback information. New uploads/imports continue to thumbnails; an individual rescan does not restart the entire flow.",
       "thumbnailGeneration": "Creates previews and thumbnails. Enabled analysis branches run in parallel for new uploads/imports.",

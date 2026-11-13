@@ -8,8 +8,8 @@ import { AssetFileType, AssetStatus, AssetType, AssetVisibility } from 'src/enum
 import { DB } from 'src/schema/index.js';
 import {
   ForkAssetTask,
-  type ForkAssetTaskName,
   ForkAssetTaskState,
+  type ForkAssetTaskName,
 } from 'src/schema/tables/fork-asset-task-status.table.js';
 import {
   anyUuid,
@@ -477,7 +477,12 @@ export class AssetJobRepository {
       .execute();
   }
 
-  async getMetadataExtractionProgress() {
+  /**
+  汇总全局资产处理进度。先取得队列快照，再在数据库中排除已经建档的候选文件。
+  @param pendingLibraryImports 外部库队列已发现的候选路径，已按图库和路径去重。
+  @returns 各节点的进度，接入节点的总量包含已建档资产和仍待建档的候选文件。
+  */
+  async getMetadataExtractionProgress(pendingLibraryImports: ReadonlyArray<{ libraryId: string; path: string }>) {
     const counts = await this.db
       .selectFrom('asset')
       .leftJoin('asset_job_status as legacy_status', 'legacy_status.assetId', 'asset.id')
@@ -541,7 +546,7 @@ export class AssetJobRepository {
       .executeTakeFirstOrThrow();
 
     const total = Number(counts.total);
-    const progress = await this.getPipelineProgress();
+    const progress = await this.getPipelineProgress(pendingLibraryImports);
 
     return {
       total,
@@ -564,8 +569,12 @@ export class AssetJobRepository {
     };
   }
 
-  /** 适用范围与任务筛选一致；前置缺失保留在分母中，失败记录不推断为未运行。 */
-  private async getPipelineProgress() {
+  /**
+  在同一个 PostgreSQL 快照中统计已建档资产并核对待导入路径，避免同一文件在接入时被计算两次。
+  @param pendingLibraryImports 已去重的队列候选路径，同一个路径可以属于不同图库。
+  @returns 各处理节点的资产或人脸统计。接入分母只覆盖已知文件，随扫描发现更新。
+  */
+  private async getPipelineProgress(pendingLibraryImports: ReadonlyArray<{ libraryId: string; path: string }>) {
     const { rows } = await sql<{
       name: string;
       total: string;
@@ -612,6 +621,22 @@ export class AssetJobRepository {
           WHEN s.status IN ('failed', 'queued', 'running') THEN s.status
           ELSE 'notStarted' END AS state
         FROM tasks t LEFT JOIN fork_asset_task_status s ON s."assetId" = t.id AND s."taskName" = t.task_name
+        UNION ALL
+        -- 与扫描器采用相同的建档规则，排除已知原路径和备份版本的暂存路径。
+        SELECT 'library', 'assets', 'queued'
+        FROM unnest(
+          ${pendingLibraryImports.map(({ libraryId }) => libraryId)}::uuid[],
+          ${pendingLibraryImports.map(({ path }) => path)}::text[]
+        ) AS pending("libraryId", path)
+        JOIN library l ON l.id = pending."libraryId" AND l."deletedAt" IS NULL
+        WHERE NOT EXISTS (
+          SELECT 1 FROM asset a
+          WHERE a."libraryId" = l.id AND a."isExternal" AND a."originalPath" = pending.path
+        ) AND NOT EXISTS (
+          SELECT 1 FROM asset a
+          WHERE a."libraryId" = l.id AND a."isExternal" AND a."backupOriginalPath" IS NOT NULL
+            AND a."backupOriginalPath" = pending.path
+        )
       )
       SELECT name, unit, count(*) AS total,
         count(*) FILTER (WHERE state = 'completed') AS completed,

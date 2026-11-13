@@ -2566,6 +2566,7 @@
     "zoom_in": "放大流程图",
     "canvas": "资产处理有向图，可滚动浏览并选择节点",
     "ingest": "上传 / 图库接入",
+    "ingest_count": "已入库 {completed} / {total} 个已知文件",
     "metadata_count": "数据库已完成 {completed} / {total}",
     "faces_count": "已归组 {completed} / {total} 张人脸",
     "remaining_count": "待处理 {pending} · 失败 {failed} · 阻塞 {blocked}",
@@ -2585,7 +2586,7 @@
       "present": "资产已接入"
     },
     "hint": {
-      "library": "上传或外部图库扫描后进入处理；此节点的全局计数仅代表外部图库队列。",
+      "library": "总量包含已入库资产和扫描已发现、仍在排队的文件。扫描过程中可能继续发现文件。",
       "sidecar": "检查侧写文件，随后触发元数据提取；没有侧写文件也可继续。",
       "metadataExtraction": "提取文件元数据与视频播放信息；新上传/导入资源继续生成缩略图，单项重扫不会自动重跑整条流程。",
       "thumbnailGeneration": "生成预览图与缩略图；新上传/导入资源按功能设置并行触发后续分析。",

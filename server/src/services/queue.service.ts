@@ -187,13 +187,24 @@ export class QueueService extends BaseService {
     }
   }
 
+  /**
+  读取单个队列的运行状态，处理进度继续通过元数据队列响应返回。
+  @param name 要查询的队列。
+  @returns 队列状态和计数，元数据队列还包含全局流程统计。
+  */
   private async getByName(name: QueueName): Promise<QueueResponseDto> {
     const [statistics, isPaused, metadataProgress] = await Promise.all([
       this.jobRepository.getJobCounts(name),
       this.jobRepository.isPaused(name),
-      name === QueueName.MetadataExtraction ? this.assetJobRepository.getMetadataExtractionProgress() : undefined,
+      name === QueueName.MetadataExtraction ? this.getMetadataExtractionProgress() : undefined,
     ]);
     return { name, isPaused, statistics: { paused: 0, ...statistics }, ...(metadataProgress && { metadataProgress }) };
+  }
+
+  /** @returns 先读取已发现的文件，再由数据库核对入库状态后的全局处理进度。 */
+  private async getMetadataExtractionProgress() {
+    const pendingLibraryImports = await this.jobRepository.getPendingLibraryImportPaths();
+    return this.assetJobRepository.getMetadataExtractionProgress(pendingLibraryImports);
   }
 
   private async start(name: QueueName, { force }: QueueCommandDto): Promise<void> {

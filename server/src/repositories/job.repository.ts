@@ -2,6 +2,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { JobType, JobsOptions, Queue, Worker } from 'bullmq';
+import type { ChainableCommander } from 'ioredis';
 import { readFile } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
 import { DISABLED_JOB_QUEUES } from 'src/constants.js';
@@ -405,6 +406,56 @@ export class JobRepository {
       // BullMQ 6 的 Redis 实现仍能读取升级前持久化的 paused 列表。
       'paused' as JobType,
     ) as unknown as Promise<JobCounts>;
+  }
+
+  /**
+  读取外部库扫描已发现的文件。积压的复查任务可能携带大量资产 ID，因此先读取任务名，再读取导入任务的路径。
+  @returns 按图库和原路径去重的待导入文件。包含执行中、等待、延迟和旧版暂停列表中的任务。
+  */
+  async getPendingLibraryImportPaths() {
+    const queue = this.getQueue(QueueName.Library);
+    const ids = await queue.getRanges(['active', 'waiting', 'delayed', 'prioritized', 'paused' as JobType], 0, -1);
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const client = await queue.getBackend().client;
+    const pathsByLibrary = new Map<string, Set<string>>();
+    // 用有界的流水线读取任务名，避免把复查批次的完整任务数据传回 API 进程。
+    const pageSize = 500;
+    for (let offset = 0; offset < ids.length; offset += pageSize) {
+      const page = ids.slice(offset, offset + pageSize);
+      // BullMQ 6 的 Redis 适配器会转发 HGET，但其事务类型仅声明了内部使用的命令。
+      const pipeline = client.pipeline() as ReturnType<typeof client.pipeline> & Pick<ChainableCommander, 'hget'>;
+      for (const id of page) {
+        pipeline.hget(queue.toKey(id), 'name');
+      }
+      const names = await pipeline.exec();
+      const importIds: string[] = [];
+      for (const [index, [error, name]] of (names ?? []).entries()) {
+        if (error) {
+          throw error;
+        }
+        if (name === JobName.LibrarySyncFiles) {
+          importIds.push(page[index]);
+        }
+      }
+
+      const jobs = await Promise.all(importIds.map((id) => queue.getJob(id)));
+      for (const job of jobs) {
+        // 读取任务期间可能有工作进程完成并删除它。已入库文件会由数据库统计。
+        if (job?.name !== JobName.LibrarySyncFiles) {
+          continue;
+        }
+        const { libraryId, paths } = job.data as JobOf<JobName.LibrarySyncFiles>;
+        const knownPaths = pathsByLibrary.get(libraryId) ?? new Set<string>();
+        for (const path of paths) {
+          knownPaths.add(path);
+        }
+        pathsByLibrary.set(libraryId, knownPaths);
+      }
+    }
+    return [...pathsByLibrary].flatMap(([libraryId, paths]) => [...paths].map((path) => ({ libraryId, path })));
   }
 
   private getQueueName(name: JobName) {
