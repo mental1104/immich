@@ -34,6 +34,8 @@ export interface CrawlOptionsDto {
 
 export interface WalkOptionsDto extends CrawlOptionsDto {
   take: number;
+  /** 试点子树扫描始终关闭符号链接跟随。 */
+  followSymbolicLinks?: boolean;
 }
 
 const ValidateLibrarySchema = z
