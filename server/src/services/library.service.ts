@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Insertable } from 'kysely';
 import { R_OK } from 'node:constants';
 import { Stats } from 'node:fs';
+import { lstat, realpath } from 'node:fs/promises';
 import path, { isAbsolute, parse } from 'node:path';
 import picomatch from 'picomatch';
 import type { ArgOf } from 'src/repositories/event.repository.js';
@@ -39,10 +40,12 @@ import {
   isWithinDirectory,
   logIphoneBackupAudit,
 } from 'src/utils/iphone-backup.js';
+import { isMissingLibraryPath, watchLibraryDirectories } from 'src/utils/library-directory-watch.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, findOrFail, handlePromiseError } from 'src/utils/misc.js';
 
 const DEFERRED_VIDEO_SIZE_BYTES = 3 * 1024 ** 3;
+const DIRECTORY_WATCH_BATCH_SIZE = 128;
 
 @Injectable()
 /** 管理外部库扫描与状态更新；目标备份库的导入与上传发布使用同一数据库锁。 */
@@ -50,7 +53,10 @@ export class LibraryService extends BaseService {
   private watchLibraries = false;
   private lock = false;
   private watchers: Record<string, () => Promise<void>> = {};
+  private readonly directoryWatchRoot = process.env.IMMICH_FORK_LIBRARY_WATCH_ROOT;
+  private directoryWatchRevision = 0;
 
+  /** 初始化图库 cron 和监听。目录试点沿用外部图库主工作进程的数据库锁。 */
   @OnEvent({ name: 'ConfigInit', workers: [ImmichWorker.Microservices] })
   async onConfigInit({
     newConfig: {
@@ -73,9 +79,68 @@ export class LibraryService extends BaseService {
 
     if (this.watchLibraries) {
       await this.watchAll();
+    } else if (this.directoryWatchRoot) {
+      await this.refreshDirectoryWatch();
     }
   }
 
+  /** 只监听配置路径明确归属的库，任务消费时重新检查当前导入路径和排除规则。 */
+  private async refreshDirectoryWatch() {
+    const root = this.directoryWatchRoot;
+    if (!this.lock || !root || this.watchLibraries) {
+      return;
+    }
+    const revision = ++this.directoryWatchRevision;
+    await this.unwatchAll();
+    const allLibraries = await this.libraryRepository.getAll(false);
+    const libraries = allLibraries.filter((library) =>
+      this.isDirectoryWatchPath(library, root, root),
+    );
+    if (libraries.length !== 1) {
+      this.logger.warn('Library directory watch requires exactly one matching external library');
+      return;
+    }
+    const [library] = libraries;
+    try {
+      const stats = await lstat(root);
+      if (!stats.isDirectory() || (await realpath(root)) !== root) {
+        throw new Error('Library directory watch root must be a canonical directory');
+      }
+      const watched = await watchLibraryDirectories(
+        root,
+        library.exclusionPatterns,
+        /** 将事件批次交给现有图库队列，暂停时仍保留任务。 */
+        (changes) =>
+          this.jobRepository.queue({
+            name: JobName.LibrarySyncFiles,
+            data: {
+              libraryId: library.id,
+              paths: changes.paths,
+              directoryWatch: { root, directories: changes.directories },
+            },
+          }),
+        (error) => this.logger.error(`Library directory watch failed: ${error}`),
+      );
+      if (this.watchLibraries || revision !== this.directoryWatchRevision) {
+        watched.close();
+        return;
+      }
+      this.watchers[library.id] = () => {
+        watched.close();
+        return Promise.resolve();
+      };
+      this.logger.log(`Library directory watch ready: ${watched.count} directories`);
+      // 先开始接收事件，再补查停机期间的变化，避免在初次扫描和监听之间遗漏文件。
+      await this.jobRepository.queue({
+        name: JobName.LibrarySyncFiles,
+        data: { libraryId: library.id, paths: [], directoryWatch: { root, directories: [root] } },
+      });
+    } catch (error) {
+      this.logger.error(`Library directory watch failed to start: ${error}`);
+    }
+  }
+
+  /** 更新图库 cron；切换普通监听时重建监听范围。 */
   @OnEvent({ name: 'ConfigUpdate', server: true })
   async onConfigUpdate({ newConfig: { library } }: ArgOf<'ConfigUpdate'>) {
     if (!this.lock) {
@@ -94,7 +159,9 @@ export class LibraryService extends BaseService {
 
     // Watch configuration changed, update accordingly
     this.watchLibraries = library.watch.enabled;
-    await (this.watchLibraries ? this.watchAll() : this.unwatchAll());
+    this.directoryWatchRevision++;
+    await this.unwatchAll();
+    await (this.watchLibraries ? this.watchAll() : this.refreshDirectoryWatch());
   }
 
   private async watch(id: string): Promise<boolean> {
@@ -184,6 +251,7 @@ export class LibraryService extends BaseService {
 
   @OnEvent({ name: 'AppShutdown' })
   async onShutdown() {
+    this.directoryWatchRevision++;
     await this.unwatchAll();
   }
 
@@ -266,10 +334,174 @@ export class LibraryService extends BaseService {
    * @returns 导入状态；失败沿用已有任务重试机制。
    */
   async handleSyncFiles(job: JobOf<JobName.LibrarySyncFiles>): Promise<JobStatus> {
+    if (job.directoryWatch) {
+      const scope = job.directoryWatch;
+      // 与手机上传、指纹准备和源资产状态更新共用锁；锁内调用原有导入实现，避免重复取锁。
+      return getIphoneBackupConfig()?.libraryId === job.libraryId
+        ? this.databaseRepository.withLock(DatabaseLock.ForkIphoneBackup, () => this.syncDirectoryWatch(job, scope))
+        : this.syncDirectoryWatch(job, scope);
+    }
     if (getIphoneBackupConfig()?.libraryId === job.libraryId) {
       return this.databaseRepository.withLock(DatabaseLock.ForkIphoneBackup, () => this.importFiles(job));
     }
     return this.importFiles(job);
+  }
+
+  /**
+  限制增量任务只处理当前导入范围内的试点路径，使用与扫描一致的图库排除规则。
+  @param library 当前图库配置。
+  @param root 试点根目录。
+  @param candidate 待核对的路径。
+  @returns 路径位于根和导入范围内，且没有隐藏或被排除的组件时为 true。
+  */
+  private isDirectoryWatchPath(
+    library: { importPaths: string[]; exclusionPatterns: string[] },
+    root: string,
+    candidate: string,
+  ): boolean {
+    if (!path.isAbsolute(root) || !isWithinDirectory(root, candidate)) {
+      return false;
+    }
+    const importRoot = library.importPaths.find((entry) => isWithinDirectory(entry, root));
+    if (!importRoot) {
+      return false;
+    }
+    const excluded = picomatch(library.exclusionPatterns, { nocase: true, dot: true });
+    let current = candidate;
+    while (current !== importRoot && current !== path.dirname(current)) {
+      if (path.basename(current).startsWith('.') || excluded(current) || excluded(current + '/')) {
+        return false;
+      }
+      current = path.dirname(current);
+    }
+    return true;
+  }
+
+  /**
+  核对队列任务中的文件和子树，复用已有资产检查与入库流程。
+  @param job 含文件路径的图库任务。
+  @param scope 试点根目录及需要扫描的子树。
+  @returns 根目录失效时跳过，数据库或磁盘错误交由任务日志记录。
+  */
+  private async syncDirectoryWatch(
+    job: JobOf<JobName.LibrarySyncFiles>,
+    scope: NonNullable<JobOf<JobName.LibrarySyncFiles>['directoryWatch']>,
+  ): Promise<JobStatus> {
+    const { root, directories } = scope;
+    const library = await this.libraryRepository.get(job.libraryId);
+    if (root !== this.directoryWatchRoot || !library || !this.isDirectoryWatchPath(library, root, root)) {
+      return JobStatus.Skipped;
+    }
+    // 根目录本身缺失或被替换为链接时，不能把整个图库中的资产判为离线。
+    const rootStats = await this.getDirectoryWatchStat(root);
+    if (!rootStats?.isDirectory()) {
+      this.logger.warn('Library directory watch root is unavailable');
+      return JobStatus.Skipped;
+    }
+
+    const paths = [...new Set(job.paths)].filter(
+      (candidate) => mimeTypes.isAsset(candidate) && this.isDirectoryWatchPath(library, root, candidate),
+    );
+    for (let offset = 0; offset < paths.length; offset += DIRECTORY_WATCH_BATCH_SIZE) {
+      await this.syncDirectoryWatchPaths(library, paths.slice(offset, offset + DIRECTORY_WATCH_BATCH_SIZE));
+    }
+
+    for (const directory of new Set(directories)) {
+      if (!this.isDirectoryWatchPath(library, root, directory)) {
+        continue;
+      }
+      const stats = await this.getDirectoryWatchStat(directory);
+      if (stats?.isDirectory()) {
+        for await (const batch of this.storageRepository.walk({
+          pathsToCrawl: [directory],
+          includeHidden: false,
+          exclusionPatterns: library.exclusionPatterns,
+          take: DIRECTORY_WATCH_BATCH_SIZE,
+          followSymbolicLinks: false,
+        })) {
+          await this.syncDirectoryWatchPaths(library, batch, false);
+        }
+      }
+      // 子树已移出，或路径未知事件需要核对其已有资产。保持已有离线和恢复语义。
+      const assets = await this.libraryRepository.getAssetIdsForDirectoryWatch(library.id, [], directory);
+      for (let offset = 0; offset < assets.length; offset += DIRECTORY_WATCH_BATCH_SIZE) {
+        await this.checkDirectoryWatchAssets(library, assets.slice(offset, offset + DIRECTORY_WATCH_BATCH_SIZE));
+      }
+    }
+    return JobStatus.Success;
+  }
+
+  /**
+  路径批次按既有资产和新文件分别交给原有处理流程。
+  @param library 当前库的 ID、导入路径及排除规则。
+  @param paths 已限定在监听范围的文件路径。
+  @param refreshExisting 明确收到变化事件时刷新原有资产；子树扫描统一在随后复查。
+  */
+  private async syncDirectoryWatchPaths(
+    library: { id: string; importPaths: string[]; exclusionPatterns: string[] },
+    paths: string[],
+    refreshExisting = true,
+  ) {
+    if (refreshExisting) {
+      const assets = await this.libraryRepository.getAssetIdsForDirectoryWatch(library.id, paths);
+      await this.checkDirectoryWatchAssets(library, assets, true);
+    }
+    const candidates = await this.assetRepository.filterNewExternalAssetPaths(library.id, paths);
+    const fresh: string[] = [];
+    for (const candidate of candidates) {
+      const stats = await this.getDirectoryWatchStat(candidate);
+      if (stats?.isFile()) {
+        fresh.push(candidate);
+      }
+    }
+    if (fresh.length > 0) {
+      await this.importFiles({ libraryId: library.id, paths: fresh });
+    }
+  }
+
+  /**
+  将已有资产交给正常外部库同步逻辑，已有 ID 和回收站状态由原流程维护。
+  @param library 当前图库及其规则。
+  @param assets 需要复查的资产 ID。
+  @param forceRefresh 来自明确的文件事件时强制刷新。
+  */
+  private async checkDirectoryWatchAssets(
+    library: { id: string; importPaths: string[]; exclusionPatterns: string[] },
+    assets: { id: string }[],
+    forceRefresh = false,
+  ) {
+    if (assets.length > 0) {
+      await this.handleSyncAssets({
+        libraryId: library.id,
+        importPaths: library.importPaths,
+        exclusionPatterns: library.exclusionPatterns,
+        assetIds: assets.map(({ id }) => id),
+        progressCounter: assets.length,
+        totalAssets: assets.length,
+        fromDirectoryWatch: true,
+        forceRefresh,
+      });
+    }
+  }
+
+  /**
+  仅将真正缺失的路径视为离线候选，并拒绝经符号链接解析到其他位置的文件。
+  @param candidate 试点中的绝对路径。
+  @returns 文件状态；不存在时返回 null，权限错误和非规范路径抛错。
+  */
+  private async getDirectoryWatchStat(candidate: string): Promise<Stats | null> {
+    try {
+      const stats = await lstat(candidate);
+      if (stats.isSymbolicLink() || (await realpath(candidate)) !== candidate) {
+        throw new Error('Library directory watch found a symbolic link');
+      }
+      return stats;
+    } catch (error) {
+      if (isMissingLibraryPath(error)) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -591,13 +823,17 @@ export class LibraryService extends BaseService {
     this.logger.debug(`Checking batch of ${assets.length} existing asset(s) in library ${job.libraryId}`);
 
     const stats = await Promise.all(
-      assets.map((asset) => this.storageRepository.stat(asset.originalPath).catch(() => null)),
+      assets.map((asset) =>
+        job.fromDirectoryWatch
+          ? this.getDirectoryWatchStat(asset.originalPath)
+          : this.storageRepository.stat(asset.originalPath).catch(() => null),
+      ),
     );
 
     for (let i = 0; i < assets.length; i++) {
       const asset = assets[i];
       const stat = stats[i];
-      const action = this.checkExistingAsset(asset, stat);
+      const action = this.checkExistingAsset(asset, stat, job.forceRefresh);
       if (
         !isIphoneBackupFingerprintingEnabled(job.libraryId) &&
         asset.contentChecksum &&
@@ -664,6 +900,9 @@ export class LibraryService extends BaseService {
               trashedAssetIdsToOnline.push(asset.id);
             } else {
               assetIdsToOnline.push(asset.id);
+              if (job.fromDirectoryWatch) {
+                assetIdsToUpdate.push(asset.id);
+              }
             }
             break;
           }
@@ -709,6 +948,13 @@ export class LibraryService extends BaseService {
     return JobStatus.Success;
   }
 
+  /**
+  根据磁盘状态决定已有资产的变更，保留回收站和恢复状态。
+  @param asset 已有资产的同步字段。
+  @param stat 当前文件状态；缺失时为空。
+  @param forceRefresh 文件事件指明内容变化，即使 mtime 相同也刷新。
+  @returns 由批次调用者执行的状态更新。
+  */
   private checkExistingAsset(
     asset: {
       isOffline: boolean;
@@ -718,6 +964,7 @@ export class LibraryService extends BaseService {
       fileModifiedAt: Date;
     },
     stat: Stats | null,
+    forceRefresh = false,
   ): AssetSyncResult {
     if (!stat) {
       // File not found on disk or permission error
@@ -739,7 +986,7 @@ export class LibraryService extends BaseService {
       return AssetSyncResult.CHECK_OFFLINE;
     }
 
-    if (stat.mtime.valueOf() !== asset.fileModifiedAt.valueOf()) {
+    if (forceRefresh || stat.mtime.valueOf() !== asset.fileModifiedAt.valueOf()) {
       this.logger.verbose(`Asset ${asset.originalPath} needs metadata extraction in library ${asset.libraryId}`);
 
       return AssetSyncResult.UPDATE;

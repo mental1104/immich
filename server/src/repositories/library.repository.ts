@@ -121,4 +121,25 @@ export class LibraryRepository {
   streamAssetIds(libraryId: string) {
     return this.db.selectFrom('asset').select(['id']).where('libraryId', '=', libraryId).stream();
   }
+
+  /**
+  查找增量任务涉及的既有外部资产。备份版本由源资产状态触发器同步。
+  @param libraryId 资产所属的外部库。
+  @param paths 本批需检查的完整路径。
+  @param directory 可选的子树根目录，按路径分隔符限定边界。
+  @returns 命中的资产 ID。路径别名不作为独立物理文件检查。
+  */
+  getAssetIdsForDirectoryWatch(libraryId: string, paths: string[], directory?: string) {
+    const prefix = directory?.endsWith('/') ? directory : `${directory}/`;
+    const pattern = prefix.replaceAll(/[\\%_]/g, String.raw`\\$&`) + '%';
+    return this.db
+      .selectFrom('asset')
+      .select('id')
+      .where('libraryId', '=', libraryId)
+      .where('isExternal', '=', true)
+      .where('backupChecksum', 'is', null)
+      .$if(directory !== undefined, (qb) => qb.where('originalPath', 'like', pattern))
+      .$if(directory === undefined, (qb) => qb.where('originalPath', 'in', paths))
+      .execute();
+  }
 }

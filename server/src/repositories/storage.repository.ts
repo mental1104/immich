@@ -266,6 +266,11 @@ export class StorageRepository {
     });
   }
 
+  /**
+  按现有媒体格式和排除规则流式遍历目录。
+  @param walkOptions 根目录、过滤规则和批次大小；目录监听可明确禁止跟随符号链接。
+  @returns 绝对路径批次，遍历结束后关闭迭代器。
+  */
   async *walk(walkOptions: WalkOptionsDto): AsyncGenerator<string[]> {
     const { pathsToCrawl, exclusionPatterns, includeHidden } = walkOptions;
     if (pathsToCrawl.length === 0) {
@@ -280,6 +285,7 @@ export class StorageRepository {
       absolute: true,
       caseSensitiveMatch: false,
       onlyFiles: true,
+      followSymbolicLinks: walkOptions.followSymbolicLinks ?? true,
       dot: includeHidden,
       ignore: exclusionPatterns,
     });
