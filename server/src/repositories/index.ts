@@ -40,6 +40,7 @@ import { PhotoCopilotRepository } from 'src/repositories/photo-copilot.repositor
 import { PhotoEditAdviceRepository } from 'src/repositories/photo-edit-advice.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
 import { ProcessRepository } from 'src/repositories/process.repository.js';
+import { QueuePauseRepository } from 'src/repositories/queue-pause.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { ServerInfoRepository } from 'src/repositories/server-info.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
@@ -84,6 +85,7 @@ export const repositories = [
   IntegrityRepository,
   IphoneBackupRepository,
   JobRepository,
+  QueuePauseRepository,
   LibraryRepository,
   LoggingRepository,
   MachineLearningRepository,

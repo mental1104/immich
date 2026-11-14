@@ -121,7 +121,7 @@ export class QueueService extends BaseService {
       }
 
       case QueueCommand.Pause: {
-        await this.jobRepository.pause(name);
+        await this.jobRepository.pause(name, 'temporary');
         break;
       }
 
@@ -168,7 +168,7 @@ export class QueueService extends BaseService {
       if (name === QueueName.BackgroundTask) {
         throw new BadRequestException(`The BackgroundTask queue cannot be paused`);
       }
-      await this.jobRepository.pause(name);
+      await this.jobRepository.pause(name, 'temporary');
     } else if (dto.isPaused === false) {
       await this.jobRepository.resume(name);
     }

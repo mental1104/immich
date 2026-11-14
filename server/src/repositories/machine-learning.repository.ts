@@ -159,6 +159,11 @@ export class MachineLearningRepository {
     return this.healthyMap[url];
   }
 
+  /**
+   * @param payload 图片路径或文本输入。
+   * @param config 模型及任务配置。
+   * @returns 首个可用服务的结果；每端点最多两分钟，全部失败则抛错交由任务有界重试。
+   */
   private async predict<T>(payload: ModelPayload, config: MachineLearningRequest): Promise<T> {
     const formData = await this.getFormData(payload, config);
 
@@ -168,10 +173,15 @@ export class MachineLearningRepository {
       ...this.config.urls.filter((url) => !this.isHealthy(url)),
     ]) {
       try {
-        const response = await fetch(new URL('predict', url), { method: 'POST', body: formData });
+        const response = await fetch(new URL('predict', url), {
+          method: 'POST',
+          body: formData,
+          signal: AbortSignal.timeout(120_000),
+        });
         if (response.ok) {
           this.setHealthy(url, true);
-          return response.json();
+          // 在 try 内等待响应体，截断和超时也参与端点故障转移。
+          return await response.json();
         }
 
         this.logger.warn(

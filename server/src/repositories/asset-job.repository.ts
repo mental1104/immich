@@ -785,6 +785,26 @@ export class AssetJobRepository {
       .execute();
   }
 
+  /**
+   * 保留同一代任务的有界重试状态，不把等待下一次执行误记为最终失败。
+   * @param assetId 正在执行的资产 ID。
+   * @param taskName 当前阶段。
+   * @param error 本次尝试错误，仅保留最多 4000 字符。
+   * @returns 状态更新为 queued，累计次数及 generation 保持不变。
+   */
+  async retryAssetTask(assetId: string, taskName: ForkAssetTaskName, error: unknown): Promise<void> {
+    await this.db
+      .updateTable('fork_asset_task_status')
+      .set({
+        status: ForkAssetTaskState.Queued,
+        errorMessage: String(error instanceof Error ? error.message : error).slice(0, 4000),
+        updatedAt: new Date(),
+      })
+      .where('assetId', '=', asUuid(assetId))
+      .where('taskName', '=', taskName)
+      .execute();
+  }
+
   async startMetadataTask(assetId: string): Promise<void> {
     const now = new Date();
     await this.db

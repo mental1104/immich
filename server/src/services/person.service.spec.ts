@@ -1540,7 +1540,7 @@ describe(PersonService.name, () => {
       mocks.person.getFaceForFacialRecognitionJob.mockResolvedValue(getForFacialRecognitionJob(noPerson1, asset));
       mocks.person.create.mockResolvedValue(PersonFactory.create());
 
-      await sut.handleRecognizeFaces({ id: noPerson1.id, deferred: true });
+      await expect(sut.handleRecognizeFaces({ id: noPerson1.id, deferred: true })).resolves.toBe(JobStatus.Skipped);
 
       expect(mocks.job.queue).not.toHaveBeenCalled();
       expect(mocks.search.searchFaces).toHaveBeenCalledTimes(2);

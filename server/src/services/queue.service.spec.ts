@@ -104,7 +104,7 @@ describe(QueueService.name, () => {
 
       await sut.runCommandLegacy(QueueName.MetadataExtraction, { command: QueueCommand.Pause, force: false });
 
-      expect(mocks.job.pause).toHaveBeenCalledWith(QueueName.MetadataExtraction);
+      expect(mocks.job.pause).toHaveBeenCalledWith(QueueName.MetadataExtraction, 'temporary');
     });
 
     it('should handle a resume command', async () => {

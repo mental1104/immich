@@ -1040,6 +1040,7 @@ export enum DatabaseLock {
   HlsSessionCleanup = 850,
   ForkIphoneBackup = 851,
   ForkIphoneBackupPreparation = 852,
+  ForkPipelinePause = 853,
   FacialRecognition = 900,
   DuplicateDetection = 1000,
 }

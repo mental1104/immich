@@ -22,6 +22,7 @@ import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { QueuePauseRepository, type PipelinePause } from 'src/repositories/queue-pause.repository.js';
 import { ForkAssetTask, type ForkAssetTaskName } from 'src/schema/tables/fork-asset-task-status.table.js';
 import type { JobCounts, JobItem, JobOf } from 'src/types.js';
 import { ImmichStartupError, getKeyByValue, getMethodNames } from 'src/utils/misc.js';
@@ -36,8 +37,18 @@ type JobMapItem = {
 const WORKER_WATCH_INTERVAL_MS = 30_000;
 const VIDEO_METADATA_LOAD_CHECK_INTERVAL_MS = 5000;
 
+/** @param item 原生任务。 @returns 需要持久化的资产阶段；非资产任务为空。 */
 const getAssetTaskName = (item: JobItem): ForkAssetTaskName | undefined => {
   switch (item.name) {
+    case JobName.SmartSearch: {
+      return ForkAssetTask.SmartSearch;
+    }
+    case JobName.Ocr: {
+      return ForkAssetTask.Ocr;
+    }
+    case JobName.AssetDetectDuplicates: {
+      return ForkAssetTask.DuplicateDetection;
+    }
     case JobName.AssetGenerateThumbnails: {
       return ForkAssetTask.ThumbnailGeneration;
     }
@@ -158,6 +169,7 @@ export class JobRepository {
     }
   }
 
+  /** 启动允许的原生工作进程，把真实尝试次数交给任务账本；禁用队列继续暂停。 */
   startWorkers() {
     const { bull } = this.configRepository.getEnv();
     for (const queueName of Object.values(QueueName)) {
@@ -170,7 +182,12 @@ export class JobRepository {
       this.logger.debug(`Starting worker for queue: ${queueName}`);
       this.workers[queueName] = new Worker(
         queueName,
-        (job) => this.eventRepository.emit('JobRun', queueName, job as JobItem),
+        // 将 BullMQ 的执行次数传入账本，区分等待重试与最终失败。
+        (job) =>
+          this.eventRepository.emit('JobRun', queueName, job as JobItem, {
+            attempt: job.attemptsMade + 1,
+            maxAttempts: job.opts.attempts ?? 1,
+          }),
         { ...bull.config, concurrency: 1, name: ImmichWorker.Microservices },
       );
     }
@@ -184,11 +201,15 @@ export class JobRepository {
     void this.updateVideoMetadataWorker();
   }
 
+  /** API 进程观察工作进程及持久化暂停期限；两类观察都不创建资产任务。 */
   watchWorkers() {
+    this.moduleRef.get(QueuePauseRepository, { strict: false }).start();
     this.workerWatcher ??= setInterval(() => void this.checkWorkers(), WORKER_WATCH_INTERVAL_MS);
   }
 
+  /** 停止本进程观察器，保留队列和暂停期限，供下一次启动恢复。 */
   teardown() {
+    this.moduleRef.get(QueuePauseRepository, { strict: false }).stop();
     if (this.videoMetadataWatcher) {
       clearInterval(this.videoMetadataWatcher);
       this.videoMetadataWatcher = undefined;
@@ -380,12 +401,14 @@ export class JobRepository {
     return this.getQueue(name).isPaused();
   }
 
-  pause(name: QueueName) {
-    return this.getQueue(name).pause();
+  /** @param name 队列名称。 @param mode 内部调用默认永久维护，管理页普通暂停传临时模式。 @returns 持久化后暂停。 */
+  pause(name: QueueName, mode: PipelinePause['mode'] = 'persistent') {
+    return this.moduleRef.get(QueuePauseRepository, { strict: false }).pause(name, mode);
   }
 
+  /** @param name 队列名称。 @returns 恢复原生队列并删除旧暂停期限。 */
   resume(name: QueueName) {
-    return this.getQueue(name).resume();
+    return this.moduleRef.get(QueuePauseRepository, { strict: false }).resume(name);
   }
 
   empty(name: QueueName) {
@@ -462,6 +485,7 @@ export class JobRepository {
     return (this.handlers[name] as JobMapItem).queueName;
   }
 
+  /** @param items 本批任务，先记录资产阶段再入队。 @returns 入队完成；失败保留账本并抛错，不吞掉批次错误。 */
   async queueAll(items: JobItem[]): Promise<void> {
     items = items.filter((item) => !DISABLED_JOB_QUEUES.has(this.getQueueName(item.name)));
     if (items.length === 0) {
@@ -538,7 +562,8 @@ export class JobRepository {
 
     for (const [queueName, jobs] of Object.entries(itemsByQueue)) {
       const queue = this.getQueue(queueName as QueueName);
-      promises.push(queue.addBulk(jobs));
+      // addBulk 使用 opts；options 会静默丢失重试、退避及优先级配置。
+      promises.push(queue.addBulk(jobs.map(({ name, data, options }) => ({ name, data, opts: options }))));
     }
 
     try {
@@ -594,8 +619,17 @@ export class JobRepository {
     });
   }
 
+  /** @param item 本次任务及去重数据。 @returns 原生配置；仅推理及其下游使用三次有界重试。 */
   private getJobOptions(item: JobItem): JobsOptions | null {
     switch (item.name) {
+      case JobName.SmartSearch:
+      case JobName.AssetDetectFaces:
+      case JobName.Ocr:
+      case JobName.AssetDetectDuplicates:
+      case JobName.FacialRecognition: {
+        // 单张任务最多执行三次；短暂不可用可恢复，永久错误最终进入失败集合。
+        return { attempts: 3, backoff: { type: 'exponential', delay: 5000 } };
+      }
       case JobName.NotifyAlbumUpdate: {
         return {
           jobId: `${item.data.id}/${item.data.recipientId}`,

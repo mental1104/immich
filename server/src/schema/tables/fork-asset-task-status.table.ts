@@ -11,10 +11,14 @@ import {
 } from '@immich/sql-tools';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 
+/** 已有文本字段中的流程阶段名称；新增名称不改变数据库结构。 */
 export const ForkAssetTask = {
   MetadataExtraction: 'metadata-extraction',
   ThumbnailGeneration: 'thumbnail-generation',
   FaceDetection: 'face-detection',
+  SmartSearch: 'smart-search',
+  Ocr: 'ocr',
+  DuplicateDetection: 'duplicate-detection',
   RawPairing: 'raw-pairing',
   VideoEncoding: 'video-encoding',
 } as const;

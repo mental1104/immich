@@ -30,6 +30,7 @@ import { PasskeyController } from 'src/controllers/passkey.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PhotoCopilotController } from 'src/controllers/photo-copilot.controller.js';
 import { PhotoEditAdviceController } from 'src/controllers/photo-edit-advice.controller.js';
+import { PipelineController } from 'src/controllers/pipeline.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
 import { QueueController } from 'src/controllers/queue.controller.js';
 import { SearchController } from 'src/controllers/search.controller.js';
@@ -84,6 +85,7 @@ export const controllers = [
   PhotoEditAdviceController,
   PluginController,
   QueueController,
+  PipelineController,
   SearchController,
   ServerController,
   SessionController,

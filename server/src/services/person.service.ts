@@ -650,7 +650,8 @@ export class PersonService extends BaseService {
         await this.personRepository.reassignFaces({ faceIds: [id], newPersonGroupId: personGroupId });
       }
 
-      return JobStatus.Success;
+      // 延后一次后仍无可归属人物属于本轮跳过，不继续自我入队。
+      return personGroupId ? JobStatus.Success : JobStatus.Skipped;
     });
   }
 

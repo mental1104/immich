@@ -204,7 +204,7 @@ describe(JobService.name, () => {
       mocks.assetJob.startMetadataTask.mockResolvedValue();
       mocks.job.run.mockRejectedValue(error);
 
-      await sut.onJobRun(QueueName.MetadataExtraction, job);
+      await expect(sut.onJobRun(QueueName.MetadataExtraction, job)).rejects.toBe(error);
 
       expect(mocks.assetJob.startMetadataTask).toHaveBeenCalledWith('asset-1');
       expect(mocks.assetJob.failMetadataTask).toHaveBeenCalledWith('asset-1', error);
@@ -226,7 +226,7 @@ describe(JobService.name, () => {
       const error = new Error('face detection failed');
       mocks.job.run.mockRejectedValue(error);
 
-      await sut.onJobRun(QueueName.FacialRecognition, job);
+      await expect(sut.onJobRun(QueueName.FacialRecognition, job)).rejects.toBe(error);
 
       expect(mocks.assetJob.startAssetTask).toHaveBeenCalledWith('asset-1', 'face-detection');
       expect(mocks.assetJob.failAssetTask).toHaveBeenCalledWith('asset-1', 'face-detection', error);
@@ -263,9 +263,39 @@ describe(JobService.name, () => {
     it('should not queue metadata extraction after a failed sidecar check', async () => {
       mocks.job.run.mockResolvedValue(JobStatus.Failed);
 
-      await sut.onJobRun(QueueName.Sidecar, { name: JobName.SidecarCheck, data: { id: 'asset-1', source: 'upload' } });
+      await expect(
+        sut.onJobRun(QueueName.Sidecar, {
+          name: JobName.SidecarCheck,
+          data: { id: 'asset-1', source: 'upload' },
+        }),
+      ).rejects.toThrow('Job handler returned failed');
 
       expect(mocks.job.queue).not.toHaveBeenCalled();
+      expect(mocks.job.queueAll).not.toHaveBeenCalled();
+    });
+
+    /** 有界重试不能提前记为最终失败，最后一次失败必须保留并继续抛给队列。 */
+    it('tracks retry pending and final failure separately for ML jobs', async () => {
+      const job: JobItem = { name: JobName.Ocr, data: { id: 'asset-1' } };
+      const error = new Error('ML temporarily unavailable');
+      mocks.job.run.mockRejectedValue(error);
+      await expect(sut.onJobRun(QueueName.Ocr, job, { attempt: 1, maxAttempts: 3 })).rejects.toBe(error);
+      expect(mocks.assetJob.retryAssetTask).toHaveBeenCalledWith('asset-1', 'ocr', error);
+      expect(mocks.assetJob.failAssetTask).not.toHaveBeenCalled();
+      await expect(sut.onJobRun(QueueName.Ocr, job, { attempt: 3, maxAttempts: 3 })).rejects.toBe(error);
+      expect(mocks.assetJob.failAssetTask).toHaveBeenCalledWith('asset-1', 'ocr', error);
+    });
+
+    /** 处理器明确返回 Failed 是终态，不能发送成功事件或继续下游。 */
+    it('persists an explicit ML failure without retrying it', async () => {
+      const job: JobItem = { name: JobName.SmartSearch, data: { id: 'asset-1' } };
+      mocks.job.run.mockResolvedValue(JobStatus.Failed);
+      await expect(sut.onJobRun(QueueName.SmartSearch, job, { attempt: 1, maxAttempts: 3 })).rejects.toThrow(
+        'returned failed',
+      );
+      expect(mocks.assetJob.failAssetTask).toHaveBeenCalledWith('asset-1', 'smart-search', expect.any(Error));
+      expect(mocks.assetJob.retryAssetTask).not.toHaveBeenCalled();
+      expect(mocks.event.emit).not.toHaveBeenCalledWith('JobSuccess', expect.anything());
       expect(mocks.job.queueAll).not.toHaveBeenCalled();
     });
 

@@ -63,7 +63,7 @@ type EventMap = {
   AssetRestoreAll: [{ assetIds: string[]; userId: string }];
 
   /** a worker receives a job and emits this event to run it */
-  JobRun: [QueueName, JobItem];
+  JobRun: [QueueName, JobItem, { attempt: number; maxAttempts: number }?];
   /** job pre-hook */
   JobStart: [QueueName, JobItem];
   /** job post-hook */

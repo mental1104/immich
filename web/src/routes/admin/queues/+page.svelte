@@ -8,6 +8,7 @@
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
+  import PipelinePausePanel from './PipelinePausePanel.svelte';
   import QueueGraph from './QueueGraph.svelte';
   import JobsPanel from './QueuePanel.svelte';
 
@@ -41,6 +42,7 @@
 
 <AdminPageLayout breadcrumbs={[{ title: data.meta.title }]} actions={[ResumePaused, CreateJob, ManageConcurrency]}>
   <Container size="large" center>
+    <PipelinePausePanel />
     {#if queues}
       <div class="mt-5 flex gap-2" role="group" aria-label={$t('pipeline.view')}>
         <button

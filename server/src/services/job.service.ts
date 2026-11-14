@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { UnrecoverableError } from 'bullmq';
 import { OnEvent } from 'src/decorators.js';
 import { mapAsset } from 'src/dtos/asset-response.dto.js';
 import { JobCreateDto } from 'src/dtos/job.dto.js';
 import { AssetType, AssetVisibility, IntegrityReport, JobName, JobStatus, ManualJobName } from 'src/enum.js';
 import { ArgsOf } from 'src/repositories/event.repository.js';
+import { PIPELINE_QUEUES } from 'src/repositories/queue-pause.repository.js';
 import { ForkAssetTask, type ForkAssetTaskName } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import type { JobItem } from 'src/types.js';
@@ -11,6 +13,15 @@ import { hexOrBufferToBase64 } from 'src/utils/bytes.js';
 
 const getAssetTaskName = (item: JobItem): ForkAssetTaskName | undefined => {
   switch (item.name) {
+    case JobName.SmartSearch: {
+      return ForkAssetTask.SmartSearch;
+    }
+    case JobName.Ocr: {
+      return ForkAssetTask.Ocr;
+    }
+    case JobName.AssetDetectDuplicates: {
+      return ForkAssetTask.DuplicateDetection;
+    }
     case JobName.AssetGenerateThumbnails: {
       return ForkAssetTask.ThumbnailGeneration;
     }
@@ -109,7 +120,12 @@ export class JobService extends BaseService {
   }
 
   @OnEvent({ name: 'JobRun' })
-  async onJobRun(...[queueName, job]: ArgsOf<'JobRun'>) {
+  /**
+   * 执行并持久化任务结果；照片链路的异常交还 BullMQ，避免失败被当作成功删除。
+   * @param args 队列、原任务及可选执行次数；省略次数表示执行一次。
+   * @returns 成功或跳过时完成；异常参与有界重试，显式 Failed 为不可重试终态。
+   */
+  async onJobRun(...[queueName, job, execution]: ArgsOf<'JobRun'>) {
     try {
       await this.eventRepository.emit('JobStart', queueName, job);
       if (job.name === JobName.AssetExtractMetadata) {
@@ -122,6 +138,9 @@ export class JobService extends BaseService {
         }
       }
       const response = await this.jobRepository.run(job);
+      if (response === JobStatus.Failed && PIPELINE_QUEUES.has(queueName)) {
+        throw new UnrecoverableError(`Job handler returned failed: ${job.name}`);
+      }
       await this.eventRepository.emit('JobSuccess', { job, response });
       if (response && typeof response === 'string' && [JobStatus.Success, JobStatus.Skipped].includes(response)) {
         const taskName = getAssetTaskName(job);
@@ -145,13 +164,21 @@ export class JobService extends BaseService {
         const assetId = getAssetTaskId(job);
         if (taskName && assetId) {
           try {
-            await this.assetJobRepository.failAssetTask(assetId, taskName, error);
+            const retrying =
+              !(error instanceof UnrecoverableError) && (execution?.attempt ?? 1) < (execution?.maxAttempts ?? 1);
+            await (retrying
+              ? this.assetJobRepository.retryAssetTask(assetId, taskName, error)
+              : this.assetJobRepository.failAssetTask(assetId, taskName, error));
           } catch (statusError) {
             this.logger.error(`Failed to persist ${taskName} failure for asset ${assetId}: ${statusError}`);
           }
         }
       }
       await this.eventRepository.emit('JobError', { job, error });
+      if (PIPELINE_QUEUES.has(queueName)) {
+        // 不吞掉错误，BullMQ 才会保留失败记录并执行约定的退避重试。
+        throw error;
+      }
     } finally {
       await this.eventRepository.emit('JobComplete', queueName, job);
     }
