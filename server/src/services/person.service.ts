@@ -382,6 +382,10 @@ export class PersonService extends BaseService {
   }
 
   @OnJob({ name: JobName.AssetDetectFaces, queue: QueueName.FaceDetection })
+  /**
+   * @param job 当前资产 ID；重新检测时复用仍有效的人脸，保留人工归属。
+   * @returns 检测成功后补发当前资产未归属人脸的下游任务；入队失败抛错供上游有界重试。
+   */
   async handleDetectFaces({ id }: JobOf<JobName.AssetDetectFaces>): Promise<JobStatus> {
     const { machineLearning } = await this.getConfig({ withCache: true });
     if (!isFacialRecognitionEnabled(machineLearning)) {
@@ -446,10 +450,30 @@ export class PersonService extends BaseService {
       this.logger.log(`Removed ${faceIdsToRemove.length} faces below detection threshold in asset ${id}`);
     }
 
+    // 写库成功而后续入队失败时，重试会匹配到已有脸；仍需补发当前资产未完成的下游。
+    const recognitionFaceIds = new Set(facesToAdd.map((face) => face.id));
+    for (const face of asset.faces) {
+      if (face.sourceType === SourceType.MachineLearning && !face.personGroupId && !mlFaceIds.has(face.id)) {
+        recognitionFaceIds.add(face.id);
+      }
+    }
+    const recognitionJobs = [...recognitionFaceIds].map(
+      (faceId) =>
+        ({
+          name: JobName.FacialRecognition,
+          data: { id: faceId },
+        }) as const,
+    );
+
     if (facesToAdd.length > 0) {
       this.logger.log(`Detected ${facesToAdd.length} new faces in asset ${id}`);
-      const jobs = facesToAdd.map((face) => ({ name: JobName.FacialRecognition, data: { id: face.id } }) as const);
-      await this.jobRepository.queueAll([{ name: JobName.FacialRecognitionQueueAll, data: { force: false } }, ...jobs]);
+      await this.jobRepository.queueAll([
+        { name: JobName.FacialRecognitionQueueAll, data: { force: false } },
+        ...recognitionJobs,
+      ]);
+    } else if (recognitionJobs.length > 0) {
+      // 恢复只补当前照片，不为已入库的人脸再次启动全库识别批次。
+      await this.jobRepository.queueAll(recognitionJobs);
     } else if (embeddings.length > 0) {
       this.logger.log(`Added ${embeddings.length} face embeddings for asset ${id}`);
     }

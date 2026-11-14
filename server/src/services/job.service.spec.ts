@@ -286,6 +286,20 @@ describe(JobService.name, () => {
       expect(mocks.assetJob.failAssetTask).toHaveBeenCalledWith('asset-1', 'ocr', error);
     });
 
+    /** 上游重试只在真正成功后补发下游，下游任务拥有自己的重试计数。 */
+    it('enqueues duplicate detection after a smart search retry succeeds', async () => {
+      const job: JobItem = { name: JobName.SmartSearch, data: { id: 'asset-1' } };
+      const error = new Error('ML temporarily unavailable');
+      mocks.job.run.mockRejectedValueOnce(error).mockResolvedValueOnce(JobStatus.Success);
+      await expect(sut.onJobRun(QueueName.SmartSearch, job, { attempt: 1, maxAttempts: 3 })).rejects.toBe(error);
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+      await sut.onJobRun(QueueName.SmartSearch, job, { attempt: 2, maxAttempts: 3 });
+      expect(mocks.job.queue).toHaveBeenCalledExactlyOnceWith({
+        name: JobName.AssetDetectDuplicates,
+        data: { id: 'asset-1' },
+      });
+    });
+
     /** 处理器明确返回 Failed 是终态，不能发送成功事件或继续下游。 */
     it('persists an explicit ML failure without retrying it', async () => {
       const job: JobItem = { name: JobName.SmartSearch, data: { id: 'asset-1' } };

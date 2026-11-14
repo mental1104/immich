@@ -1131,6 +1131,39 @@ describe(PersonService.name, () => {
       expect(facesRecognizedAt.getTime()).toBeGreaterThan(start);
     });
 
+    /** 已写入的人脸不代表下游已成功入队；上游重试必须补发当前照片的识别任务。 */
+    it('recovers recognition after faces were committed before enqueue failed', async () => {
+      const asset = AssetFactory.from().file({ type: AssetFileType.Preview }).exif().build();
+      const face = AssetFaceFactory.create({ assetId: asset.id });
+      const persisted = AssetFactory.from({ id: asset.id })
+        .face(face)
+        .file({ type: AssetFileType.Preview })
+        .exif()
+        .build();
+      mocks.crypto.randomUUID.mockReturnValue(face.id);
+      mocks.machineLearning.detectFaces.mockResolvedValue(getAsDetectedFace(face));
+      mocks.assetJob.getForDetectFacesJob
+        .mockResolvedValueOnce(getForDetectedFaces(asset))
+        .mockResolvedValueOnce(getForDetectedFaces(persisted));
+      const error = new Error('Downstream queue unavailable');
+      mocks.job.queueAll.mockRejectedValueOnce(error).mockResolvedValue(undefined);
+
+      await expect(sut.handleDetectFaces({ id: asset.id })).rejects.toBe(error);
+      await expect(sut.handleDetectFaces({ id: asset.id })).resolves.toBe(JobStatus.Success);
+      expect(mocks.person.refreshFaces).toHaveBeenCalledTimes(1);
+      expect(mocks.job.queueAll).toHaveBeenLastCalledWith([{ name: JobName.FacialRecognition, data: { id: face.id } }]);
+    });
+
+    /** 已归属的人脸不因上游重试再次识别，避免改变人工或已有归属。 */
+    it('does not requeue an already assigned matching face', async () => {
+      const face = AssetFaceFactory.create({ personGroupId: newUuid() });
+      const asset = AssetFactory.from().face(face).file({ type: AssetFileType.Preview }).exif().build();
+      mocks.machineLearning.detectFaces.mockResolvedValue(getAsDetectedFace(face));
+      mocks.assetJob.getForDetectFacesJob.mockResolvedValue(getForDetectedFaces(asset));
+      await expect(sut.handleDetectFaces({ id: asset.id })).resolves.toBe(JobStatus.Success);
+      expect(mocks.job.queueAll).not.toHaveBeenCalled();
+    });
+
     it('should create a face with no person and queue recognition job', async () => {
       const asset = AssetFactory.from().file({ type: AssetFileType.Preview }).exif().build();
       const face = AssetFaceFactory.create({ assetId: asset.id });

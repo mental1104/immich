@@ -553,7 +553,7 @@ export class JobRepository {
 
       if (job.options?.jobId || job.options?.deduplication) {
         // need to use add() instead of addBulk() for jobId/deduplication to take effect
-        promises.push(this.getQueue(queueName).add(item.name, item.data, job.options));
+        promises.push(this.addWithRecovery(queueName, item, job.options));
       } else {
         itemsByQueue[queueName] ||= [];
         itemsByQueue[queueName].push(job);
@@ -588,6 +588,40 @@ export class JobRepository {
 
   async queue(item: JobItem): Promise<void> {
     return this.queueAll([item]);
+  }
+
+  /**
+   * 保留资产任务的稳定去重键，同时允许新的上游触发恢复旧的失败任务。
+   * @param queueName 原生队列名称。
+   * @param item 本次资产任务，数据覆盖只发生在已失败任务上。
+   * @param options 原生去重、优先级和重试选项；其他任务保持既有 add 语义。
+   * @returns 新任务入队或失败任务通过原生 retry 恢复后结束；真正的队列错误继续抛出。
+   */
+  private async addWithRecovery(queueName: QueueName, item: JobItem, options: JobsOptions | undefined): Promise<void> {
+    const queue = this.getQueue(queueName);
+    if (options?.jobId && [JobName.AssetExtractMetadata, JobName.AssetStackRawPair].includes(item.name)) {
+      const existing = await queue.getJob(options.jobId);
+      if (existing && (await existing.getState()) === 'failed') {
+        // add 遇到保留的相同 jobId 会静默去重，必须显式恢复，避免账本 queued 而没有任务可执行。
+        try {
+          await existing.updateData(item.data ?? {});
+          await existing.retry('failed');
+        } catch (error) {
+          const state = await existing.getState();
+          // 另一生产者可能已经完成恢复；原生状态才是判据，不重复创建活跃任务。
+          if (['waiting', 'active', 'delayed', 'prioritized', 'waiting-children', 'completed'].includes(state)) {
+            return;
+          }
+          if (state !== 'unknown') {
+            throw error;
+          }
+          // 已被另一执行者完成并删除时，本次显式触发仍可创建一个受同一键保护的新任务。
+          await queue.add(item.name, item.data, options);
+        }
+        return;
+      }
+    }
+    await queue.add(item.name, item.data, options);
   }
 
   async waitForQueueCompletion(...queues: QueueName[]): Promise<void> {
