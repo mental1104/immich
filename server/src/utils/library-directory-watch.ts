@@ -11,6 +11,27 @@ const QUIET_MS = 5000;
 export type LibraryDirectoryChanges = { paths: string[]; directories: string[] };
 
 /**
+ * 解析目录监听范围，支持全部导入根、显式 JSON 路径列表和旧版单根配置。
+ * @param setting 新配置；all 使用当前导入根，未设置时回退到 legacy。
+ * @param legacy 旧版单根目录，继续保持兼容。
+ * @param importPaths 当前所有外部图库的导入根；不访问或修改文件系统。
+ * @returns 已规范化、去重且不相互嵌套的绝对根目录；非法配置抛错。
+ */
+export function getLibraryDirectoryWatchRoots(
+  setting: string | undefined,
+  legacy: string | undefined,
+  importPaths: readonly string[],
+): string[] {
+  const roots: unknown = setting === 'all' ? importPaths : setting ? JSON.parse(setting) : legacy ? [legacy] : [];
+  if (!Array.isArray(roots) || roots.some((root) => typeof root !== 'string' || !path.isAbsolute(root))) {
+    throw new Error('Library directory watch roots must be absolute paths');
+  }
+  const normalized = [...new Set((roots as string[]).map((root) => path.resolve(root)))];
+  // 父根已经覆盖子根时只注册一次，防止重复事件和重复扫描。
+  return normalized.filter((root) => !normalized.some((parent) => parent !== root && isWithinDirectory(parent, root)));
+}
+
+/**
 判断指定文件是否确实消失。权限、I/O 和监听资源错误保留原异常。
 @param error 文件系统操作抛出的值。
 @returns 只有路径或中间目录不存在时返回 true。

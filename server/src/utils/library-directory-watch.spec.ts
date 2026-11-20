@@ -1,7 +1,54 @@
 import { mkdir, mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { watchLibraryDirectories, type LibraryDirectoryChanges } from 'src/utils/library-directory-watch.js';
+import {
+  getLibraryDirectoryWatchRoots,
+  watchLibraryDirectories,
+  type LibraryDirectoryChanges,
+} from 'src/utils/library-directory-watch.js';
+
+/** 配置全部导入根时，嵌套根只监听一次，旧版单根仍保持兼容。 */
+it('resolves all import roots and preserves the legacy single root', () => {
+  expect(getLibraryDirectoryWatchRoots('all', '/old', ['/photos', '/photos/nested', '/other'])).toEqual([
+    '/photos',
+    '/other',
+  ]);
+  expect(getLibraryDirectoryWatchRoots(undefined, '/old', ['/photos'])).toEqual(['/old']);
+  expect(getLibraryDirectoryWatchRoots('["/photos","/other"]', '/old', [])).toEqual(['/photos', '/other']);
+  expect(() => getLibraryDirectoryWatchRoots('["relative"]', undefined, [])).toThrow('absolute paths');
+});
+
+/** 新建多层子目录后，叶子目录继续接收后续文件事件，不依赖定时补扫。 */
+it('watches newly created nested directories after their initial discovery', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'immich-nested-watch-'));
+  const changes: LibraryDirectoryChanges[] = [];
+  const errors: unknown[] = [];
+  const watcher = await watchLibraryDirectories(
+    root,
+    [],
+    async (change) => {
+      changes.push(change);
+    },
+    (error) => {
+      errors.push(error);
+    },
+    20,
+  );
+  try {
+    const nested = path.join(root, 'one', 'two');
+    await mkdir(nested, { recursive: true });
+    await vi.waitFor(() =>
+      expect(changes.some((change) => change.directories.includes(path.join(root, 'one')))).toBe(true),
+    );
+    const file = path.join(nested, 'later.png');
+    await writeFile(file, 'synthetic');
+    await vi.waitFor(() => expect(changes.some((change) => change.paths.includes(file))).toBe(true));
+    expect(errors).toEqual([]);
+  } finally {
+    watcher.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 /** 用真实文件系统验证目录监听能够区分普通文件和移入、移出的目录。 */
 it('reports changed files and moved subtrees using only directory watchers', async () => {

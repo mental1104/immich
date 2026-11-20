@@ -40,7 +40,11 @@ import {
   isWithinDirectory,
   logIphoneBackupAudit,
 } from 'src/utils/iphone-backup.js';
-import { isMissingLibraryPath, watchLibraryDirectories } from 'src/utils/library-directory-watch.js';
+import {
+  getLibraryDirectoryWatchRoots,
+  isMissingLibraryPath,
+  watchLibraryDirectories,
+} from 'src/utils/library-directory-watch.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, createLibraryMatcher, findOrFail, handlePromiseError } from 'src/utils/misc.js';
 
@@ -48,12 +52,14 @@ const DEFERRED_VIDEO_SIZE_BYTES = 3 * 1024 ** 3;
 const DIRECTORY_WATCH_BATCH_SIZE = 128;
 
 @Injectable()
-/** 管理外部库扫描与状态更新；目标备份库的导入与上传发布使用同一数据库锁。 */
+/** 管理外部库扫描与状态更新；文件准备不占发布锁，目标备份库仅在数据库短事务中建档。 */
 export class LibraryService extends BaseService {
   private watchLibraries = false;
   private lock = false;
   private watchers: Record<string, () => Promise<void>> = {};
   private readonly directoryWatchRoot = process.env.IMMICH_FORK_LIBRARY_WATCH_ROOT;
+  private readonly directoryWatchSetting = process.env.IMMICH_FORK_LIBRARY_WATCH_ROOTS;
+  private directoryWatchRoots: string[] = [];
   private directoryWatchRevision = 0;
 
   /** 初始化图库 cron 和监听。目录试点沿用外部图库主工作进程的数据库锁。 */
@@ -79,62 +85,68 @@ export class LibraryService extends BaseService {
 
     if (this.watchLibraries) {
       await this.watchAll();
-    } else if (this.directoryWatchRoot) {
+    } else if (this.directoryWatchRoot || this.directoryWatchSetting) {
       await this.refreshDirectoryWatch();
     }
   }
 
-  /** 只监听配置路径明确归属的库，任务消费时重新检查当前导入路径和排除规则。 */
+  /** 重建全部配置根的目录监听；每个根必须明确归属唯一图库，消费任务时再次校验。 */
   private async refreshDirectoryWatch() {
-    const root = this.directoryWatchRoot;
-    if (!this.lock || !root || this.watchLibraries) {
+    if (!this.lock || this.watchLibraries) {
       return;
     }
     const revision = ++this.directoryWatchRevision;
     await this.unwatchAll();
     const allLibraries = await this.libraryRepository.getAll(false);
-    const libraries = allLibraries.filter((library) => this.isDirectoryWatchPath(library, root, root));
-    if (libraries.length !== 1) {
-      this.logger.warn('Library directory watch requires exactly one matching external library');
-      return;
-    }
-    const [library] = libraries;
-    try {
-      const stats = await lstat(root);
-      if (!stats.isDirectory() || (await realpath(root)) !== root) {
-        throw new Error('Library directory watch root must be a canonical directory');
+    this.directoryWatchRoots = getLibraryDirectoryWatchRoots(
+      this.directoryWatchSetting,
+      this.directoryWatchRoot,
+      allLibraries.flatMap((library) => library.importPaths),
+    );
+    for (const root of this.directoryWatchRoots) {
+      const libraries = allLibraries.filter((library) => this.isDirectoryWatchPath(library, root, root));
+      if (libraries.length !== 1) {
+        this.logger.warn('Library directory watch requires exactly one matching external library');
+        continue;
       }
-      const watched = await watchLibraryDirectories(
-        root,
-        library.exclusionPatterns,
-        /** 将事件批次交给现有图库队列，暂停时仍保留任务。 */
-        (changes) =>
-          this.jobRepository.queue({
-            name: JobName.LibrarySyncFiles,
-            data: {
-              libraryId: library.id,
-              paths: changes.paths,
-              directoryWatch: { root, directories: changes.directories },
-            },
-          }),
-        (error) => this.logger.error(`Library directory watch failed: ${error}`),
-      );
-      if (this.watchLibraries || revision !== this.directoryWatchRevision) {
-        watched.close();
-        return;
+      const [library] = libraries;
+      try {
+        const stats = await lstat(root);
+        if (!stats.isDirectory() || (await realpath(root)) !== root) {
+          throw new Error('Library directory watch root must be a canonical directory');
+        }
+        const watched = await watchLibraryDirectories(
+          root,
+          library.exclusionPatterns,
+          /** 将事件批次交给现有图库队列，暂停时仍保留任务。 */
+          (changes) =>
+            this.jobRepository.queue({
+              name: JobName.LibrarySyncFiles,
+              data: {
+                libraryId: library.id,
+                paths: changes.paths,
+                directoryWatch: { root, directories: changes.directories },
+              },
+            }),
+          (error) => this.logger.error(`Library directory watch failed: ${error}`),
+        );
+        if (this.watchLibraries || revision !== this.directoryWatchRevision) {
+          watched.close();
+          return;
+        }
+        this.watchers[`${library.id}:${root}`] = () => {
+          watched.close();
+          return Promise.resolve();
+        };
+        this.logger.log(`Library directory watch ready: ${watched.count} directories`);
+        // 先开始接收事件，再补查停机期间的变化，避免在初次扫描和监听之间遗漏文件。
+        await this.jobRepository.queue({
+          name: JobName.LibrarySyncFiles,
+          data: { libraryId: library.id, paths: [], directoryWatch: { root, directories: [root] } },
+        });
+      } catch (error) {
+        this.logger.error(`Library directory watch failed to start: ${error}`);
       }
-      this.watchers[library.id] = () => {
-        watched.close();
-        return Promise.resolve();
-      };
-      this.logger.log(`Library directory watch ready: ${watched.count} directories`);
-      // 先开始接收事件，再补查停机期间的变化，避免在初次扫描和监听之间遗漏文件。
-      await this.jobRepository.queue({
-        name: JobName.LibrarySyncFiles,
-        data: { libraryId: library.id, paths: [], directoryWatch: { root, directories: [root] } },
-      });
-    } catch (error) {
-      this.logger.error(`Library directory watch failed to start: ${error}`);
     }
   }
 
@@ -329,20 +341,13 @@ export class LibraryService extends BaseService {
 
   @OnJob({ name: JobName.LibrarySyncFiles, queue: QueueName.Library })
   /**
-   * 导入扫描发现的文件；目标备份库与上传串行建档，避免发布文件被重复扫描成第二条资产。
+   * 导入扫描发现的文件；磁盘读取与后续任务不占用备份发布锁。
    * @param job 待导入路径及所属 Library ID。
    * @returns 导入状态；失败沿用已有任务重试机制。
    */
   async handleSyncFiles(job: JobOf<JobName.LibrarySyncFiles>): Promise<JobStatus> {
     if (job.directoryWatch) {
-      const scope = job.directoryWatch;
-      // 与手机上传、指纹准备和源资产状态更新共用锁；锁内调用原有导入实现，避免重复取锁。
-      return getIphoneBackupConfig()?.libraryId === job.libraryId
-        ? this.databaseRepository.withLock(DatabaseLock.ForkIphoneBackup, () => this.syncDirectoryWatch(job, scope))
-        : this.syncDirectoryWatch(job, scope);
-    }
-    if (getIphoneBackupConfig()?.libraryId === job.libraryId) {
-      return this.databaseRepository.withLock(DatabaseLock.ForkIphoneBackup, () => this.importFiles(job));
+      return this.syncDirectoryWatch(job, job.directoryWatch);
     }
     return this.importFiles(job);
   }
@@ -389,7 +394,7 @@ export class LibraryService extends BaseService {
   ): Promise<JobStatus> {
     const { root, directories } = scope;
     const library = await this.libraryRepository.get(job.libraryId);
-    if (root !== this.directoryWatchRoot || !library || !this.isDirectoryWatchPath(library, root, root)) {
+    if (!this.directoryWatchRoots.includes(root) || !library || !this.isDirectoryWatchPath(library, root, root)) {
       return JobStatus.Skipped;
     }
     // 根目录本身缺失或被替换为链接时，不能把整个图库中的资产判为离线。
@@ -491,8 +496,8 @@ export class LibraryService extends BaseService {
   */
   private async getDirectoryWatchStat(candidate: string): Promise<Stats | null> {
     try {
-      const stats = await lstat(candidate);
-      if (stats.isSymbolicLink() || (await realpath(candidate)) !== candidate) {
+      const stats = await this.readLibraryPath(lstat(candidate));
+      if (stats.isSymbolicLink() || (await this.readLibraryPath(realpath(candidate))) !== candidate) {
         throw new Error('Library directory watch found a symbolic link');
       }
       return stats;
@@ -505,7 +510,7 @@ export class LibraryService extends BaseService {
   }
 
   /**
-   * 在调用者已经取得必要锁后执行原有文件导入。
+   * 先读完文件，再原子发布数据库记录，最后发送事件及后续任务。
    * @param job 扫描批次，不修改其路径列表。
    * @returns 原有导入结果；同路径重复任务由既有 checksum 唯一约束忽略。
    */
@@ -521,6 +526,17 @@ export class LibraryService extends BaseService {
       return JobStatus.Failed;
     }
 
+    if (getIphoneBackupConfig()?.libraryId === job.libraryId && job.paths.length > 1) {
+      // 每个文件独立占用、重试和终结任务；一份坏文件不能拖住同批其余文件。
+      await this.jobRepository.queueAll(
+        job.paths.map((filePath) => ({
+          name: JobName.LibrarySyncFiles,
+          data: { libraryId: job.libraryId, paths: [filePath] },
+        })),
+      );
+      return JobStatus.Success;
+    }
+
     const assetImports: Insertable<AssetTable>[] = [];
     let deferredCount = 0;
     await Promise.all(
@@ -528,23 +544,6 @@ export class LibraryService extends BaseService {
         try {
           const asset = await this.processEntity(path, library.ownerId, job.libraryId);
           if (asset) {
-            if (getIphoneBackupConfig()?.libraryId === job.libraryId) {
-              const existing = await this.assetRepository.getByLibraryIdAndOriginalPath(
-                job.libraryId,
-                asset.originalPath,
-              );
-              if (existing) {
-                // 文件监听同样会发现既有路径；更新内容映射而不创建第二个资产。
-                if (asset.contentChecksum && !existing.contentChecksum?.equals(asset.contentChecksum)) {
-                  await this.assetRepository.update({ id: existing.id, contentChecksum: asset.contentChecksum });
-                  await this.jobRepository.queue({
-                    name: JobName.AssetExtractMetadata,
-                    data: { id: existing.id, force: true },
-                  });
-                }
-                return;
-              }
-            }
             assetImports.push(asset);
           } else {
             deferredCount++;
@@ -567,7 +566,18 @@ export class LibraryService extends BaseService {
       this.logger.log(`Deferred ${deferredCount} heavy video file(s) from library ${job.libraryId}`);
     }
 
-    const assetIds = await this.assetRepository.createAll(assetImports);
+    const publication =
+      getIphoneBackupConfig()?.libraryId === job.libraryId
+        ? await this.assetRepository.importExternalAssets(assetImports)
+        : { created: await this.assetRepository.createAll(assetImports), updated: [], present: [] };
+    const assetIds = publication.created;
+    // 事务已经提交并释放锁；下游失败可以重试，绝不能把外部事件等待留在发布临界区内。
+    await this.jobRepository.queueAll(
+      publication.updated.map((id) => ({
+        name: JobName.AssetExtractMetadata,
+        data: { id, force: true },
+      })),
+    );
     if (isIphoneBackupFingerprintingEnabled(job.libraryId)) {
       for (const assetId of assetIds) {
         logIphoneBackupAudit(this.logger, { event: 'fingerprint_ready', assetId, libraryId: job.libraryId });
@@ -587,7 +597,8 @@ export class LibraryService extends BaseService {
       ),
     );
 
-    await this.queuePostSyncJobs(assetIds);
+    // 重试时补发已经建档的文件，覆盖提交成功而下游入队失败的窗口。
+    await this.queuePostSyncJobs([...assetIds, ...publication.present]);
 
     return JobStatus.Success;
   }
@@ -713,7 +724,7 @@ export class LibraryService extends BaseService {
       return;
     }
 
-    const stat = await this.storageRepository.stat(assetPath);
+    const stat = await this.readLibraryPath(this.storageRepository.stat(assetPath));
     if (mimeTypes.isVideo(assetPath) && stat.size > DEFERRED_VIDEO_SIZE_BYTES) {
       return;
     }
@@ -745,12 +756,31 @@ export class LibraryService extends BaseService {
    * @returns 稳定文件的内容指纹；文件变化或读取失败时抛错，不发布可疑指纹。
    */
   private async readContentChecksum(filePath: string, before: Stats): Promise<Buffer> {
-    const checksum = await this.cryptoRepository.hashFile(filePath);
-    const after = await this.storageRepository.stat(filePath);
+    const checksum = await this.cryptoRepository.hashFile(filePath, { signal: AbortSignal.timeout(300_000) });
+    const after = await this.readLibraryPath(this.storageRepository.stat(filePath));
     if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
       throw new Error('External file changed while hashing');
     }
     return checksum;
+  }
+
+  /**
+   * 限制只读路径查询的等待，底层 stat 无取消接口，迟到结果不会触发任何写操作。
+   * @param read 已启动的只读文件系统操作；禁止传入有写入副作用的 Promise。
+   * @returns 查询结果；30 秒未完成时报错，让当前任务进入有界重试。
+   */
+  private async readLibraryPath<T>(read: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        read,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Library file state read timed out')), 30_000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async queuePostSyncJobs(assetIds: string[]) {

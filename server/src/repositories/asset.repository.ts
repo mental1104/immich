@@ -25,6 +25,7 @@ import {
   AssetType,
   AssetVisibility,
   CalendarHeatmapType,
+  DatabaseLock,
 } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { AssetAudioTable, AssetKeyframeTable, AssetVideoTable } from 'src/schema/tables/asset-av.table.js';
@@ -456,6 +457,65 @@ export class AssetRepository {
     }
     const ids = await this.db.insertInto('asset').values(assets).returning('id').execute();
     return ids.map(({ id }) => id);
+  }
+
+  /**
+   * 在短事务内发布已经读完文件的外部资产，与手机上传共用发布锁。
+   * @param assets 同一用户、同一外部库的准备结果；调用前必须完成所有文件 I/O。
+   * @returns 本次新建和更新指纹的 ID。重复路径保留原 ID，任何错误回滚整个批次。
+   */
+  async importExternalAssets(
+    assets: Insertable<AssetTable>[],
+  ): Promise<{ created: string[]; updated: string[]; present: string[] }> {
+    if (assets.length === 0) {
+      return { created: [], updated: [], present: [] };
+    }
+    const { libraryId, ownerId } = assets[0];
+    if (!libraryId || assets.some((asset) => asset.libraryId !== libraryId || asset.ownerId !== ownerId)) {
+      throw new Error('External asset publication requires one owner and library');
+    }
+    return this.db.transaction().execute(async (tx) => {
+      // 超时由 PostgreSQL 终止语句或连接并回滚。不能用 Promise.race 放走仍在写库的回调。
+      await sql`select set_config('lock_timeout', '10s', true),
+        set_config('statement_timeout', '30s', true),
+        set_config('idle_in_transaction_session_timeout', '30s', true)`.execute(tx);
+      await sql`select pg_advisory_xact_lock(${DatabaseLock.ForkIphoneBackup})`.execute(tx);
+      await tx
+        .selectFrom('library')
+        .select('id')
+        .where('id', '=', libraryId)
+        .where('ownerId', '=', ownerId)
+        .where('deletedAt', 'is', null)
+        .executeTakeFirstOrThrow();
+
+      const created: string[] = [];
+      const updated: string[] = [];
+      const present: string[] = [];
+      for (const asset of assets) {
+        const existing = await tx
+          .selectFrom('asset')
+          .select(['id', 'contentChecksum'])
+          .where('libraryId', '=', libraryId)
+          .where('originalPath', '=', asset.originalPath)
+          .where('backupChecksum', 'is', null)
+          .executeTakeFirst();
+        if (existing) {
+          present.push(existing.id);
+          if (asset.contentChecksum && !existing.contentChecksum?.equals(asset.contentChecksum)) {
+            await tx
+              .updateTable('asset')
+              .set({ contentChecksum: asset.contentChecksum })
+              .where('id', '=', existing.id)
+              .execute();
+            updated.push(existing.id);
+          }
+          continue;
+        }
+        const result = await tx.insertInto('asset').values(asset).returning('id').executeTakeFirstOrThrow();
+        created.push(result.id);
+      }
+      return { created, updated, present };
+    });
   }
 
   @GenerateSql({ params: [DummyValue.UUID, { year: 2000, day: 1, month: 1 }] })

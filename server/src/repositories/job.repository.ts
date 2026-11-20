@@ -653,9 +653,10 @@ export class JobRepository {
     });
   }
 
-  /** @param item 本次任务及去重数据。 @returns 原生配置；仅推理及其下游使用三次有界重试。 */
+  /** @param item 本次任务及去重数据。 @returns 原生配置；图库入库及推理使用三次有界重试。 */
   private getJobOptions(item: JobItem): JobsOptions | null {
     switch (item.name) {
+      case JobName.LibrarySyncFiles:
       case JobName.SmartSearch:
       case JobName.AssetDetectFaces:
       case JobName.Ocr:

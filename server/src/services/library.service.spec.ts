@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { Stats } from 'node:fs';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { vitest } from 'vitest';
 import { JOBS_LIBRARY_PAGINATION_SIZE } from 'src/constants.js';
 import { SystemConfig, defaults } from 'src/dtos/config.dto.js';
@@ -36,6 +39,35 @@ describe(LibraryService.name, () => {
   });
 
   describe('onConfigInit', () => {
+    /** 全部根配置必须同时注册不同图库，并在停机时统一释放监听。 */
+    it('starts directory watching for every configured external library root', async () => {
+      const temporary = await mkdtemp(join(tmpdir(), 'immich-all-roots-'));
+      const first = join(temporary, 'first');
+      const second = join(temporary, 'second');
+      await mkdir(first);
+      await mkdir(second);
+      vi.stubEnv('IMMICH_FORK_LIBRARY_WATCH_ROOTS', 'all');
+      ({ sut, mocks } = newTestService(LibraryService));
+      mocks.database.tryLock.mockResolvedValue(true);
+      mocks.cron.create.mockResolvedValue();
+      mocks.job.queue.mockResolvedValue();
+      const libraries = [factory.library({ importPaths: [first] }), factory.library({ importPaths: [second] })];
+      mocks.library.getAll.mockResolvedValue(libraries);
+      try {
+        await sut.onConfigInit({ newConfig: systemConfigStub.libraryWatchDisabled as SystemConfig });
+        for (const [index, root] of [first, second].entries()) {
+          expect(mocks.job.queue).toHaveBeenCalledWith({
+            name: JobName.LibrarySyncFiles,
+            data: { libraryId: libraries[index].id, paths: [], directoryWatch: { root, directories: [root] } },
+          });
+        }
+      } finally {
+        await sut.onShutdown();
+        vi.unstubAllEnvs();
+        await rm(temporary, { recursive: true, force: true });
+      }
+    });
+
     it('should init cron job and handle config changes', async () => {
       mocks.cron.create.mockResolvedValue();
       mocks.cron.update.mockResolvedValue();
@@ -667,6 +699,101 @@ describe(LibraryService.name, () => {
       await expect(sut.handleSyncFiles(mockLibraryJob)).resolves.toBe(JobStatus.Failed);
 
       expect(mocks.asset.createAll.mock.calls).toEqual([]);
+    });
+  });
+
+  describe('bounded backup library publication', () => {
+    const libraryId = '11111111-1111-4111-8111-111111111111';
+    beforeEach(() => {
+      vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_LIBRARY_ID', libraryId);
+      vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_ROOT', '/backup');
+      vi.stubEnv('IMMICH_FORK_IPHONE_BACKUP_FINGERPRINT_SCAN', 'true');
+      mocks.library.get.mockResolvedValue(factory.library({ id: libraryId }));
+      mocks.storage.stat.mockResolvedValue({ size: 10, mtimeMs: 100, mtime: new Date(100) } as Stats);
+      mocks.crypto.hashFile.mockResolvedValue(Buffer.from('fingerprint'));
+      mocks.asset.importExternalAssets.mockResolvedValue({ created: ['new-asset'], updated: [], present: [] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+      vi.restoreAllMocks();
+    });
+
+    /** 坏文件一直不产出数据时，另一文件可独立建档；取消后坏任务报错而非静默成功。 */
+    it('imports another file while one fingerprint read is stalled, then cancels the stalled read', async () => {
+      const cancellation = new AbortController();
+      vi.spyOn(AbortSignal, 'timeout').mockReturnValue(cancellation.signal);
+      mocks.crypto.hashFile.mockImplementation((file, options) => {
+        if (file !== '/bad.png') return Promise.resolve(Buffer.from('fingerprint'));
+        return new Promise((_resolve, reject) =>
+          options!.signal.addEventListener('abort', () => reject(options!.signal.reason), { once: true }),
+        );
+      });
+      const pending = sut.handleSyncFiles({ libraryId, paths: ['/bad.png'] });
+      const failure = expect(pending).rejects.toThrow();
+      await expect(sut.handleSyncFiles({ libraryId, paths: ['/good.png'] })).resolves.toBe(JobStatus.Success);
+      expect(mocks.database.withLock).not.toHaveBeenCalled();
+      cancellation.abort(new Error('Synthetic file read timed out'));
+      await failure;
+    });
+
+    /** 扫描批次只分发单文件任务，坏文件与好文件拥有独立的重试和执行槽。 */
+    it('dispatches a batch before doing any file reads', async () => {
+      await expect(sut.handleSyncFiles({ libraryId, paths: ['/bad.png', '/good.png'] })).resolves.toBe(
+        JobStatus.Success,
+      );
+      expect(mocks.crypto.hashFile).not.toHaveBeenCalled();
+      expect(mocks.job.queueAll).toHaveBeenCalledWith([
+        { name: JobName.LibrarySyncFiles, data: { libraryId, paths: ['/bad.png'] } },
+        { name: JobName.LibrarySyncFiles, data: { libraryId, paths: ['/good.png'] } },
+      ]);
+    });
+
+    /** 下游事件挂起发生在提交之后，不能再占有跨进程备份发布锁。 */
+    it('allows later imports while an earlier post-commit event is waiting', async () => {
+      let release!: () => void;
+      mocks.event.emit.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      );
+      const first = sut.handleSyncFiles({ libraryId, paths: ['/first.png'] });
+      await vi.waitFor(() => expect(release).toBeDefined());
+      await expect(sut.handleSyncFiles({ libraryId, paths: ['/second.png'] })).resolves.toBe(JobStatus.Success);
+      expect(mocks.asset.importExternalAssets).toHaveBeenCalledTimes(2);
+      expect(mocks.database.withLock).not.toHaveBeenCalled();
+      release();
+      await first;
+    });
+
+    /** 只读 stat 超时后不会建档；迟到的结果也不允许继续写库。 */
+    it('rejects a stalled stat and ignores its late result', async () => {
+      vi.useFakeTimers();
+      let finish!: (value: Stats) => void;
+      mocks.storage.stat.mockImplementationOnce(
+        () =>
+          new Promise<Stats>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const result = sut.handleSyncFiles({ libraryId, paths: ['/slow.png'] });
+      const failure = expect(result).rejects.toThrow('Library file state read timed out');
+      await vi.advanceTimersByTimeAsync(30_001);
+      await failure;
+      finish({ size: 10, mtime: new Date(100), mtimeMs: 100 } as Stats);
+      await Promise.resolve();
+      expect(mocks.asset.importExternalAssets).not.toHaveBeenCalled();
+    });
+
+    /** 提交成功后入队失败的重试仍补发该资产，不创建第二条记录或丢失后处理。 */
+    it('replays downstream work for an already published path', async () => {
+      mocks.asset.importExternalAssets.mockResolvedValue({ created: [], updated: [], present: ['existing'] });
+      await sut.handleSyncFiles({ libraryId, paths: ['/existing.png'] });
+      expect(mocks.job.queueAll).toHaveBeenCalledWith([
+        { name: JobName.SidecarCheck, data: { id: 'existing', source: 'upload' } },
+      ]);
+      expect(mocks.event.emit).not.toHaveBeenCalledWith('AssetCreate', expect.anything());
     });
   });
 
