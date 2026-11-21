@@ -1,3 +1,11 @@
+## 2026-11-21：生产部署图库入库恢复补丁与全部目录监听
+
+- 来源：经用户明确授权，将开发修复 `0b2fdcdaf` 的 v3.3.6 移植 `48d1a93c1` 部署为 `immich-server:library-recovery-48d1a93c1`。正式服务仍为官方 v3.3.6 基线，没有同步上游或部署开发树的 v3.4.0。
+- 部署：北京时间 22:08:21 通过 NAS 统一入口仅重建 Server，22:08:55 健康与公开 HTTP ping/version 检查通过。Homelab 的 `services/immich/media-ai-review.override.yml` 仅更新镜像和新增 `IMMICH_FORK_LIBRARY_WATCH_ROOTS=all`；完整 Compose 模型只有这两个字段变化，原挂载及读写权限不变，PostgreSQL、Valkey、ML 的容器 ID 与启动时点不变，保留已有 Web、依赖和 Media AI 功能。
+- 验收：两座外部图库分别注册 989、4 个目录，实际进程有 993 个 inotify 监听，无 ENOSPC 或启动错误。此前 242 张 Steam 和 5 张 Snipaste 截图的 ID、指纹、可见性与文件引用保持；247 个原片和 494 个预览/缩略图文件均可读。115 条迁移账本内容不变，全部队列暂停标记保留，图库队列无等待、执行、延迟或失败。
+- 兼容与边界：本补丁没有 HTTP/API、数据库结构、已发布迁移、Web、SDK 或移动端修改；此次上线不创建生产测试图片、不注入故障、不清队列、不改原片。同镜像的新图事件和故障恢复已通过独立 HTTP 验收；官方手机真机、生产全库长期负载及最初挂起操作仍未验证。
+- 回退：HDD Backup 保留上线前后配置、状态、日志和验收记录。恢复镜像 `immich-server:3.3.6-media-review-20261115` 并撤销新增全部根变量，再经 NAS 入口仅重建 Server；保留数据库、资产、原片、指纹及暂停设置，不重写迁移。
+
 ## 2026-11-21：v3.3.6 图库入库候选的独立 HTTP 验收
 
 - 开发补丁 `0b2fdcdaf` 已快进合入本地 dev；同版本移植为 `48d1a93c1`，仍是官方 v3.3.6，没有同步或部署 v3.4.0。候选镜像 `immich-server:library-recovery-48d1a93c1` 以现有评审镜像为基础，只替换五个重新经 Nest 构建的服务端模块，保留当前 Web、依赖、迁移和评审功能。
