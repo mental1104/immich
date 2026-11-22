@@ -9,6 +9,8 @@ export type TimelineManagerOptions = Omit<AssetApiGetTimeBucketsRequest, 'size'>
   timelineAlbumId?: string;
   deferInit?: boolean;
   assetFilter?: Set<string>;
+  /** 仅Web显示选项，不传给原生时间线API。 */
+  sceneStacks?: boolean;
 };
 
 export type AssetDescriptor = { id: string };
@@ -30,6 +32,8 @@ export type TimelineAsset = {
   isVideo: boolean;
   isImage: boolean;
   stack: AssetStackResponseDto | null;
+  /** 外层场景徽标，与原生stack互相独立。 */
+  sceneStack?: { count: number; expanded: boolean };
   duration: number | null;
   projectionType: string | null;
   livePhotoVideoId: string | null;

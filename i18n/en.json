@@ -1,4 +1,7 @@
 {
+  "scene_stacks": "Similar stacks",
+  "expand_scene_stack": "Expand similar photos",
+  "collapse_scene_stack": "Collapse",
   "3ds_screenshots": "3DS screenshots",
   "3ds_screenshots_description": "Landscape images: 400 × 240.",
   "about": "About",

@@ -1,4 +1,7 @@
 {
+  "scene_stacks": "相似疊放",
+  "expand_scene_stack": "展開相似照片",
+  "collapse_scene_stack": "收起",
   "3ds_screenshots": "3DS遊戲截圖",
   "3ds_screenshots_description": "按 400 × 240 的橫向圖片識別。",
   "about": "關於",

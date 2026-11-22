@@ -26,6 +26,7 @@
   import { onMount } from 'svelte';
   import type { ClassValue } from 'svelte/elements';
   import { fade } from 'svelte/transition';
+  import { t } from 'svelte-i18n';
   import ImageThumbnail from './ImageThumbnail.svelte';
   import VideoThumbnail from './VideoThumbnail.svelte';
 
@@ -49,6 +50,8 @@
     onPreview?: (asset: TimelineAsset) => void;
     onSelect?: (asset: TimelineAsset) => void;
     onMouseEvent?: (event: { isMouseOver: boolean; selectedGroupIndex: number }) => void;
+    /** 点击外层徽标，仅展开或收起相似场景组。 */
+    onSceneToggle?: () => void;
   }
 
   let {
@@ -69,6 +72,7 @@
     onPreview = undefined,
     onSelect = undefined,
     onMouseEvent = undefined,
+    onSceneToggle = undefined,
     imageClass = '',
     brokenAssetClass = '',
   }: Props = $props();
@@ -398,6 +402,23 @@
         in:fade={{ duration: 100 }}
         out:fade={{ duration: 100 }}
       ></div>
+    {/if}
+
+    {#if asset.sceneStack && onSceneToggle}
+      <button
+        type="button"
+        class="absolute bottom-2 end-2 z-3 rounded-lg bg-black/70 px-2 py-1 text-xs text-white"
+        aria-label={$t(asset.sceneStack.expanded ? 'collapse_scene_stack' : 'expand_scene_stack')}
+        aria-expanded={asset.sceneStack.expanded}
+        onclick={(event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          onSceneToggle?.();
+        }}
+        onkeydown={(event) => event.stopPropagation()}
+      >
+        {$t(asset.sceneStack.expanded ? 'collapse_scene_stack' : 'scene_stacks')} · {asset.sceneStack.count}
+      </button>
     {/if}
 
     <!-- Select asset button  -->

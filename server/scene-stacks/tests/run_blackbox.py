@@ -39,6 +39,7 @@ def main() -> None:
     parser.add_argument("--code", type=Path, required=True)
     parser.add_argument("--image", default="immich-scene-stacks:test")
     args = parser.parse_args()
+    code = args.code.resolve()
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=False)
     tag = "scene-check-" + uuid4().hex[:8]
@@ -76,7 +77,7 @@ def main() -> None:
             "-v",
             f"{root}:/state",
             "-v",
-            f"{args.code}:/code:ro",
+            f"{code}:/code:ro",
             "--entrypoint",
             "python",
             args.image,
@@ -104,7 +105,7 @@ def main() -> None:
             "-v",
             f"{root}:/state",
             "-v",
-            f"{args.code}:/code:ro",
+            f"{code}:/code:ro",
             "-e",
             "PYTHONPATH=/code",
             "-w",
@@ -140,7 +141,7 @@ def main() -> None:
             "--network",
             tag,
             "-v",
-            f"{args.code}:/code:ro",
+            f"{code}:/code:ro",
             "--entrypoint",
             "python",
             args.image,
@@ -163,7 +164,7 @@ def main() -> None:
             "-v",
             f"{root / 'thumbnails'}:/data/thumbs:ro",
             "-v",
-            f"{args.code}:/code:ro",
+            f"{code}:/code:ro",
             "-e",
             "PYTHONPATH=/code",
             "-w",

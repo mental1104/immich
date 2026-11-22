@@ -29,6 +29,7 @@ import { PartnerController } from 'src/controllers/partner.controller.js';
 import { PasskeyController } from 'src/controllers/passkey.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PhotoCopilotController } from 'src/controllers/photo-copilot.controller.js';
+import { SceneStackController } from 'src/controllers/scene-stack.controller.js';
 import { PhotoEditAdviceController } from 'src/controllers/photo-edit-advice.controller.js';
 import { PipelineController } from 'src/controllers/pipeline.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
@@ -82,6 +83,7 @@ export const controllers = [
   PasskeyController,
   PersonController,
   PhotoCopilotController,
+  SceneStackController,
   PhotoEditAdviceController,
   PluginController,
   QueueController,

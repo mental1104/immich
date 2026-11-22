@@ -52,7 +52,7 @@ python -m scene_stacks worker --role nas --root /state --broker http://127.0.0.1
 python -m scene_stacks status --broker http://127.0.0.1:18090 --token-file /run/secrets/worker-token
 ```
 
-Windows用`docker/scene-stacks/run-gpu.ps1`，在当前桌面会话调用，以访问已有SMB映射。其参数提供共享运行目录、独立Python环境、已校验的本地模型缓存及私有任务地址；只启动回环模型服务，退出时只清理自己创建的进程。长全量应配置无默认72小时上限、登录后可恢复的专用任务；原始工人的租约过期后可继续领取。
+Windows用`docker/scene-stacks/bootstrap-gpu.ps1`安装独立环境、校验发布wheel，再调用`run-gpu.ps1`。脚本以带BOM的UTF-8保存，兼容Windows PowerShell 5.1。桌面用户的登录计划任务复用既有SMB共享；无需传输原图。任务须配置无默认72小时上限、登录后恢复和有限失败重启；NAS进入增量阶段后正常退出并撤销自身任务。模型仅监听回环，退出仅清理自身进程。
 
 运行目录必须限制到管理员/对应NAS账户，HTTP工人接口只向LAN映射并检查独立令牌。Immich源角色仅允许读取`asset`、`asset_exif`、`asset_file`、`stack`、`smart_search`，默认只读事务。真实图库不需要新增表或迁移。
 
@@ -60,4 +60,14 @@ Windows用`docker/scene-stacks/run-gpu.ps1`，在当前桌面会话调用，以�
 
 Python入口在`server/scene-stacks`，采用ruff、mypy strict和pytest。`tests/run_blackbox.py`建立独立网络、三个角色容器及独立HTTP客户端，使用合成模型替身验证鉴权、持久重启、GPU/NAS阶段交接、回填旧日期、删除和缓存复用。硬件模型质量验收使用仓库外固定参考集及`validate_reference.py`，不能把替身验收当成真实模型通过。
 
-首次实现尚未接入生产时间线界面；真实全量计算完成和全部最终分组人工验收也分别记录。回退可停止独立工人及协调器并关闭外层展示，保留SQLite、输入和HDD快照；原生时间线、现有叠放与原片不依赖此服务。恢复须使用SQLite备份API生成的快照，不能只复制遗漏WAL的活跃数据库主文件。
+NAS的Intel Iris Xe后端已跑完固定76对诊断集：19对已知负例均拒绝、37对核心正例全部保留、20对扩展正例保留19对。单对中位耗时约30秒，正向拒绝约14秒；限制提示缓存后整轮没有内存退出。这是选定诊断集，不能当成全库准确率或所有最终分组人工验收。
+
+## 时间线显示
+
+照片页的“相似叠放”控制外层密度，默认关闭并在浏览器保存偏好。偏好先于首次时间线查询读取。点击折叠封面原地展开；展开后的封面可打开原生查看器，也可点“收起”恢复外层。关闭总开关会重新加载原生时间线；所有查询继续保留`withStacked=true`，不会把内部原生叠放展开。批量选择只作用于当前显示的照片。
+
+Server配置`IMMICH_FORK_SCENE_STACK_DIR`到仅含发布清单的只读挂载；不向Server挂载工人令牌或SQLite目录。新增`POST /api/fork/scene-stacks/query`仅供当前用户自己的照片，沿用登录与AssetRead权限，排除公共分享上下文；不修改官方OpenAPI/SDK。服务逐次核对照片所属、删除/归档/离线、资产版本和原生stackId，不信任清单替代当前授权。完整组的成员必须都出现在当前桶内；跨桶/超大月份请求边界的组保留展开。清单缺失、损坏或功能未配置均保留原生显示。
+
+真实全量计算已由独立服务启动，NAS增量已验收并待机；全量结束与最终分组验收仍需单独记录。开发基线为v3.4.0，同版本生产候选为v3.3.6；完成候选构建及浏览器验收不表示已替换生产Server。官方手机真机未验证。
+
+回退可停独立工人及协调器并关闭外层展示，保留SQLite、输入和HDD快照；原生时间线、现有叠放与原片不依赖此服务。恢复须使用SQLite备份API生成的快照，不能只复制遗漏WAL的活跃数据库主文件。

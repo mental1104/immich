@@ -673,7 +673,17 @@
                 {asset}
                 {albumUsers}
                 {groupIndex}
+                onSceneToggle={() => timelineManager.sceneStacks.toggle(asset)}
                 onClick={(asset) => {
+                  if (
+                    !isSelectionMode &&
+                    !assetInteraction.selectionActive &&
+                    asset.sceneStack &&
+                    !asset.sceneStack.expanded
+                  ) {
+                    timelineManager.sceneStacks.toggle(asset);
+                    return;
+                  }
                   if (typeof onThumbnailClick === 'function') {
                     onThumbnailClick(asset, timelineManager, timelineDay, _onClick);
                   } else {

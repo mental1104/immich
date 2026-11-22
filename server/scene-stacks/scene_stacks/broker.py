@@ -48,7 +48,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _authenticate(self) -> bool:
         """验证私有工人令牌，失败立即返回401；返回本次请求是否可继续。"""
         provided = self.headers.get("Authorization", "")
-        if not secrets.compare_digest(provided, "Bearer " + self.server.token):
+        if not secrets.compare_digest(provided.encode(), ("Bearer " + self.server.token).encode()):
             self._reply(401, {"error": "Unauthorized"})
             return False
         return True

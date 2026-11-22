@@ -26,6 +26,7 @@
   import { ActionButton, CommandPaletteDefaultProvider } from '@immich/ui';
   import { mdiDotsVertical } from '@mdi/js';
   import { t } from 'svelte-i18n';
+  import { untrack } from 'svelte';
 
   /** assetType 限定当前媒体入口；title 为可选的本地化页面标题。 */
   interface Props {
@@ -35,8 +36,35 @@
   let { assetType, title }: Props = $props();
 
   let timelineManager = $state<TimelineManager>() as TimelineManager;
+  // 首次查询即使用保存的显示方式，避免onMount触发两轮并行初始化。
+  let sceneStacks = $state(untrack(() => assetType === AssetTypeEnum.Image && readScenePreference()));
+
+  /** @returns 浏览器保存的外层显示偏好；服务端或禁止存储时使用普通时间线。 */
+  function readScenePreference(): boolean {
+    try {
+      return typeof localStorage !== 'undefined' && localStorage.getItem('immich.scene-stacks') === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  /** @param event 总开关变更；只改变Web显示偏好，不修改资产或原生叠放。 */
+  const changeSceneStacks = (event: Event) => {
+    sceneStacks = (event.currentTarget as HTMLInputElement).checked;
+    try {
+      localStorage.setItem('immich.scene-stacks', String(sceneStacks));
+    } catch {
+      // 存储不可用只影响下次访问，不阻止当前显示切换。
+    }
+  };
   // 在查询层限制媒体类型，使计数、分页、全选与查看器导航使用相同范围。
-  const options = $derived({ visibility: AssetVisibility.Timeline, withStacked: true, withPartners: true, assetType });
+  const options = $derived({
+    visibility: AssetVisibility.Timeline,
+    withStacked: true,
+    withPartners: true,
+    assetType,
+    sceneStacks,
+  });
 
   let selectedAssets = $derived(assetMultiSelectManager.assets);
   let isLinkActionAvailable = $derived.by(() => {
@@ -82,7 +110,24 @@
   };
 </script>
 
-<UserPageLayout {title} hideNavbar={assetMultiSelectManager.selectionActive} scrollbar={false}>
+{#snippet sceneStackButton()}
+  <label class="flex cursor-pointer items-center gap-2 px-3 text-sm">
+    <input
+      type="checkbox"
+      checked={sceneStacks}
+      onchange={changeSceneStacks}
+      disabled={assetMultiSelectManager.selectionActive}
+    />
+    {$t('scene_stacks')}
+  </label>
+{/snippet}
+
+<UserPageLayout
+  {title}
+  hideNavbar={assetMultiSelectManager.selectionActive}
+  scrollbar={false}
+  buttons={assetType === AssetTypeEnum.Image ? sceneStackButton : undefined}
+>
   <Timeline
     enableRouting={true}
     bind:timelineManager

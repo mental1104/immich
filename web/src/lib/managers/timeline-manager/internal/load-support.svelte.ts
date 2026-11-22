@@ -16,10 +16,11 @@ export async function loadFromTimeBuckets(
   }
 
   const timeBucket = toISOYearMonthUTC(timelineMonth.yearMonth);
+  const { sceneStacks, ...nativeOptions } = options;
   const bucketResponse = await getTimeBucket(
     {
       ...authManager.params,
-      ...options,
+      ...nativeOptions,
       timeBucket,
     },
     { signal },
@@ -46,7 +47,14 @@ export async function loadFromTimeBuckets(
     }
   }
 
-  const unprocessedAssets = timelineMonth.addAssets(bucketResponse, true);
+  const visible = sceneStacks
+    ? await timelineManager.sceneStacks.prepare(timelineMonth, bucketResponse, signal)
+    : bucketResponse;
+  if (signal.aborted) {
+    return;
+  }
+  const unprocessedAssets = timelineMonth.addAssets(visible, true);
+  timelineManager.sceneStacks.decorate(timelineMonth);
   if (unprocessedAssets.length > 0) {
     console.error(
       `Warning: getTimeBucket API returning assets not in requested month: ${timelineMonth.yearMonth.month}, ${JSON.stringify(

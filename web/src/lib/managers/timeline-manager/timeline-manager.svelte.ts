@@ -39,6 +39,7 @@ import { SvelteDate, SvelteSet } from 'svelte/reactivity';
 import { isMismatched, updateObject } from './internal/utils.svelte';
 import { TimelineDay } from './timeline-day.svelte';
 import { TimelineMonth } from './timeline-month.svelte';
+import { SceneStackSupport } from './scene-stacks.ts';
 import type {
   AssetDescriptor,
   Direction,
@@ -57,6 +58,8 @@ type ViewportTopMonthIntersection = {
   monthBottomViewportRatio: number;
 };
 export class TimelineManager extends VirtualScrollManager {
+  /** 外层显示状态随本时间线销毁，原生叠放不受影响。 */
+  readonly sceneStacks = new SceneStackSupport(this);
   override bottomSectionHeight = $state(60);
 
   override bodySectionHeight = $derived.by(() => {
@@ -300,9 +303,10 @@ export class TimelineManager extends VirtualScrollManager {
   }
 
   async #initializeTimelineMonths() {
+    const { sceneStacks: _, ...nativeOptions } = this.#options;
     const timebuckets = await getTimeBuckets({
       ...authManager.params,
-      ...this.#options,
+      ...nativeOptions,
     });
 
     this.months = timebuckets.map((timeBucket) => {
@@ -340,6 +344,7 @@ export class TimelineManager extends VirtualScrollManager {
   }
 
   async #init(options: TimelineManagerOptions) {
+    this.sceneStacks.reset();
     this.isInitialized = false;
     this.months = [];
     this.albumAssets.clear();
@@ -424,12 +429,14 @@ export class TimelineManager extends VirtualScrollManager {
   }
 
   upsertAssets(assets: TimelineAsset[]) {
+    this.sceneStacks.invalidate(assets.map((asset) => asset.id));
     const notUpdated = this.#updateAssets(assets);
     const notExcluded = notUpdated.filter((asset) => !this.isExcluded(asset));
     this.addAssetsUpsertSegments([...notExcluded]);
   }
 
   upsertAssetsFromLiveEvent(assets: TimelineAsset[]) {
+    this.sceneStacks.invalidate(assets.map((asset) => asset.id));
     const notUpdated = this.#updateAssets(assets);
     const insertable = notUpdated.filter((asset) => this.canInsertAssetFromLiveEvent(asset));
     this.addAssetsUpsertSegments(insertable);
@@ -517,11 +524,18 @@ export class TimelineManager extends VirtualScrollManager {
 
   /** Executes callback on assets, handling moves between groups and removals due to filter criteria. */
   update(ids: string[], callback: (asset: TimelineAsset) => void) {
+    this.sceneStacks.invalidate(ids);
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     return this.#runAssetCallback(new Set(ids), callback);
   }
 
   removeAssets(ids: string[]) {
+    this.sceneStacks.invalidate(ids);
+    return this.hideSceneAssets(ids);
+  }
+
+  /** @param ids 仅从显示移除的行；不代表真实资产变化，不使相似分组失效。@returns 未加载的ID。 */
+  hideSceneAssets(ids: string[]) {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const result = this.#runAssetCallback(new Set(ids), () => ({ remove: true }));
     return [...result.notUpdated];

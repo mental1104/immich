@@ -255,15 +255,34 @@ class Catalog:
             raise ValueError("Candidate asset is missing from inventory")
         return InventoryEntry.model_validate_json(row[0])
 
-    def _advance_candidate(self, key: str) -> None:
-        """推进key到下一个未完成图片对或结束，逐对通过才把新照片放进当前组。"""
-        # 每个候选单独释放锁，避免缩略图准备长时间阻塞HTTP租约续约和结果确认。
+    def _advance_candidate(self, key: str) -> bool:
+        """推进key的当前照片；返回是否应在释放锁后继续下一张，逐对通过才允许合组。"""
+        # 冷预览解码/缩放可能数秒；先在事务外预热本步输入，GPU确认及续约不等待图像I/O。
+        with self.lock:
+            warming = self.db.execute(
+                "SELECT members,state FROM candidate WHERE key=? AND active=1 AND done=0", (key,)
+            ).fetchone()
+            if warming is None:
+                return False
+            pending_state = _Partition.model_validate_json(warming["state"])
+            pending_members: tuple[str, ...] = tuple(json.loads(warming["members"]))
+            inputs = (
+                tuple(self._entry(asset_id) for asset_id in (*pending_state.current, pending_members[pending_state.cursor]))
+                if pending_state.cursor < len(pending_members)
+                else ()
+            )
+        try:
+            for entry in inputs:
+                self.images.prepare(entry)
+        except (OSError, ValueError, RuntimeError):
+            # 下方持久事务按原来的失败路径记录错误，不把输入失败当成候选成功。
+            pass
         with self._transaction():
             row = self.db.execute(
                 "SELECT * FROM candidate WHERE key=? AND active=1 AND done=0", (key,)
             ).fetchone()
             if row is None:
-                return
+                return False
             members: tuple[str, ...] = tuple(json.loads(row["members"]))
             state = _Partition.model_validate_json(row["state"])
             wait_key: str | None = None
@@ -279,7 +298,8 @@ class Catalog:
                                 "checked": 0,
                             }
                         )
-                        continue
+                        # 下一张的冷输入留给下一轮事务外准备，不在当前写锁内跨照片读取。
+                        break
                     left_id = state.current[state.checked]
                     prepared = sorted(
                         (
@@ -309,6 +329,7 @@ class Catalog:
                                     "checked": 0,
                                 }
                             )
+                            break
                         continue
                     if pair is not None and pair["state"] == "failed":
                         raise RuntimeError("Pair inference retries exhausted: " + str(pair["error"]))
@@ -332,6 +353,7 @@ class Catalog:
                 "UPDATE candidate SET state=?,wait_key=?,done=?,failed=? WHERE key=?",
                 (state.model_dump_json(), wait_key, int(done), int(failed), key),
             )
+            return not done and wait_key is None
 
     def advance(self, limit: int = 32) -> int:
         """推进最多limit个已有结果或尚未排队的候选；返回本轮访问数，忙租约不阻塞其他组。"""
@@ -343,7 +365,9 @@ class Catalog:
                 (limit,),
             ).fetchall()
         for row in rows:
-            self._advance_candidate(str(row[0]))
+            while self._advance_candidate(str(row[0])):
+                # 已缓存的组仍可本轮推进，但下一张准备必须在释放事务之后。
+                pass
         with self._transaction():
             remaining = int(
                 self.db.execute("SELECT count(*) FROM candidate WHERE active=1 AND done=0").fetchone()[0]

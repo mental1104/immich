@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
 import shutil
+from threading import Event
 from uuid import UUID
 
 from PIL import Image
@@ -21,12 +23,41 @@ from scene_stacks.models import (
     Framing,
     InventoryEntry,
     Judgement,
+    Lease,
     PairResult,
     Policy,
+    PreparedImage,
     Submission,
 )
+from pydantic import ValidationError
 from scene_stacks.planner import plan
 from scene_stacks.source import input_key
+
+
+def test_cold_input_does_not_block_catalog_http_state(lab: Lab, monkeypatch: pytest.MonkeyPatch) -> None:
+    """模拟慢预览读取，验证GPU确认/续约共用的目录锁仍可被独立请求取得。"""
+    lab.import_entries((lab.asset(1, seconds=1), lab.asset(2)))
+    entered, released = Event(), Event()
+    original = lab.catalog.images.prepare
+
+    def cold_prepare(entry: InventoryEntry) -> PreparedImage:
+        """entry为合成输入；首个读取等待released，返回真实图像缓存产物。"""
+        if not entered.is_set():
+            entered.set()
+            if not released.wait(5):
+                raise RuntimeError("Synthetic image gate timed out")
+        return original(entry)
+
+    monkeypatch.setattr(lab.catalog.images, "prepare", cold_prepare)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        advancing = executor.submit(lab.catalog.advance)
+        try:
+            assert entered.wait(2)
+            status = executor.submit(lab.catalog.status)
+            assert status.result(timeout=1)["phase"] == "full"
+        finally:
+            released.set()
+        advancing.result(timeout=2)
 
 
 def result(merge: bool) -> PairResult:
@@ -120,6 +151,31 @@ class TestScenePlanning:
         groups = plan(entries, lab.policy)
         assert len(groups) == 3 and all(len(group.members) == 1 for group in groups)
         assert not entries[-1].ready
+
+
+class TestSharedInputBoundary:
+    """跨平台输入协议只允许派生图片路径，不能把NAS任务变成Windows任意文件读取。"""
+
+    @pytest.mark.parametrize(
+        "name",
+        (
+            "../worker-token",
+            "inputs/aa/../../worker-token",
+            "inputs/aa/..\\..\\source-dsn",
+            "inputs/C:/Users/private.jpg",
+        ),
+    )
+    def test_rejects_cross_platform_escape(self, name: str) -> None:
+        """验证name中的相对跳转、反斜线或盘符在读取文件前被协议边界拒绝。"""
+        valid = "inputs/aa/" + "a" * 64 + ".jpg"
+        with pytest.raises(ValidationError):
+            Lease(
+                key="fixture",
+                token="fixture",
+                images=(name, valid),
+                image_shas=("0" * 64, "0" * 64),
+                policy=default_policy(),
+            )
 
 
 class TestDurableSceneCatalog:

@@ -33,6 +33,7 @@ import { PartnerService } from 'src/services/partner.service.js';
 import { PasskeyService } from 'src/services/passkey.service.js';
 import { PersonService } from 'src/services/person.service.js';
 import { PhotoCopilotService } from 'src/services/photo-copilot.service.js';
+import { SceneStackService } from 'src/services/scene-stack.service.js';
 import { PhotoEditAdviceService } from 'src/services/photo-edit-advice.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
 import { QueueService } from 'src/services/queue.service.js';
@@ -95,6 +96,7 @@ export const services = [
   PasskeyService,
   PersonService,
   PhotoCopilotService,
+  SceneStackService,
   PhotoEditAdviceService,
   PluginService,
   QueueService,

@@ -9,9 +9,14 @@ from fractions import Fraction
 import hashlib
 import json
 from pathlib import Path
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, Json, model_validator
+from pydantic import BaseModel, ConfigDict, Field, Json, StringConstraints, model_validator
+
+
+PreparedPath = Annotated[str, StringConstraints(pattern=r"^inputs/[0-9a-f]{2}/[0-9a-f]{64}\.jpg$")]
+"""共享输入仅为内容绑定JPEG路径，排除Windows反斜线、盘符及跨目录分量。"""
 
 
 class Decision(StrEnum):
@@ -150,7 +155,7 @@ class LeaseReference(BaseModel):
 class Lease(LeaseReference):
     """NAS分配的一对复核任务；图片为共享运行目录下的相对路径，token只授权本次提交。"""
 
-    images: tuple[str, str]
+    images: tuple[PreparedPath, PreparedPath]
     image_shas: tuple[str, str]
     policy: Policy
 

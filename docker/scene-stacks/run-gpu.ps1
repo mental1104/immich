@@ -1,4 +1,4 @@
-<#
+﻿<#
 在当前桌面会话使用既有SMB目录运行首次GPU全量；输入/结果不复制到本地。
 StateRoot为NAS共享目录，Python为本任务虚拟环境，ModelCache为已校验的便携程序和GGUF缓存。
 服务只监听回环，退出时仅停止本次创建的进程；任务状态和断点以NAS确认结果为准。
@@ -25,9 +25,15 @@ if($LASTEXITCODE -ne 0 -or $workerPolicy.Trim() -ne $release.policy) { throw 'In
 if(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { throw 'GPU model port is already in use' }
 $server=Get-ChildItem "$ModelCache/runtime" -Filter llama-server.exe -Recurse | Select-Object -First 1 -ExpandProperty FullName
 if(-not $server) { throw 'Portable llama-server executable missing' }
+# PowerShell 5.1把本地程序正常stderr包装成ErrorRecord；版本/设备查询不能因此被Stop中断。
+$ErrorActionPreference='Continue'
 $version=& $server --version 2>&1 | Out-String
-if($version -notmatch 'e300919cc') { throw 'Portable runtime revision differs from release' }
+$versionExit=$LASTEXITCODE
 $devices=& $server --list-devices 2>&1 | Out-String
+$devicesExit=$LASTEXITCODE
+$ErrorActionPreference='Stop'
+if($versionExit -ne 0 -or $devicesExit -ne 0) { throw 'Portable runtime inspection failed' }
+if($version -notmatch 'e300919cc') { throw 'Portable runtime revision differs from release' }
 if($devices -notmatch 'Vulkan0:.*RTX 4070 Ti') { throw 'Required RTX 4070 Ti is not Vulkan0' }
 $stamp=Get-Date -Format yyyyMMdd-HHmmss
 $version | Set-Content "$LogRoot/runtime-$stamp.log"
