@@ -45,6 +45,8 @@ export const Route = {
 
   // albums
   albums: () => '/albums',
+  /** 无参数；返回当前用户待整理相簿的独立入口，不改变普通相簿视图。 */
+  pendingAlbums: () => '/pending',
   viewAlbum: ({ id }: { id: string }) => `/albums/${id}`,
   viewAlbumAsset: ({ albumId, assetId }: { albumId: string; assetId: string }) =>
     `/albums/${albumId}/photos/${assetId}`,

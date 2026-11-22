@@ -19,6 +19,7 @@
     mdiImageAlbum,
     mdiImageMultiple,
     mdiImageMultipleOutline,
+    mdiInboxArrowDownOutline,
     mdiLink,
     mdiMagnify,
     mdiImageEditOutline,
@@ -72,6 +73,8 @@
       </span>
     {/snippet}
   </NavbarItem>
+
+  <NavbarItem title={$t('pending_albums')} href={Route.pendingAlbums()} icon={mdiInboxArrowDownOutline} />
 
   {#if authManager.preferences.tags.enabled && authManager.preferences.tags.sidebarWeb}
     <NavbarItem title={$t('tags')} href={Route.tags()} icon={{ icon: mdiTagMultipleOutline, flipped: true }} />
