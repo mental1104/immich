@@ -1,0 +1,3 @@
+FROM immich-scene-stacks:dev
+COPY server/scene-stacks/pyproject.toml /app/pyproject.toml
+RUN pip install --no-cache-dir '/app[test,source]'

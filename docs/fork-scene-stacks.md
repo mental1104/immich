@@ -1,0 +1,63 @@
+# 相似场景外层叠放
+
+外层分组只改变浏览密度，原生RAW/成片/精确叠放始终作为一个时间线单位。计算结果独立持久化，关闭外层展示即可恢复原时间线。原片、收藏、相册、原生叠放和移动端同步数据均不由计算工人修改。
+
+## 计算与持久化
+
+首次全量由Windows RTX 4070 Ti运行，同一规则的后续增量由NAS运行。NAS负责唯一写入的本地SQLite目录、任务租约和分组发布，Windows只从既有SMB共享读取去EXIF预览，经私有HTTP领取任务及确认结果，不能通过SMB直接打开SQLite。
+
+运行目录使用实际SSD路径；不要仅根据`/volume2`前缀判断介质，部署前检查兼容软链。目录和租约使用WAL＋FULL同步。每小时将一致的SQLite快照异步归档到HDD备份目录，同一规则保留最近两份。HDD归档不持有目录写锁。
+
+目录范围为所有账户当前在线、未删除、可见时间线的照片封面，并按用户隔离。EXIF必须有正光圈与正快门，缺CLIP或既有预览未落盘时保留待输入；不会把截图或未覆盖项目算成模型成功。预览后补齐、旧日期回填、编辑、删除、特征重建及原生叠放封面变化都通过源版本探针发现。
+
+先按时间连续性和CLIP完全链接建立候选，组内最大跨度600秒、最低余弦相似度0.7498999403953552。之后每张追加照片须与当前组所有成员通过视觉复核。任一拒绝即关闭当前组，从下一组继续，不通过另一张照片传递相似关系。先前判断按图片内容与完整规则版本复用。
+
+视觉规则为双向都明确同意且主体/环境一致、取景相近才允许叠放。正向已经拒绝时，反向可短路省去，但持久证据明确为未执行，不伪造反向判断。uncertain、格式失败、截断或读取失败不会作为合组成功。
+
+## 固定模型
+
+- Qwen3-VL-4B-Instruct，Q4_K_M，SHA256 `66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a`。
+- Q8_0视觉投影，SHA256 `30ba2c7dd3127a4561b6cba9d13d0f711c91bdb38742e2f56d73c8cb596bd06d`。
+- llama.cpp b12631，提交`e300919cc`，文本与视觉均显式指定设备。
+- 共享同一`scene_stacks/prompt.txt`、输出Schema与策略哈希；修改规则/模型后必须使用新目录版本，不能沿用旧结果冒充新验证。
+- JPEG最长边768、quality 88；temperature 0、seed 20261122、最多200输出tokens、每图256–1024tokens。
+- 长期任务显式设置`--cache-ram 0`，限制llama.cpp临时提示缓存；SQLite中的图片对结果仍持久复用。默认8GiB提示缓存不适合NAS的小内存容器。
+
+GPU全量可用两条消费通道和8192总上下文；NAS单通道、4096上下文。NAS真实后端通过验收后才允许开启接续标志，不能从相同权重推断不同设备已验收。
+
+## 生命周期
+
+每个租约10分钟，执行与确认期间每90秒续约。过期工人被接替后，其旧nonce不能覆盖新结果。确认响应丢失时只重发同一份证据，重复提交幂等。每个任务最多三次失败，失败保留并进入需要处理的状态；三个连续推理故障会停止工人，保护尚未执行的全量任务。修复后通过受保护的`POST /retry-failed`显式恢复，不重置成功结果。
+
+全量阶段GPU领取，NAS待机且不启动模型。全量候选处理成功后，阶段持久切到增量，GPU退出，NAS开始领取新候选。缺输入计数始终单独显示；全部输入都不可用时不会宣称全量结束。源暂时不可达时保留既有目录和错误状态。
+
+`published/<owner UUID>.json`只包含经过复核的封闭分组、封面、成员及源修订，不包含模型原文或EXIF。浏览服务须按当前登录用户、资产可见性、原生叠放和源修订复核该文件，不能直接向用户提供运行目录。未完成或失败组保持展开。
+
+## 部署入口
+
+`docker/scene-stacks/Dockerfile`构建基础协调器/CPU工人，`Dockerfile.nas-vulkan`增加NAS核显依赖；便携运行时和GGUF从私有只读卷提供，禁止将私人输入、目录数据库或凭据加入镜像上下文。
+
+```sh
+# 协调器在NAS本地SSD运行；source-dsn由专用只读角色提供。
+python -m scene_stacks serve --root /state --thumbnails /data/thumbs \
+  --inventory /state/inventory.jsonl --source-dsn-file /run/secrets/source-dsn \
+  --token-file /run/secrets/worker-token --host 0.0.0.0 --backup-root /backup
+
+# NAS增量待机；按需模型argv由本机私有文件配置，需与已验收设置相同。
+python -m scene_stacks worker --role nas --root /state --broker http://127.0.0.1:18090 \
+  --token-file /run/secrets/worker-token --model-endpoint http://127.0.0.1:18189 \
+  --model-command-file /run/secrets/nas-model-command.json
+
+# 运维查询只输出状态，不打印令牌。
+python -m scene_stacks status --broker http://127.0.0.1:18090 --token-file /run/secrets/worker-token
+```
+
+Windows用`docker/scene-stacks/run-gpu.ps1`，在当前桌面会话调用，以访问已有SMB映射。其参数提供共享运行目录、独立Python环境、已校验的本地模型缓存及私有任务地址；只启动回环模型服务，退出时只清理自己创建的进程。长全量应配置无默认72小时上限、登录后可恢复的专用任务；原始工人的租约过期后可继续领取。
+
+运行目录必须限制到管理员/对应NAS账户，HTTP工人接口只向LAN映射并检查独立令牌。Immich源角色仅允许读取`asset`、`asset_exif`、`asset_file`、`stack`、`smart_search`，默认只读事务。真实图库不需要新增表或迁移。
+
+## 验证与回退
+
+Python入口在`server/scene-stacks`，采用ruff、mypy strict和pytest。`tests/run_blackbox.py`建立独立网络、三个角色容器及独立HTTP客户端，使用合成模型替身验证鉴权、持久重启、GPU/NAS阶段交接、回填旧日期、删除和缓存复用。硬件模型质量验收使用仓库外固定参考集及`validate_reference.py`，不能把替身验收当成真实模型通过。
+
+首次实现尚未接入生产时间线界面；真实全量计算完成和全部最终分组人工验收也分别记录。回退可停止独立工人及协调器并关闭外层展示，保留SQLite、输入和HDD快照；原生时间线、现有叠放与原片不依赖此服务。恢复须使用SQLite备份API生成的快照，不能只复制遗漏WAL的活跃数据库主文件。
