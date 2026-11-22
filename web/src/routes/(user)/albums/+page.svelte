@@ -25,6 +25,11 @@
     sharedAlbums: createPreloadedQuery(() => getAllAlbumsQuery({ isShared: true })),
   };
 
+  // 仅在普通相簿页排除待整理分组，保留共享查询缓存供专用入口和相簿详情使用。
+  // album 是 API 返回的相簿；严格匹配去除首尾空白后的分组名，其他分组照常显示。
+  const ownedAlbums = $derived(queries.ownedAlbums.data.filter((album) => album.customGroupName?.trim() !== '待整理'));
+  const sharedAlbums = $derived(queries.sharedAlbums.data.filter((album) => album.customGroupName?.trim() !== '待整理'));
+
   let searchQuery = $state('');
   let searchInput = $state('');
 
@@ -39,11 +44,9 @@
   let selectedAlbumIds: string[] = $state([]);
   let selectionMode = $state(false);
   let selectedAlbums = $derived(
-    [
-      ...new Map(
-        [...queries.ownedAlbums.data, ...queries.sharedAlbums.data].map((album) => [album.id, album]),
-      ).values(),
-    ].filter((album) => selectedAlbumIds.includes(album.id)),
+    [...new Map([...ownedAlbums, ...sharedAlbums].map((album) => [album.id, album])).values()].filter((album) =>
+      selectedAlbumIds.includes(album.id),
+    ),
   );
 
   const toggleAlbumSelection = (albumId: string) => {
@@ -107,8 +110,8 @@
   </div>
 
   <Albums
-    ownedAlbums={queries.ownedAlbums.data}
-    sharedAlbums={queries.sharedAlbums.data}
+    {ownedAlbums}
+    {sharedAlbums}
     userSettings={$albumViewSettings}
     allowEdit
     {selectionMode}
