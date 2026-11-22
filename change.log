@@ -5,6 +5,7 @@
 - 文件：web/src/lib/components/shared-components/{side-bar/UserSidebar.svelte,navigation-bar/AccountInfoPanel.svelte}。没有服务端、API、数据库结构、迁移、SDK、移动端或 CI 改动，保留其他 Fork 功能。
 - 验证：开发版两个组件经 Svelte 编译均无警告；同版本 v3.3.6 Web 的完整 Svelte 检查 0 错误/0 警告、TypeScript 检查、定向 ESLint/Prettier 和生产构建通过。独立真实 Immich/PG/Valkey 的 Chromium 十项场景通过，覆盖侧栏、折叠与 Escape、五个原路由、PIN 拦截、窄屏滚动、关闭回收站和匿名登录防护，页面异常为 0。未运行完整 v3.4.0 Web 检查或官方手机真机验收。
 - 发布准备：一致在线数据库备份已在独立同版本 PostgreSQL 完整恢复，115 条迁移记录摘要一致；正式库仍接受新文件，不将快照后新增资产计数变化解释成恢复丢失。生产偏好变更的临时最小权限密钥已撤销。构建、部署收据和回退配置在仓库外 Backup/immich/navigation-20261122；本条尚不表示正式镜像已切换。
+- 正式部署：北京时间 15:28:13 仅重建 home 的 immich-server，切到 immich-server:navigation-menu-20261122-r1（镜像 de90671adbe575b6f75a4bf5a6d6bc3b272f713de6db0b2ad5385955099b6131），服务 healthy，仍为 v3.3.6。真实首页和菜单脚本 SHA-256 与验收产物一致；PG、Valkey、ML 的容器身份与启动时间不变，Server 环境和实际挂载一致，迁移文件及 115 条生产迁移账本摘要不变。同版本发布源码另存 codex/release-navigation-menu-v3.3.6 的 8cff9f4d9。隔离验收容器和网络已移除；原片未改动，生产已登录浏览器和官方手机真机未人工验收。
 - 回退：恢复部署前 Server 镜像即可退回导航；按私有偏好快照恢复 memories.sidebarWeb 即可恢复入口。没有数据库结构迁移，不清理队列、原片、已入库资产或恢复资料。
 
 ## 2026-11-22：外部图库纯手动全量扫描与监听事件恢复
