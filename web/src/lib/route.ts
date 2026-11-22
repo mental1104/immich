@@ -90,6 +90,10 @@ export const Route = {
     `/people/${id}` + asQueryString(params),
 
   // photos
+  /** 无参数；返回独立随机照片入口。 */
+  randomPhotos: () => '/random',
+  /** 无参数；返回只展示视频的时间轴入口。 */
+  videos: () => '/videos',
   photos: (params?: { at?: string }) => '/photos' + asQueryString(params),
   viewAsset: ({ id }: { id: string }) => `/photos/${id}`,
   /** @param assetId 可选原片 UUID。@returns 工作台索引或该照片的后期历史。 */

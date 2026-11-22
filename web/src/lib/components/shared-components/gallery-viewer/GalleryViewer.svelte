@@ -33,6 +33,7 @@
     TIMELINE: { INTERSECTION_EXPAND_TOP, INTERSECTION_EXPAND_BOTTOM },
   } = TUNABLES;
 
+  /** 媒体网格与查看器的输入；默认使用整页滚动，内部容器可显式提供 scrollTop。 */
   type Props = {
     assets: AssetResponseDto[];
     viewerAssets?: AssetResponseDto[];
@@ -42,6 +43,8 @@
     assetInteraction: AssetMultiSelectManager;
     showArchiveIcon?: boolean;
     viewport: Viewport;
+    /** 内部滚动容器的偏移；未提供时沿用整页滚动位置。 */
+    scrollTop?: number;
     onEndReached?: (() => void) | undefined;
     showAssetName?: boolean;
     onReload?: (() => void) | undefined;
@@ -60,6 +63,7 @@
     assetInteraction,
     showArchiveIcon = false,
     viewport,
+    scrollTop,
     onEndReached = undefined,
     showAssetName = false,
     onReload = undefined,
@@ -91,10 +95,10 @@
   };
 
   let lastAssetMouseEvent: TimelineAsset | null = $state(null);
-  let scrollTop = $state(0);
+  let documentScrollTop = $state(0);
 
   let slidingWindow = $derived.by(() => {
-    const top = (scrollTop || 0) - slidingWindowOffset - INTERSECTION_EXPAND_TOP;
+    const top = (scrollTop ?? documentScrollTop) - slidingWindowOffset - INTERSECTION_EXPAND_TOP;
     const bottom = top + viewport.height + slidingWindowOffset + INTERSECTION_EXPAND_BOTTOM;
     return {
       top,
@@ -107,7 +111,8 @@
     assets[index] = asset;
   };
 
-  const updateSlidingWindow = () => (scrollTop = document.scrollingElement?.scrollTop ?? 0);
+  /** 无参数；同步整页滚动位置，仅供未显式指定内部偏移的调用方使用。 */
+  const updateSlidingWindow = () => (documentScrollTop = document.scrollingElement?.scrollTop ?? 0);
 
   const debouncedOnEndReached = debounce(() => onEndReached?.(), 750, { maxWait: 100, leading: true });
 

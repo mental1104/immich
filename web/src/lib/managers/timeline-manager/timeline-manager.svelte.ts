@@ -28,6 +28,7 @@ import {
 import {
   AssetOrder,
   AssetOrderBy,
+  AssetTypeEnum,
   AssetVisibility,
   getAssetInfo,
   getTimeBuckets,
@@ -661,8 +662,12 @@ export class TimelineManager extends VirtualScrollManager {
     return retrieveRangeUtil(this, start, end);
   }
 
+  /** @param asset 待插入或更新的资产。@returns 是否不属于当前时间轴的筛选范围。 */
   isExcluded(asset: TimelineAsset) {
     return (
+      // 查询和实时事件必须使用同一媒体范围，避免新上传的视频混入照片页。
+      (this.#options.assetType === AssetTypeEnum.Image && !asset.isImage) ||
+      (this.#options.assetType === AssetTypeEnum.Video && !asset.isVideo) ||
       isMismatched(this.#options.visibility, asset.visibility) ||
       isMismatched(this.#options.isFavorite, asset.isFavorite) ||
       isMismatched(this.#options.isTrashed, asset.isTrashed) ||

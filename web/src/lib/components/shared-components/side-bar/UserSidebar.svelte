@@ -17,16 +17,18 @@
     mdiHeart,
     mdiHeartOutline,
     mdiImageAlbum,
+    mdiImageEditOutline,
     mdiImageMultiple,
     mdiImageMultipleOutline,
     mdiInboxArrowDownOutline,
     mdiLink,
     mdiMagnify,
-    mdiImageEditOutline,
     mdiMap,
     mdiMapOutline,
+    mdiShuffleVariant,
     mdiTagMultipleOutline,
     mdiUploadOutline,
+    mdiVideoOutline,
   } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
@@ -37,6 +39,8 @@
 
 <Sidebar ariaLabel={$t('primary')}>
   <NavbarItem title={$t('photos')} href={Route.photos()} icon={mdiImageMultipleOutline} activeIcon={mdiImageMultiple} />
+  <NavbarItem title={$t('random_photos')} href={Route.randomPhotos()} icon={mdiShuffleVariant} />
+  <NavbarItem title={$t('videos')} href={Route.videos()} icon={mdiVideoOutline} />
   <NavbarItem title={$t('photo_edit_advice')} href={Route.photoEditAdvice()} icon={mdiImageEditOutline} />
 
   <NavbarItem title={$t('explore')} href={Route.explore()} icon={mdiMagnify} />

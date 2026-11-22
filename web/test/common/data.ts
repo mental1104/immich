@@ -35,7 +35,9 @@ import {
   type UserPreferencesResponseDto,
 } from '@immich/sdk';
 
+/** 隔离客户端测试的时间轴筛选；各字段对应公开时间轴查询参数。 */
 export type TimelineFilter = {
+  assetType?: AssetTypeEnum;
   albumId?: string;
   isFavorite?: boolean;
   isTrashed?: boolean;
@@ -159,6 +161,7 @@ export class MockData {
     };
   }
 
+  /** @param filter 公开查询的筛选条件，不修改源数据。@returns 满足条件并按时间排序的资产副本列表。 */
   timelineAssets(filter: TimelineFilter = {}) {
     const members = filter.albumId === undefined ? undefined : (this.albumAssets.get(filter.albumId) ?? new Set());
     const isTrashed = filter.isTrashed ?? false;
@@ -167,6 +170,7 @@ export class MockData {
     return [...this.assets.values()]
       .filter(
         (asset) =>
+          (filter.assetType === undefined || asset.type === filter.assetType) &&
           (members === undefined || members.has(asset.id)) &&
           (filter.visibility === undefined
             ? !hiddenVisibilities.has(asset.visibility)
