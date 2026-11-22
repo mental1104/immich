@@ -39,6 +39,34 @@ describe(LibraryService.name, () => {
   });
 
   describe('onConfigInit', () => {
+    /** 手动模式下，即使数据库仍启用定时扫描和旧监听，启动及配置刷新也不能入队全库扫描。 */
+    it('keeps full scans manual across startup and configuration updates', async () => {
+      const root = await mkdtemp(join(tmpdir(), 'immich-manual-watch-'));
+      vi.stubEnv('IMMICH_FORK_LIBRARY_WATCH_ROOTS', 'all');
+      vi.stubEnv('IMMICH_FORK_LIBRARY_SCAN_MODE', 'manual');
+      ({ sut, mocks } = newTestService(LibraryService));
+      mocks.database.tryLock.mockResolvedValue(true);
+      mocks.cron.create.mockResolvedValue();
+      mocks.cron.update.mockResolvedValue();
+      mocks.library.getAll.mockResolvedValue([factory.library({ importPaths: [root] })]);
+      try {
+        await sut.onConfigInit({ newConfig: systemConfigStub.libraryScanAndWatch as SystemConfig });
+        expect(mocks.cron.create).toHaveBeenCalledWith(expect.objectContaining({ start: false }));
+        expect(mocks.job.queue).not.toHaveBeenCalled();
+        expect(mocks.storage.watch).not.toHaveBeenCalled();
+        await sut.onConfigUpdate({
+          oldConfig: defaults,
+          newConfig: systemConfigStub.libraryScanAndWatch as SystemConfig,
+        });
+        expect(mocks.cron.update).toHaveBeenCalledWith(expect.objectContaining({ start: false }));
+        expect(mocks.job.queue).not.toHaveBeenCalled();
+      } finally {
+        await sut.onShutdown();
+        vi.unstubAllEnvs();
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
     /** 全部根配置必须同时注册不同图库，并在停机时统一释放监听。 */
     it('starts directory watching for every configured external library root', async () => {
       const temporary = await mkdtemp(join(tmpdir(), 'immich-all-roots-'));

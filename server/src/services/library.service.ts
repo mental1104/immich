@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Insertable } from 'kysely';
 import { R_OK } from 'node:constants';
+import { createHash } from 'node:crypto';
 import { Stats } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import path, { isAbsolute, parse } from 'node:path';
@@ -59,6 +60,8 @@ export class LibraryService extends BaseService {
   private watchers: Record<string, () => Promise<void>> = {};
   private readonly directoryWatchRoot = process.env.IMMICH_FORK_LIBRARY_WATCH_ROOT;
   private readonly directoryWatchSetting = process.env.IMMICH_FORK_LIBRARY_WATCH_ROOTS;
+  private readonly manualScanOnly = process.env.IMMICH_FORK_LIBRARY_SCAN_MODE === 'manual';
+  private readonly directoryWatchState = process.env.IMMICH_FORK_LIBRARY_WATCH_STATE_DIR;
   private directoryWatchRoots: string[] = [];
   private directoryWatchRevision = 0;
 
@@ -72,15 +75,20 @@ export class LibraryService extends BaseService {
     // This ensures that library watching only occurs in one microservice
     this.lock = await this.databaseRepository.tryLock(DatabaseLock.Library);
 
-    this.watchLibraries = this.lock && watch.enabled;
+    this.watchLibraries = this.lock && watch.enabled && !this.manualScanOnly;
 
     if (this.lock) {
       this.cronRepository.create({
         name: CronJob.LibraryScan,
         expression: scan.cronExpression,
         onTick: () => handlePromiseError(this.jobRepository.queue({ name: JobName.LibraryScanQueueAll }), this.logger),
-        start: scan.enabled,
+        start: scan.enabled && !this.manualScanOnly,
       });
+    }
+
+    if (this.lock && this.manualScanOnly) {
+      this.logger.log('Manual library scanning enabled; startup and scheduled scans are disabled');
+      this.logger.warn('Changes made while directory watching is offline require a manual library scan');
     }
 
     if (this.watchLibraries) {
@@ -129,6 +137,13 @@ export class LibraryService extends BaseService {
               },
             }),
           (error) => this.logger.error(`Library directory watch failed: ${error}`),
+          undefined,
+          {
+            manualScanOnly: this.manualScanOnly,
+            journalPath: this.directoryWatchState
+              ? path.join(this.directoryWatchState, `${createHash('sha256').update(root).digest('hex')}.json`)
+              : undefined,
+          },
         );
         if (this.watchLibraries || revision !== this.directoryWatchRevision) {
           watched.close();
@@ -139,11 +154,13 @@ export class LibraryService extends BaseService {
           return Promise.resolve();
         };
         this.logger.log(`Library directory watch ready: ${watched.count} directories`);
-        // 先开始接收事件，再补查停机期间的变化，避免在初次扫描和监听之间遗漏文件。
-        await this.jobRepository.queue({
-          name: JobName.LibrarySyncFiles,
-          data: { libraryId: library.id, paths: [], directoryWatch: { root, directories: [root] } },
-        });
+        // 手动模式只恢复已观察事件，不把启动或重建监听隐式升级为全库扫描。
+        if (!this.manualScanOnly) {
+          await this.jobRepository.queue({
+            name: JobName.LibrarySyncFiles,
+            data: { libraryId: library.id, paths: [], directoryWatch: { root, directories: [root] } },
+          });
+        }
       } catch (error) {
         this.logger.error(`Library directory watch failed to start: ${error}`);
       }
@@ -160,15 +177,16 @@ export class LibraryService extends BaseService {
     this.cronRepository.update({
       name: CronJob.LibraryScan,
       expression: library.scan.cronExpression,
-      start: library.scan.enabled,
+      start: library.scan.enabled && !this.manualScanOnly,
     });
 
-    if (library.watch.enabled === this.watchLibraries) {
+    const watchLibraries = library.watch.enabled && !this.manualScanOnly;
+    if (watchLibraries === this.watchLibraries) {
       return;
     }
 
     // Watch configuration changed, update accordingly
-    this.watchLibraries = library.watch.enabled;
+    this.watchLibraries = watchLibraries;
     this.directoryWatchRevision++;
     await this.unwatchAll();
     await (this.watchLibraries ? this.watchAll() : this.refreshDirectoryWatch());
@@ -412,6 +430,11 @@ export class LibraryService extends BaseService {
     }
 
     for (const directory of new Set(directories)) {
+      if (this.manualScanOnly && directory === root) {
+        // 升级前尚在队列中的启动补查也受手动策略约束；不清空或重写其它任务。
+        this.logger.warn('Automatic root reconciliation skipped; use a manual library scan');
+        continue;
+      }
       if (!this.isDirectoryWatchPath(library, root, directory)) {
         continue;
       }
