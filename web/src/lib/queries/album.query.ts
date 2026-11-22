@@ -55,6 +55,14 @@ export const getAllAlbumsQuery = (filter: AlbumsFilter = {}) =>
     select: (albums) => albums.filter(matchesFilter(filter)),
   });
 
+/** 无参数；返回本人拥有且自定义分组严格为“待整理”的相簿查询，沿用相簿缓存和权限。 */
+export const getPendingAlbumsQuery = () =>
+  queryOptions({
+    ...getAllAlbumsQuery(),
+    select: (albums) =>
+      albums.filter((album) => isOwned(album) && album.customGroupName?.trim() === '待整理'),
+  });
+
 export const getRecentAlbumsQuery = () =>
   queryOptions({
     ...getAllAlbumsQuery(),
