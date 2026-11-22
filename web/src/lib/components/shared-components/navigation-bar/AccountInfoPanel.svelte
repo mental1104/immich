@@ -3,10 +3,23 @@
   import { authManager } from '#lib/managers/auth-manager.svelte.ts';
   import AvatarEditModal from '#lib/modals/AvatarEditModal.svelte';
   import HelpAndFeedbackModal from '#lib/modals/HelpAndFeedbackModal.svelte';
+  import { getUserConfigQuery } from '#lib/queries/config-user.query.ts';
   import { getAboutInfoQuery } from '#lib/queries/server-info.query.ts';
   import { Route } from '#lib/route.ts';
   import { Button, Icon, IconButton, modalManager } from '@immich/ui';
-  import { mdiCog, mdiLogout, mdiPencil, mdiWrench } from '@mdi/js';
+  import {
+    mdiAccountMultipleOutline,
+    mdiArchiveArrowDownOutline,
+    mdiChevronDown,
+    mdiChevronUp,
+    mdiCog,
+    mdiLockOutline,
+    mdiLogout,
+    mdiPencil,
+    mdiToolboxOutline,
+    mdiTrashCanOutline,
+    mdiWrench,
+  } from '@mdi/js';
   import { createQuery } from '@tanstack/svelte-query';
   import { t } from 'svelte-i18n';
   import { fade } from 'svelte/transition';
@@ -21,13 +34,18 @@
 
   const query = createQuery(getAboutInfoQuery);
   const info = $derived(query.data);
+  const configQuery = createQuery(getUserConfigQuery);
+  let showMore = $state(false);
+
+  /** 展开或收起低频入口；不修改功能开关、权限或当前路由。@returns 更新后的展开状态。 */
+  const toggleMore = () => (showMore = !showMore);
 </script>
 
 <div
   in:fade={{ duration: 100 }}
   out:fade={{ duration: 100 }}
   id="account-info-panel"
-  class="absolute inset-e-6 top-19 z-1 w-[min(360px,100vw-50px)] rounded-3xl bg-gray-200 shadow-lg dark:border dark:border-immich-dark-gray dark:bg-immich-dark-gray"
+  class="absolute inset-e-6 top-19 z-1 max-h-[calc(100dvh-6rem)] w-[min(360px,100vw-50px)] overflow-y-auto rounded-3xl bg-gray-200 shadow-lg dark:border dark:border-immich-dark-gray dark:bg-immich-dark-gray"
   use:focusTrap
 >
   <div
@@ -87,6 +105,69 @@
             {$t('administration')}
           </div>
         </Button>
+      {/if}
+    </div>
+
+    <!-- 低频导航只在用户主动展开后显示；仍使用原路由和锁定文件夹的 PIN 校验。 -->
+    <div class="w-full">
+      <Button
+        onclick={toggleMore}
+        aria-expanded={showMore}
+        aria-controls="account-more-navigation"
+        leadingIcon={showMore ? mdiChevronUp : mdiChevronDown}
+        size="small"
+        color="secondary"
+        variant="ghost"
+        shape="round"
+        class="w-full"
+      >
+        {$t('more')}
+      </Button>
+      {#if showMore}
+        <nav id="account-more-navigation" aria-label={$t('more')} class="mt-2 flex flex-col gap-1">
+          <Button
+            href={Route.sharing()}
+            onclick={onClose}
+            leadingIcon={mdiAccountMultipleOutline}
+            variant="ghost"
+            color="secondary"
+            size="small">{$t('sharing')}</Button
+          >
+          <Button
+            href={Route.utilities()}
+            onclick={onClose}
+            leadingIcon={mdiToolboxOutline}
+            variant="ghost"
+            color="secondary"
+            size="small">{$t('utilities')}</Button
+          >
+          <Button
+            href={Route.archive()}
+            onclick={onClose}
+            leadingIcon={mdiArchiveArrowDownOutline}
+            variant="ghost"
+            color="secondary"
+            size="small">{$t('archive')}</Button
+          >
+          <Button
+            href={Route.locked()}
+            onclick={onClose}
+            leadingIcon={mdiLockOutline}
+            variant="ghost"
+            color="secondary"
+            size="small">{$t('locked_folder')}</Button
+          >
+          {#if configQuery.data?.trash.enabled}
+            <Button
+              href={Route.trash()}
+              onclick={onClose}
+              leadingIcon={mdiTrashCanOutline}
+              variant="ghost"
+              color="secondary"
+              size="small">{$t('trash')}</Button
+            >
+          {/if}
+        </nav>
       {/if}
     </div>
   </div>
