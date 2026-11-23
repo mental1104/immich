@@ -58,6 +58,8 @@ Windows用`docker/scene-stacks/bootstrap-gpu.ps1`安装独立环境、校验发�
 
 ## 验证与回退
 
+领取优先级按拍摄日期倒序，取最新可执行候选；两条GPU通道和组内依赖仍会交错。调度由`candidate_dispatch`部分索引驱动pair主键连接，避免从全部排队图片对重复扫描候选。旧的FIFO领取只能保证生成次序，不能保证最近的完整组优先完成。新增索引仅在独立证据库，不影响Immich迁移、模型规则和已有证据键。
+
 Python入口在`server/scene-stacks`，采用ruff、mypy strict和pytest。`tests/run_blackbox.py`建立独立网络、三个角色容器及独立HTTP客户端，使用合成模型替身验证鉴权、持久重启、GPU/NAS阶段交接、回填旧日期、删除和缓存复用。硬件模型质量验收使用仓库外固定参考集及`validate_reference.py`，不能把替身验收当成真实模型通过。
 
 NAS的Intel Iris Xe后端已跑完固定76对诊断集：19对已知负例均拒绝、37对核心正例全部保留、20对扩展正例保留19对。单对中位耗时约30秒，正向拒绝约14秒；限制提示缓存后整轮没有内存退出。这是选定诊断集，不能当成全库准确率或所有最终分组人工验收。

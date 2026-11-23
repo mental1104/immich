@@ -181,6 +181,21 @@ class TestSharedInputBoundary:
 class TestDurableSceneCatalog:
     """验证已确认结果经重启仍有效，GPU完成后NAS接续且重复ACK不重算。"""
 
+    def test_newest_ready_group_precedes_older_queued_work(self, lab: Lab) -> None:
+        """先排旧组再加入新组，验证领取遵循拍摄倒序而非pair插入次序，租约中的组不会重复领取。"""
+        older = (lab.asset(1), lab.asset(2, seconds=1))
+        lab.import_entries(older)
+        lab.catalog.advance()
+        old_key = lab.catalog.db.execute("SELECT key FROM pair").fetchone()[0]
+        newer = (lab.asset(3, seconds=3600), lab.asset(4, seconds=3601))
+        lab.import_entries((*older, *newer))
+        lab.catalog.advance()
+        first = lab.catalog.claim("gpu", "newest-first")
+        assert first is not None and first.key != old_key
+        second = lab.catalog.claim("gpu", "older-ready")
+        assert second is not None and second.key == old_key
+        assert lab.catalog.claim("gpu", "no-duplicate") is None
+
     def test_restart_ack_and_nas_handoff(self, lab: Lab) -> None:
         """全量两张合组后重启确认，再新增第三张由NAS领到任务，原已确认图片对直接复用。"""
         a, b = lab.asset(1), lab.asset(2, seconds=1)

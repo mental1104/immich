@@ -61,6 +61,8 @@ class Catalog:
                 active INTEGER NOT NULL DEFAULT 1,done INTEGER NOT NULL DEFAULT 0,
                 failed INTEGER NOT NULL DEFAULT 0,error TEXT,wait_key TEXT,priority TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS candidate_pending ON candidate(active,done,priority DESC);
+            CREATE INDEX IF NOT EXISTS candidate_dispatch
+                ON candidate(active,done,priority DESC,key) WHERE wait_key IS NOT NULL;
             CREATE TABLE IF NOT EXISTS pair(
                 key TEXT PRIMARY KEY,images TEXT NOT NULL,image_shas TEXT NOT NULL,
                 state TEXT NOT NULL DEFAULT 'queued',attempts INTEGER NOT NULL DEFAULT 0,
@@ -414,9 +416,12 @@ class Catalog:
                 or (role == "nas" and phase == "incremental" and self._meta("nas_validated") == "true")
             ):
                 return None
-            row = self.db.execute("""SELECT p.* FROM pair p WHERE p.state='queued' AND EXISTS(
-                SELECT 1 FROM candidate c WHERE c.active=1 AND c.done=0 AND c.wait_key=p.key)
-                ORDER BY p.rowid LIMIT 1""").fetchone()
+            # 由按日期排序的候选驱动主键查对，不从整批queued对做相关扫描再排序。
+            # CROSS JOIN固定外层，避免规划器重排后重复扫描全部活动候选。
+            row = self.db.execute("""SELECT p.* FROM candidate c INDEXED BY candidate_dispatch
+                CROSS JOIN pair p ON p.key=c.wait_key
+                WHERE c.active=1 AND c.done=0 AND c.wait_key IS NOT NULL AND p.state='queued'
+                ORDER BY c.priority DESC,c.key LIMIT 1""").fetchone()
             if row is None:
                 return None
             token = secrets.token_hex(24)
