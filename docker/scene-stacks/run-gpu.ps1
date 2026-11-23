@@ -2,6 +2,7 @@
 在当前桌面会话使用既有SMB目录运行首次GPU全量；输入/结果不复制到本地。
 StateRoot为NAS共享目录，Python为本任务虚拟环境，ModelCache为已校验的便携程序和GGUF缓存。
 服务只监听回环，退出时仅停止本次创建的进程；任务状态和断点以NAS确认结果为准。
+Concurrency为同时消费和推理的通道数，每个模型槽位固定4096上下文；只调整总预算，不缩小单次图片判断空间。
 #>
 param(
     [Parameter(Mandatory=$true)][string]$StateRoot,
@@ -10,7 +11,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Broker,
     [Parameter(Mandatory=$true)][string]$LogRoot,
     [int]$Port=18092,
-    [int]$Concurrency=2
+    [ValidateRange(1,4)][int]$Concurrency=4
 )
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
@@ -38,9 +39,11 @@ if($devices -notmatch 'Vulkan0:.*RTX 4070 Ti') { throw 'Required RTX 4070 Ti is 
 $stamp=Get-Date -Format yyyyMMdd-HHmmss
 $version | Set-Content "$LogRoot/runtime-$stamp.log"
 $devices | Add-Content "$LogRoot/runtime-$stamp.log"
+# 总上下文随槽位等比例增加，避免并发提高后每槽上下文被8192固定总量分薄。
+$contextSize=4096*$Concurrency
 $serverArgs=@('--model',$model,'--mmproj',$projector,'--host','127.0.0.1','--port',[string]$Port,
     '--device','Vulkan0','--mmproj-device','Vulkan0','--gpu-layers','99','--mmproj-offload',
-    '--ctx-size','8192','--parallel',[string]$Concurrency,'--threads','2','--threads-batch','2',
+    '--ctx-size',[string]$contextSize,'--parallel',[string]$Concurrency,'--threads','2','--threads-batch','2',
     '--image-min-tokens','256','--image-max-tokens','1024','--cache-ram','0','--log-verbosity','4')
 $process=$null
 $worker=$null
