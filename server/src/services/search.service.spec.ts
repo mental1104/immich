@@ -17,9 +17,11 @@ describe(SearchService.name, () => {
   let sut: SearchService;
   let mocks: ServiceMocks;
 
+  /** 默认没有匹配相簿；让普通智能搜索继续覆盖模型分支，专门的相簿用例可单独覆盖返回值。 */
   beforeEach(() => {
     ({ sut, mocks } = newTestService(SearchService));
     mocks.partner.getAll.mockResolvedValue([]);
+    mocks.album.searchIdsByText.mockResolvedValue([]);
   });
 
   it('should work', () => {

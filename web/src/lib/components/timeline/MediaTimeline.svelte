@@ -25,8 +25,8 @@
   import { AssetTypeEnum, AssetVisibility } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider } from '@immich/ui';
   import { mdiDotsVertical } from '@mdi/js';
-  import { t } from 'svelte-i18n';
   import { untrack } from 'svelte';
+  import { t } from 'svelte-i18n';
 
   /** assetType 限定当前媒体入口；title 为可选的本地化页面标题。 */
   interface Props {
@@ -39,12 +39,12 @@
   // 首次查询即使用保存的显示方式，避免onMount触发两轮并行初始化。
   let sceneStacks = $state(untrack(() => assetType === AssetTypeEnum.Image && readScenePreference()));
 
-  /** @returns 浏览器保存的外层显示偏好；服务端或禁止存储时使用普通时间线。 */
+  /** @returns 外层显示默认开启；仅显式保存false时关闭，存储不可用时仍使用默认值。 */
   function readScenePreference(): boolean {
     try {
-      return typeof localStorage !== 'undefined' && localStorage.getItem('immich.scene-stacks') === 'true';
+      return typeof localStorage === 'undefined' || localStorage.getItem('immich.scene-stacks') !== 'false';
     } catch {
-      return false;
+      return true;
     }
   }
 

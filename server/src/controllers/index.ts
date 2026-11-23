@@ -21,6 +21,7 @@ import { JobController } from 'src/controllers/job.controller.js';
 import { LibraryController } from 'src/controllers/library.controller.js';
 import { MaintenanceController } from 'src/controllers/maintenance.controller.js';
 import { MapController } from 'src/controllers/map.controller.js';
+import { MediaAiReviewController } from 'src/controllers/media-ai-review.controller.js';
 import { MemoryController } from 'src/controllers/memory.controller.js';
 import { NotificationAdminController } from 'src/controllers/notification-admin.controller.js';
 import { NotificationController } from 'src/controllers/notification.controller.js';
@@ -29,11 +30,11 @@ import { PartnerController } from 'src/controllers/partner.controller.js';
 import { PasskeyController } from 'src/controllers/passkey.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PhotoCopilotController } from 'src/controllers/photo-copilot.controller.js';
-import { SceneStackController } from 'src/controllers/scene-stack.controller.js';
 import { PhotoEditAdviceController } from 'src/controllers/photo-edit-advice.controller.js';
 import { PipelineController } from 'src/controllers/pipeline.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
 import { QueueController } from 'src/controllers/queue.controller.js';
+import { SceneStackController } from 'src/controllers/scene-stack.controller.js';
 import { SearchController } from 'src/controllers/search.controller.js';
 import { ServerController } from 'src/controllers/server.controller.js';
 import { SessionController } from 'src/controllers/session.controller.js';
@@ -75,6 +76,7 @@ export const controllers = [
   LibraryController,
   MaintenanceController,
   MapController,
+  MediaAiReviewController,
   MemoryController,
   NotificationController,
   NotificationAdminController,

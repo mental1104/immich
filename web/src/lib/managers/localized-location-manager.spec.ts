@@ -3,14 +3,16 @@ import { localizedLocationManager } from './localized-location-manager.svelte';
 
 const language = vi.hoisted(() => ({ value: 'zh-CN', read: vi.fn() }));
 
-vi.mock('svelte/store', async (original) => ({
-  ...(await original<typeof import('svelte/store')>()),
-  fromStore: () => ({
-    get current() {
+// 在应用的语言存储边界计数，保留真实fromStore，避免浏览器预打包绕过对Svelte内置模块的替身。
+vi.mock('#lib/stores/preferences.store.ts', () => ({
+  lang: {
+    /** @param run 接收当前语言的订阅者。@returns 无外部资源的取消订阅函数。 */
+    subscribe(run: (value: string) => void) {
       language.read();
-      return language.value;
+      run(language.value);
+      return () => {};
     },
-  }),
+  },
 }));
 
 vi.mock('@immich/sdk', async (original) => ({
@@ -34,9 +36,11 @@ describe('batch location formatting', () => {
       },
     ]);
     await localizedLocationManager.load();
+    expect(getForkLocalizedNames).toHaveBeenCalledOnce();
     language.read.mockClear();
 
     const format = localizedLocationManager.formatter();
+    expect(language.read).toHaveBeenCalledTimes(1);
     for (let i = 0; i < 75_000; i++) {
       expect(format('city', 'Chengdu', { country: 'China', state: 'Sichuan' })).toBe('成都');
     }
