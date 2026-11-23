@@ -40,6 +40,8 @@
     empty?: Snippet;
     directory?: AlbumCategoryState;
     categoryId?: string | null;
+    /** 当前原分组名；null表示全部，空字符串表示未分组。 */
+    groupName?: string | null;
     compact?: boolean;
     coversOnly?: boolean;
   }
@@ -61,6 +63,7 @@
     empty,
     directory,
     categoryId = null,
+    groupName = null,
     compact = false,
     coversOnly = false,
   }: Props = $props();
@@ -176,8 +179,13 @@
   function categoryFor(groupName: string | null | undefined) {
     return directory?.groups.find((group) => group.groupName === (groupName?.trim() || ''))?.categoryId ?? '';
   }
+  // 大组和左栏分组同时限定结果，后续文字搜索和全选均沿用这一范围。
   const categoryAlbums = $derived(
-    categoryId === null ? albums : albums.filter((album) => categoryFor(album.customGroupName) === categoryId),
+    albums.filter(
+      (album) =>
+        (categoryId === null || categoryFor(album.customGroupName) === categoryId) &&
+        (groupName === null || (album.customGroupName?.trim() || '') === groupName),
+    ),
   );
   let filteredAlbums = $derived(
     normalizedSearchQuery
@@ -228,7 +236,7 @@
   };
 </script>
 
-{#if albums.length > 0}
+{#if filteredAlbums.length > 0}
   {#if userSettings.view === AlbumViewMode.Cover}
     <!-- Album Cards -->
     {#if albumGroupOption === AlbumGroupBy.None}
@@ -263,6 +271,8 @@
     <!-- Album Table -->
     <AlbumsTable {groupedAlbums} {albumGroupOption} {selectionMode} {selectedAlbumIds} {onAlbumSelect} />
   {/if}
+{:else if albums.length > 0}
+  <p class="py-16 text-center text-immich-fg/70 dark:text-immich-dark-fg/70">{$t('no_albums_found')}</p>
 {:else}
   <!-- Empty Message -->
   {@render empty?.()}

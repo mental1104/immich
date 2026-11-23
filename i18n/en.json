@@ -2677,5 +2677,8 @@
   "search_preset_empty": "Select search conditions first.",
   "search_presets_custom": "My registered conditions",
   "search_presets_builtin": "Built-in registered conditions",
-  "search_preset_apply": "Use conditions"
+  "search_preset_apply": "Use conditions",
+  "album_management_toolbar": "Album management toolbar",
+  "album_group_navigation": "Album group navigation",
+  "album_all_groups": "All groups"
 }

@@ -2653,5 +2653,8 @@
   "search_preset_empty": "请先在搜索栏选择条件。",
   "search_presets_custom": "我的登记条件",
   "search_presets_builtin": "内置登记条件",
-  "search_preset_apply": "使用条件"
+  "search_preset_apply": "使用条件",
+  "album_management_toolbar": "相簿管理工具栏",
+  "album_group_navigation": "相簿分组导航",
+  "album_all_groups": "全部分组"
 }

@@ -41,6 +41,36 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+/** 顶部管理栏和左侧分组同时可用；切换大组会重置分组，过滤后的全选不跨组。 */
+test('navigates groups inside categories with a visible management toolbar', async ({ data, render, settle, app }) => {
+  directory = {
+    categories: [{ id: 'travel', name: 'Travel' }],
+    groups: [{ groupName: 'Region', categoryId: 'travel' }],
+  };
+  data.addAlbums(factory.album({ albumName: 'Mountains', customGroupName: 'Region' }));
+  data.addAlbums(factory.album({ albumName: 'Game', customGroupName: 'Games' }));
+  data.addAlbums(factory.album({ albumName: 'Other', customGroupName: '' }));
+  await render(Page, load);
+  await settle();
+  const toolbar = page.getByRole('group', { name: 'album_management_toolbar' });
+  await expect.element(toolbar.getByPlaceholder('search_albums_and_groups')).toBeVisible();
+  await expect.element(toolbar.getByRole('button', { name: 'create_album', exact: true })).toBeVisible();
+  const navigation = page.getByRole('navigation', { name: 'album_group_navigation' });
+  await navigation.getByRole('button', { name: /Games\s*1/ }).click();
+  await expect.element(app.albums.card('Game')).toBeVisible();
+  await expect.element(app.albums.card('Mountains')).not.toBeInTheDocument();
+  await toolbar.getByRole('button', { name: 'select_albums', exact: true }).click();
+  await toolbar.getByRole('button', { name: 'select_all_filtered_albums', exact: true }).click();
+  await expect.element(page.getByRole('checkbox')).toBeChecked();
+  await page.getByRole('button', { name: 'Travel', exact: true }).click();
+  await expect
+    .element(navigation.getByRole('button', { name: /album_all_groups\s*1/ }))
+    .toHaveAttribute('aria-pressed', 'true');
+  await expect.element(app.albums.card('Mountains')).toBeVisible();
+  await expect.element(app.albums.card('Game')).not.toBeInTheDocument();
+  await expect.element(page.getByRole('checkbox')).not.toBeChecked();
+});
+
 /** 切换大组只限定当前列表，“全部”始终跨大组；名称搜索含大组词且不需要Enter。 */
 test('filters albums by optional category and searches category names immediately', async ({
   data,
