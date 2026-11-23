@@ -9,7 +9,7 @@
   import { createPreloadedQuery, queryClient } from '#lib/queries/client.ts';
   import { Route } from '#lib/route.ts';
   import { isAlbumOwner } from '#lib/services/album.service.ts';
-  import { AlbumFilter, albumViewSettings } from '#lib/stores/preferences.store.ts';
+  import { AlbumFilter, AlbumGroupBy, albumViewSettings } from '#lib/stores/preferences.store.ts';
   import { createAlbumAndRedirect, findFilterOption } from '#lib/utils/album-utils.ts';
   import { Button, modalManager } from '@immich/ui';
   import { createQuery } from '@tanstack/svelte-query';
@@ -93,7 +93,8 @@
   const onReset = () => {
     searchInput = '';
   };
-  let albumGroups: string[] = $state([]);
+  // 分组由左栏统一导航；仅在本页平铺结果，不改写已有偏好或其他页面的折叠状态。
+  const workspaceSettings = $derived({ ...$albumViewSettings, groupBy: AlbumGroupBy.None });
   let selectableAlbumIds: string[] = $state([]);
   let selectedAlbumIds: string[] = $state([]);
   let selectionMode = $state(false);
@@ -166,7 +167,6 @@
       class="flex flex-wrap items-center gap-2 border-b p-3"
     >
       <AlbumsControls
-        {albumGroups}
         {selectableAlbumIds}
         {selectedAlbumIds}
         {selectedAlbums}
@@ -233,14 +233,13 @@
         <Albums
           {ownedAlbums}
           {sharedAlbums}
-          userSettings={$albumViewSettings}
+          userSettings={workspaceSettings}
           allowEdit
           {selectionMode}
           {selectedAlbumIds}
           onAlbumSelect={toggleAlbumSelection}
           bind:selectableAlbumIds
           {searchQuery}
-          bind:albumGroupIds={albumGroups}
           directory={directory.data}
           {categoryId}
           {groupName}

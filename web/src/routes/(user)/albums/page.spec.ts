@@ -1,9 +1,10 @@
 import type { AlbumCategoryState } from '#lib/queries/album-category.query.ts';
 import { Route } from '#lib/route.ts';
-import { albumViewSettings } from '#lib/stores/preferences.store.ts';
+import { AlbumGroupBy, AlbumViewMode, albumViewSettings } from '#lib/stores/preferences.store.ts';
 import { sidebarStore } from '#lib/stores/sidebar.svelte.ts';
 import { factory } from '#test/unit/factories.ts';
 import { test } from '#test/unit/fixtures.ts';
+import { get } from 'svelte/store';
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import Page from './+page.svelte';
@@ -16,7 +17,13 @@ let commands: { method: string; body: unknown }[];
 beforeEach(() => {
   directory = { categories: [], groups: [] };
   commands = [];
-  albumViewSettings.update((settings) => ({ ...settings, coversOnly: false }));
+  albumViewSettings.update((settings) => ({
+    ...settings,
+    coversOnly: false,
+    groupBy: AlbumGroupBy.Year,
+    view: AlbumViewMode.Cover,
+    collapsedGroups: {},
+  }));
   const original = fetch;
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const request = new Request(input, init);
@@ -40,6 +47,41 @@ afterEach(async () => {
   await userEvent.keyboard('{Escape}');
   vi.restoreAllMocks();
 });
+
+/** 旧的分组/收起偏好不能隐藏新版结果；封面和列表都只由左栏限定范围，不改写旧偏好。 */
+for (const [groupBy, view] of [
+  [AlbumGroupBy.Custom, AlbumViewMode.Cover],
+  [AlbumGroupBy.Year, AlbumViewMode.Cover],
+  [AlbumGroupBy.Custom, AlbumViewMode.List],
+  [AlbumGroupBy.Year, AlbumViewMode.List],
+] as const) {
+  test(`keeps flat results for saved ${groupBy} grouping in ${view} view`, async ({ data, render, settle, app }) => {
+    albumViewSettings.update((settings) => ({
+      ...settings,
+      groupBy,
+      view,
+      collapsedGroups: { [AlbumGroupBy.Custom]: ['custom:North'], [AlbumGroupBy.Year]: ['2024'] },
+    }));
+    data.addAlbums(factory.album({ albumName: 'Flat A', customGroupName: 'North', endDate: '2024-02-01' }));
+    data.addAlbums(factory.album({ albumName: 'Flat B', customGroupName: 'South', endDate: '2024-03-01' }));
+    await render(Page, load);
+    await settle();
+    if (view === AlbumViewMode.Cover) {
+      await expect.element(app.albums.card('Flat A')).toBeVisible();
+      await expect.element(app.albums.card('Flat B')).toBeVisible();
+    } else {
+      await expect.element(page.getByRole('cell', { name: 'Flat A', exact: true })).toBeVisible();
+      await expect.element(page.getByRole('cell', { name: 'Flat B', exact: true })).toBeVisible();
+    }
+    // 同一分组名只剩左栏入口，不再出现右侧可折叠的同名标题。
+    expect(page.getByRole('button', { name: /North/ }).elements()).toHaveLength(1);
+    await expect.element(page.getByTitle('group_albums_by')).not.toBeInTheDocument();
+    await expect.element(page.getByTitle('expand_all')).not.toBeInTheDocument();
+    await expect.element(page.getByTitle('collapse_all')).not.toBeInTheDocument();
+    expect(get(albumViewSettings).groupBy).toBe(groupBy);
+    expect(get(albumViewSettings).collapsedGroups?.[AlbumGroupBy.Custom]).toEqual(['custom:North']);
+  });
+}
 
 /** 顶部管理栏和左侧分组同时可用；切换大组会重置分组，过滤后的全选不跨组。 */
 test('navigates groups inside categories with a visible management toolbar', async ({ data, render, settle, app }) => {

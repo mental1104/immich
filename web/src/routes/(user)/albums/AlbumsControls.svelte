@@ -7,48 +7,34 @@
   import { handleAddUsersToAlbums, handleDeleteAlbums, isAlbumOwner } from '#lib/services/album.service.ts';
   import {
     AlbumFilter,
-    AlbumGroupBy,
     AlbumSortBy,
     AlbumViewMode,
     SortOrder,
     albumViewSettings,
   } from '#lib/stores/preferences.store.ts';
   import {
-    collapseAllAlbumGroups,
     createAlbumAndRedirect,
-    expandAllAlbumGroups,
     findFilterOption,
-    findGroupOptionMetadata,
     findSortOptionMetadata,
-    getSelectedAlbumGroupOption,
-    groupOptionsMetadata,
     sortOptionsMetadata,
-    type AlbumGroupOptionMetadata,
     type AlbumSortOptionMetadata,
   } from '#lib/utils/album-utils.ts';
   import type { AlbumResponseDto } from '@immich/sdk';
-  import { Button, IconButton, Text, modalManager } from '@immich/ui';
+  import { Button, Text, modalManager } from '@immich/ui';
   import {
     mdiArrowDownThin,
     mdiArrowUpThin,
     mdiCheckboxMultipleMarkedOutline,
-    mdiFolderArrowDownOutline,
-    mdiFolderArrowUpOutline,
     mdiFolderEditOutline,
-    mdiFolderRemoveOutline,
     mdiFormatListBulletedSquare,
     mdiPlusBoxOutline,
     mdiShareVariantOutline,
     mdiTrashCanOutline,
-    mdiUnfoldLessHorizontal,
-    mdiUnfoldMoreHorizontal,
     mdiViewGridOutline,
   } from '@mdi/js';
   import { t } from 'svelte-i18n';
-  import { fly } from 'svelte/transition';
 
   interface Props {
-    albumGroups: string[];
     selectableAlbumIds: string[];
     selectedAlbumIds: string[];
     selectedAlbums: AlbumResponseDto[];
@@ -62,7 +48,6 @@
   }
 
   let {
-    albumGroups,
     selectableAlbumIds,
     selectedAlbumIds,
     selectedAlbums,
@@ -84,15 +69,6 @@
       Object.keys(albumFilterNames).find((key) => albumFilterNames[key as AlbumFilter] === filter) ?? defaultFilter;
   };
 
-  const handleChangeGroupBy = ({ id, defaultOrder }: AlbumGroupOptionMetadata) => {
-    if ($albumViewSettings.groupBy === id) {
-      $albumViewSettings.groupOrder = flipOrdering($albumViewSettings.groupOrder);
-    } else {
-      $albumViewSettings.groupBy = id;
-      $albumViewSettings.groupOrder = defaultOrder;
-    }
-  };
-
   const handleChangeSortBy = ({ id, defaultOrder }: AlbumSortOptionMetadata) => {
     if ($albumViewSettings.sortBy === id) {
       $albumViewSettings.sortOrder = flipOrdering($albumViewSettings.sortOrder);
@@ -107,13 +83,6 @@
       $albumViewSettings.view === AlbumViewMode.Cover ? AlbumViewMode.List : AlbumViewMode.Cover;
   };
 
-  let groupIcon = $derived.by(() => {
-    if (selectedGroupOption?.id === AlbumGroupBy.None) {
-      return mdiFolderRemoveOutline;
-    }
-    return $albumViewSettings.groupOrder === SortOrder.Desc ? mdiFolderArrowDownOutline : mdiFolderArrowUpOutline;
-  });
-
   let albumFilterNames: Record<AlbumFilter, string> = $derived({
     [AlbumFilter.All]: $t('all'),
     [AlbumFilter.Owned]: $t('owned'),
@@ -122,7 +91,6 @@
 
   let selectedFilterOption = $derived(albumFilterNames[findFilterOption($albumViewSettings.filter)]);
   let selectedSortOption = $derived(findSortOptionMetadata($albumViewSettings.sortBy));
-  let selectedGroupOption = $derived(findGroupOptionMetadata($albumViewSettings.groupBy));
   let sortIcon = $derived($albumViewSettings.sortOrder === SortOrder.Desc ? mdiArrowDownThin : mdiArrowUpThin);
   let allVisibleSelected = $derived(
     selectableAlbumIds.length > 0 && selectableAlbumIds.every((id) => selectedAlbumIds.includes(id)),
@@ -157,13 +125,6 @@
     [AlbumSortBy.DateCreated]: $t('sort_created'),
     [AlbumSortBy.MostRecentPhoto]: $t('sort_recent'),
     [AlbumSortBy.OldestPhoto]: $t('sort_oldest'),
-  });
-
-  let albumGroupByNames: Record<AlbumGroupBy, string> = $derived({
-    [AlbumGroupBy.None]: $t('group_no'),
-    [AlbumGroupBy.Owner]: $t('group_owner'),
-    [AlbumGroupBy.Year]: $t('group_year'),
-    [AlbumGroupBy.Custom]: $t('group_custom'),
   });
 </script>
 
@@ -282,51 +243,6 @@
     icon: sortIcon,
   })}
 />
-
-<!-- Group Albums -->
-<Dropdown
-  title={$t('group_albums_by')}
-  options={Object.values(groupOptionsMetadata)}
-  selectedOption={selectedGroupOption}
-  onSelect={handleChangeGroupBy}
-  render={({ id, isDisabled }) => ({
-    title: albumGroupByNames[id],
-    icon: groupIcon,
-    disabled: isDisabled(),
-  })}
-/>
-
-{#if getSelectedAlbumGroupOption($albumViewSettings) !== AlbumGroupBy.None}
-  <span in:fly={{ x: -50, duration: 250 }}>
-    <!-- Expand Album Groups -->
-    <div class="hidden gap-0 xl:flex">
-      <div class="block">
-        <IconButton
-          title={$t('expand_all')}
-          onclick={() => expandAllAlbumGroups()}
-          variant="ghost"
-          color="secondary"
-          shape="round"
-          icon={mdiUnfoldMoreHorizontal}
-          aria-label={$t('expand_all')}
-        />
-      </div>
-
-      <!-- Collapse Album Groups -->
-      <div class="block">
-        <IconButton
-          title={$t('collapse_all')}
-          onclick={() => collapseAllAlbumGroups(albumGroups)}
-          variant="ghost"
-          color="secondary"
-          shape="round"
-          icon={mdiUnfoldLessHorizontal}
-          aria-label={$t('collapse_all')}
-        />
-      </div>
-    </div>
-  </span>
-{/if}
 
 <!-- Cover/List Display Toggle -->
 {#if $albumViewSettings.view === AlbumViewMode.List}
