@@ -13,6 +13,8 @@
     showItemCount?: boolean;
     preload?: boolean;
     contextMenuItems?: MenuItems;
+    compact?: boolean;
+    coversOnly?: boolean;
   };
 
   const {
@@ -22,13 +24,17 @@
     showItemCount = false,
     preload = false,
     contextMenuItems,
+    compact = false,
+    coversOnly = false,
   }: Props = $props();
 
   const owner = $derived(album.albumUsers[0].user);
 </script>
 
 <div
-  class="group relative rounded-2xl border border-transparent p-5 hover:border-gray-200 hover:bg-gray-100 dark:hover:border-gray-800 dark:hover:bg-gray-900"
+  class="group relative overflow-hidden rounded-2xl border border-transparent hover:border-gray-200 hover:bg-gray-100 dark:hover:border-gray-800 dark:hover:bg-gray-900 {compact
+    ? 'p-1'
+    : 'p-5'}"
   data-testid="album-card"
 >
   {#if contextMenuItems}
@@ -49,43 +55,54 @@
 
   <AlbumCover {album} {preload} class="transition-all duration-300 hover:shadow-lg" />
 
-  <div class="mt-4">
+  <!-- 纯封面保留可访问名称，鼠标悬停和键盘聚焦均展示标题；触屏仍可由详情开关查看。 -->
+  <div
+    class={coversOnly
+      ? 'pointer-events-none absolute inset-x-1 bottom-1 rounded-b-xl bg-linear-to-t from-black/80 to-transparent p-3 text-white opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100'
+      : compact
+        ? 'mt-2 px-1 pb-1'
+        : 'mt-4'}
+  >
     <p
-      class="line-clamp-2 w-full text-lg/6 font-semibold wrap-break-word text-black group-hover:text-primary dark:text-white"
+      class="line-clamp-2 w-full font-semibold wrap-break-word {coversOnly
+        ? 'text-sm text-white'
+        : compact
+          ? 'text-sm text-black dark:text-white'
+          : 'text-lg/6 text-black group-hover:text-primary dark:text-white'}"
       data-testid="album-name"
       title={album.albumName}
     >
       {album.albumName}
     </p>
 
-    {#if showDateRange && album.startDate && album.endDate}
+    {#if !coversOnly && showDateRange && album.startDate && album.endDate}
       <p class="flex text-sm capitalize dark:text-immich-dark-fg">
         {getShortDateRange(album.startDate, album.endDate)}
       </p>
     {/if}
 
-    <span class="flex gap-2 text-sm dark:text-immich-dark-fg" data-testid="album-details">
-      {#if showItemCount}
-        <p>
-          {$t('items_count', { values: { count: album.assetCount } })}
-        </p>
-      {/if}
-
-      {#if (showOwner || album.shared) && showItemCount}
-        <p>•</p>
-      {/if}
-
-      {#if showOwner}
-        {#if owner.id === authManager.user.id}
-          <p>{$t('owned')}</p>
-        {:else}
+    {#if !coversOnly}<span class="flex gap-2 text-sm dark:text-immich-dark-fg" data-testid="album-details">
+        {#if showItemCount}
           <p>
-            {$t('shared_by_user', { values: { user: owner.name } })}
+            {$t('items_count', { values: { count: album.assetCount } })}
           </p>
         {/if}
-      {:else if album.shared}
-        <p>{$t('shared')}</p>
-      {/if}
-    </span>
+
+        {#if (showOwner || album.shared) && showItemCount}
+          <p>•</p>
+        {/if}
+
+        {#if showOwner}
+          {#if owner.id === authManager.user.id}
+            <p>{$t('owned')}</p>
+          {:else}
+            <p>
+              {$t('shared_by_user', { values: { user: owner.name } })}
+            </p>
+          {/if}
+        {:else if album.shared}
+          <p>{$t('shared')}</p>
+        {/if}
+      </span>{/if}
   </div>
 </div>

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { LRUMap } from 'mnemonist';
+import { randomUUID } from 'node:crypto';
 import { AssetMapOptions, AssetResponseDto, MapAsset, mapAsset } from 'src/dtos/asset-response.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { SystemConfig } from 'src/dtos/config.dto.js';
@@ -23,7 +23,7 @@ import {
   isNewShapeRequest,
   mapPlaces,
 } from 'src/dtos/search.dto.js';
-import { AssetOrder, AssetVisibility, Permission, SearchOrderField } from 'src/enum.js';
+import { AssetOrder, AssetVisibility, Permission } from 'src/enum.js';
 import { AssetSearchScope } from 'src/repositories/search.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { requireElevatedPermission } from 'src/utils/access.js';
@@ -31,6 +31,17 @@ import { getMyPartnerIds } from 'src/utils/asset.util.js';
 import { isSmartSearchEnabled } from 'src/utils/misc.js';
 import { decodeSearchCursor, encodeSearchCursor } from 'src/utils/search-cursor.js';
 import { applyLockedVisibilityPolicy, collectFilterIds } from 'src/utils/search-filter.js';
+
+/** 记录被相簿名/分组/大组匹配消费的单一搜索词，其他显式文本条件仍须保留。 */
+type AlbumSearchText =
+  | { query: string; source: 'legacy'; field: 'description' | 'originalFileName' | 'originalPath' | 'ocr' }
+  | {
+      query: string;
+      source: 'filter';
+      field: 'description' | 'originalFileName' | 'originalPath';
+      operator: 'like' | 'eq';
+    }
+  | { query: string; source: 'filter'; field: 'ocr'; operator: 'matches' };
 
 @Injectable()
 export class SearchService extends BaseService {
@@ -73,11 +84,16 @@ export class SearchService extends BaseService {
   }
 
   async searchMetadata(auth: AuthDto, dto: MetadataSearchDto): Promise<SearchResponseDto> {
-    const albumSearchQuery = this.getAlbumSearchQuery(dto);
-    if (albumSearchQuery && !auth.sharedLink && !(dto.albumIds?.length) && !dto.filter?.albumIds) {
-      const albumIds = await this.albumRepository.searchIdsByText(auth.user.id, albumSearchQuery);
+    const albumSearch = this.getAlbumSearchQuery(dto);
+    if (albumSearch && !auth.sharedLink && !dto.albumIds?.length && !dto.filter?.albumIds) {
+      const albumIds = await this.albumRepository.searchIdsByText(auth.user.id, albumSearch.query);
       if (albumIds.length > 0) {
-        return this.searchAlbumAssets(auth, dto, albumIds, `${auth.user.id}:${albumSearchQuery}`);
+        return this.searchAlbumAssets(
+          auth,
+          this.consumeAlbumSearchText(dto, albumSearch),
+          albumIds,
+          `${auth.user.id}:${albumSearch.query}`,
+        );
       }
     }
 
@@ -184,7 +200,7 @@ export class SearchService extends BaseService {
       );
     }
 
-    if (dto.query && !dto.queryAssetId && !auth.sharedLink && !dto.filter?.albumIds) {
+    if (dto.query && !dto.queryAssetId && !auth.sharedLink && !dto.albumIds?.length && !dto.filter?.albumIds) {
       const albumIds = await this.albumRepository.searchIdsByText(auth.user.id, dto.query);
       if (searchTraceId) {
         this.logger.log(`[GlobalSearch:${searchTraceId}] album-match count=${albumIds.length}`);
@@ -194,10 +210,6 @@ export class SearchService extends BaseService {
           ...dto,
           query: undefined,
           queryAssetId: undefined,
-          description: undefined,
-          originalFileName: undefined,
-          originalPath: undefined,
-          ocr: undefined,
         } as MetadataSearchDto;
         const response = await this.searchAlbumAssets(auth, albumDto, albumIds, `${auth.user.id}:${dto.query}`);
         if (searchTraceId) {
@@ -281,18 +293,22 @@ export class SearchService extends BaseService {
       return dto;
     }
 
-    const filter = { ...(dto.filter ?? {}) };
+    const filter = { ...dto.filter };
     let query = dto.query;
-    const dimensions: Array<{ aliases: string; field: 'iso' | 'fNumber' | 'focalLength' | 'exposureTime'; unit?: string }> = [
+    const dimensions: Array<{
+      aliases: string;
+      field: 'iso' | 'fNumber' | 'focalLength' | 'exposureTime';
+      unit?: string;
+    }> = [
       { aliases: 'ISO|感光度', field: 'iso' },
       { aliases: '光圈|f[- ]?number|f值', field: 'fNumber' },
       { aliases: '焦段|焦距|focal[- ]?length', field: 'focalLength', unit: '(?:mm|毫米)' },
       { aliases: '快门速度|快门|shutter', field: 'exposureTime', unit: '(?:s|秒)' },
     ];
 
-    for (const { aliases, field, unit } of dimensions) {
+    for (const { aliases, field, unit = '' } of dimensions) {
       const pattern = new RegExp(
-        `(?:${aliases})\\s*(大于等于|小于等于|大于|小于|等于|>=|<=|>|<|=|≥|≤)\\s*(\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+(?:\\.\\d+)?)?)(?:\\s*${unit ?? ''})?`,
+        String.raw`(?:${aliases})\s*(大于等于|小于等于|大于|小于|等于|>=|<=|>|<|=|≥|≤)\s*(\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)?)(?:\s*${unit})?`,
         'giu',
       );
       query = query.replace(pattern, (_match, operator: string, rawValue: string) => {
@@ -317,12 +333,12 @@ export class SearchService extends BaseService {
         if (!key || !Number.isFinite(value) || (parts.length === 2 && parts[1] === 0)) {
           return _match;
         }
-        filter[field] = { ...(filter[field] ?? {}), [key]: value } as never;
+        filter[field] = { ...filter[field], [key]: value } as never;
         return ' ';
       });
     }
 
-    return { ...dto, query: query.trim() || undefined, filter: Object.keys(filter).length ? filter : dto.filter };
+    return { ...dto, query: query.trim() || undefined, filter: Object.keys(filter).length > 0 ? filter : dto.filter };
   }
 
   private buildChineseTextSearchFilter(dto: SmartSearchDto): SearchFilter {
@@ -339,15 +355,16 @@ export class SearchService extends BaseService {
       { country: { like: query } },
     ];
     const existingBranches = filter.or ?? [];
-    filter.or = existingBranches.length
-      ? existingBranches.flatMap((branch) => textBranches.map((textBranch) => ({ ...branch, ...textBranch })))
-      : textBranches;
+    filter.or =
+      existingBranches.length > 0
+        ? existingBranches.flatMap((branch) => textBranches.map((textBranch) => ({ ...branch, ...textBranch })))
+        : textBranches;
 
     return filter;
   }
 
   private buildSmartSearchFilter(dto: SmartSearchDto): SearchFilter {
-    const filter: SearchFilter = { ...(dto.filter ?? {}) };
+    const filter: SearchFilter = { ...dto.filter };
     if (dto.filter) {
       return filter;
     }
@@ -370,35 +387,50 @@ export class SearchService extends BaseService {
     return filter;
   }
 
-  private getAlbumSearchQuery(dto: MetadataSearchDto): string | undefined {
-    if (dto.description || dto.originalFileName || dto.originalPath || dto.ocr) {
-      return dto.description || dto.originalFileName || dto.originalPath || dto.ocr;
+  /** @param dto 官方平铺或结构化请求。@returns 首个可作为目录名称搜索的文本条件及其准确来源。 */
+  private getAlbumSearchQuery(dto: MetadataSearchDto): AlbumSearchText | undefined {
+    for (const field of ['description', 'originalFileName', 'originalPath', 'ocr'] as const) {
+      const query = dto[field];
+      if (query) return { query, source: 'legacy', field };
     }
-
-    const filter = dto.filter;
-    return (
-      filter?.description?.like ??
-      filter?.description?.eq ??
-      filter?.originalFileName?.like ??
-      filter?.originalFileName?.eq ??
-      filter?.originalPath?.like ??
-      filter?.originalPath?.eq ??
-      filter?.ocr?.matches
-    );
+    for (const field of ['description', 'originalFileName', 'originalPath'] as const) {
+      for (const operator of ['like', 'eq'] as const) {
+        const query = dto.filter?.[field]?.[operator];
+        if (query) return { query, source: 'filter', field, operator };
+      }
+    }
+    const query = dto.filter?.ocr?.matches;
+    if (query) return { query, source: 'filter', field: 'ocr', operator: 'matches' };
   }
 
+  /** @param dto 原始请求。@param text 已命中目录的单一搜索词。@returns 仅消费该条件，保留日期、类型、人物和额外文本等其他过滤项的新请求。 */
+  private consumeAlbumSearchText(dto: MetadataSearchDto, text: AlbumSearchText): MetadataSearchDto {
+    if (text.source === 'legacy') return { ...dto, [text.field]: undefined };
+    const filter = { ...dto.filter };
+    if (text.field === 'ocr') {
+      // OCR条件只有必填matches一个成员；消费它后应移除整个节点，不能留下无效空对象。
+      filter.ocr = undefined;
+    } else {
+      const condition = { ...filter[text.field] };
+      delete condition[text.operator];
+      filter[text.field] = Object.keys(condition).length > 0 ? condition : undefined;
+    }
+    return { ...dto, filter };
+  }
+
+  /** @param auth 当前身份。@param dto 保留其他约束的请求。@param albumIds 目录OR匹配后的可见相簿并集。@param seed 稳定分页种子。@returns 去重且继续遵守权限/过滤条件的相簿资产。 */
   private async searchAlbumAssets(
     auth: AuthDto,
     dto: MetadataSearchDto,
     albumIds: string[],
     seed: string,
   ): Promise<SearchResponseDto> {
+    // 目录名称命中不能绕过原搜索入口对锁定资产要求的二次认证。
+    if (dto.visibility === AssetVisibility.Locked) {
+      requireElevatedPermission(auth);
+    }
     if (isNewShapeRequest(dto)) {
       const filter: SearchFilter = { ...dto.filter };
-      delete filter.description;
-      delete filter.originalFileName;
-      delete filter.originalPath;
-      delete filter.ocr;
       filter.albumIds = { any: albumIds };
 
       return this.searchRandomMetadataV3(auth, dto, filter, seed);
@@ -415,17 +447,13 @@ export class SearchService extends BaseService {
     const { hasNextPage, items } = await this.searchRepository.searchRandomPage(
       { page: dto.page ?? 1, size: dto.size },
       {
-      ...dto,
-      description: undefined,
-      originalFileName: undefined,
-      originalPath: undefined,
-      ocr: undefined,
-      checksum,
-      albumIds: undefined,
-      albumIdsAny: albumIds,
-      visibility: dto.visibility ?? (auth.session?.hasElevatedPermission ? undefined : 'not-locked'),
-      orderDirection: AssetOrder.Desc,
-      viewingUserId: auth.user.id,
+        ...dto,
+        checksum,
+        albumIds: undefined,
+        albumIdsAny: albumIds,
+        visibility: dto.visibility ?? (auth.session?.hasElevatedPermission ? undefined : 'not-locked'),
+        orderDirection: AssetOrder.Desc,
+        viewingUserId: auth.user.id,
       },
       seed,
     );

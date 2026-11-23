@@ -2657,5 +2657,15 @@
   "bulk_album_deleted": "Deleted {count} albums.",
   "bulk_album_delete_partial": "Deleted {successCount} of {totalCount} albums.",
   "group_custom": "Custom group",
-  "ungrouped": "Ungrouped"
+  "ungrouped": "Ungrouped",
+  "album_categories": "Album categories",
+  "album_categories_manage": "Manage categories",
+  "album_categories_hint": "Categories are optional. Existing groups stay in Default until assigned. Albums and sharing remain unchanged.",
+  "album_category_default": "Default",
+  "album_category_create": "New category",
+  "album_category_for_group": "Category for {group}",
+  "album_category_delete_hint": "Delete this category? Its groups will return to Default.",
+  "album_categories_retry": "Retry categories",
+  "album_show_details": "Show details",
+  "album_covers_only": "Covers only"
 }

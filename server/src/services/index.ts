@@ -1,4 +1,5 @@
 import { ActivityService } from 'src/services/activity.service.js';
+import { AlbumCategoryService } from 'src/services/album-category.service.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { ApiKeyService } from 'src/services/api-key.service.js';
 import { ApiService } from 'src/services/api.service.js';
@@ -33,10 +34,10 @@ import { PartnerService } from 'src/services/partner.service.js';
 import { PasskeyService } from 'src/services/passkey.service.js';
 import { PersonService } from 'src/services/person.service.js';
 import { PhotoCopilotService } from 'src/services/photo-copilot.service.js';
-import { SceneStackService } from 'src/services/scene-stack.service.js';
 import { PhotoEditAdviceService } from 'src/services/photo-edit-advice.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
 import { QueueService } from 'src/services/queue.service.js';
+import { SceneStackService } from 'src/services/scene-stack.service.js';
 import { SearchService } from 'src/services/search.service.js';
 import { ServerService } from 'src/services/server.service.js';
 import { SessionService } from 'src/services/session.service.js';
@@ -62,6 +63,7 @@ import { WorkflowService } from 'src/services/workflow.service.js';
 
 export const services = [
   ApiKeyService,
+  AlbumCategoryService,
   ActivityService,
   AlbumService,
   ApiService,

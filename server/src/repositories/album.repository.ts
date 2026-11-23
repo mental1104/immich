@@ -4,6 +4,7 @@ import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
 import { columns } from 'src/database.js';
 import { Chunked, ChunkedArray, ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
+import { DEFAULT_ALBUM_CATEGORY_NAME } from 'src/dtos/album-category.dto.js';
 import { AlbumUserCreateDto, MapAlbumDto } from 'src/dtos/album.dto.js';
 import { AlbumUserRole } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
@@ -186,18 +187,29 @@ export class AlbumRepository {
       .execute();
   }
 
+  /** @param ownerId 当前搜索用户。@param search 原搜索词。@returns 名称、描述、标签、分组或大组任一命中的可见相簿ID并集。 */
   @GenerateSql({ params: [DummyValue.UUID, DummyValue.STRING] })
   async searchIdsByText(ownerId: string, search: string): Promise<string[]> {
-    const escapedSearch = search.replace(/[\\%_]/g, '\\$&');
+    const escapedSearch = search.replaceAll(/[\\%_]/g, String.raw`\$&`);
     const pattern = `%${escapedSearch}%`;
 
     const albums = await this.buildAlbumBaseQuery(ownerId, {})
       .select('album.id')
-      .where((eb) =>
-        eb.or([
+      .where((eb) => {
+        // 大组归属是个人目录；即使共享相簿分组同名，也只使用当前用户自己的映射。
+        const category = eb
+          .selectFrom('fork_album_group_category as mapping')
+          .innerJoin('fork_album_category as category', 'category.id', 'mapping.categoryId')
+          .select('category.id')
+          .where('mapping.userId', '=', ownerId)
+          .where('category.userId', '=', ownerId)
+          .whereRef('mapping.groupName', '=', sql<string>`trim(coalesce(album."customGroupName", ''))`);
+        return eb.or([
           eb('album.albumName', 'ilike', pattern),
           eb('album.description', 'ilike', pattern),
           eb('album.customGroupName', 'ilike', pattern),
+          eb.exists(category.where('category.name', 'ilike', pattern)),
+          eb.and([eb(eb.val(DEFAULT_ALBUM_CATEGORY_NAME), 'ilike', pattern), eb.not(eb.exists(category))]),
           eb.exists(
             eb
               .selectFrom('album_tag')
@@ -205,8 +217,8 @@ export class AlbumRepository {
               .whereRef('album_tag.albumId', '=', 'album.id')
               .where('tag.value', 'ilike', pattern),
           ),
-        ]),
-      )
+        ]);
+      })
       .orderBy('album.createdAt', 'desc')
       .execute();
 

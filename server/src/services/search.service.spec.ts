@@ -220,6 +220,63 @@ describe(SearchService.name, () => {
   });
 
   describe('new shape routing', () => {
+    /** 目录命中仍必须遵守锁定资产的二次认证，不能经随机相簿查询绕开。 */
+    it('requires elevated access for locked assets after a directory match', async () => {
+      mocks.album.searchIdsByText.mockResolvedValue([newUuid()]);
+      const auth = AuthFactory.from().session().build();
+      await expect(
+        sut.searchMetadata(auth, { size: 10, description: 'Travel', visibility: AssetVisibility.Locked }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        sut.searchSmart(auth, { size: 10, query: 'Travel', visibility: AssetVisibility.Locked }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(mocks.search.searchRandomPage).not.toHaveBeenCalled();
+    });
+
+    /** 已选相簿代表明确范围；目录同名不能扩展该范围。 */
+    it('keeps explicit album restrictions and shared link boundaries', async () => {
+      const auth = AuthFactory.create();
+      const albumId = newUuid();
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.search.searchMetadata.mockResolvedValue({ hasNextPage: false, items: [] });
+      await sut.searchMetadata(auth, { size: 10, description: 'Travel', albumIds: [albumId] });
+      mocks.search.searchMetadataV3.mockResolvedValue({ hasNextPage: false, items: [] });
+      await sut.searchMetadata(auth, {
+        size: 10,
+        filter: { description: { like: 'Travel' }, albumIds: { any: [albumId] } },
+      });
+      expect(mocks.album.searchIdsByText).not.toHaveBeenCalled();
+      await expect(
+        sut.searchMetadata(AuthFactory.from().sharedLink().build(), { size: 10, description: 'Travel' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.album.searchIdsByText).not.toHaveBeenCalled();
+    });
+
+    /** 同字段中的其他运算符也是用户的显式约束，只消费实际命中的名称词。 */
+    it('preserves a second text operator after consuming the directory keyword', async () => {
+      const auth = AuthFactory.create();
+      const albumId = newUuid();
+      mocks.album.searchIdsByText.mockResolvedValue([albumId]);
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.search.searchRandomPageV3.mockResolvedValue({ hasNextPage: false, items: [] });
+      await sut.searchMetadata(auth, {
+        size: 10,
+        filter: { description: { like: 'Travel', eq: 'flower' }, originalFileName: { like: 'camera' } },
+      });
+      expect(mocks.search.searchRandomPageV3).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          filter: expect.objectContaining({
+            description: { eq: 'flower' },
+            originalFileName: { like: 'camera' },
+            albumIds: { any: [albumId] },
+          }),
+        }),
+        expect.anything(),
+        expect.any(String),
+      );
+    });
+
     /** 全景条件作为附加约束传递，不丢失现有用户归属和可见性保护。 */
     it('passes panorama filters through legacy and structured metadata search', async () => {
       const auth = AuthFactory.create();

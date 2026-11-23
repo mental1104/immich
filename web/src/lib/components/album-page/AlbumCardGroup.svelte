@@ -21,6 +21,8 @@
     selectionMode?: boolean;
     selectedAlbumIds?: string[];
     onAlbumSelect?: (albumId: string) => void;
+    compact?: boolean;
+    coversOnly?: boolean;
   };
 
   const {
@@ -32,6 +34,8 @@
     selectionMode = false,
     selectedAlbumIds = [],
     onAlbumSelect,
+    compact = false,
+    coversOnly = false,
   }: Props = $props();
 
   let isCollapsed = $derived(!!group && isAlbumGroupCollapsed($albumViewSettings, group.id));
@@ -61,7 +65,11 @@
       aria-expanded={!isCollapsed}
     >
       <Icon icon={mdiChevronRight} size="24" class="-mt-2.5 inline-block transition-all duration-250 {iconRotation}" />
-      <span class="text-3xl font-bold text-black dark:text-white">{group.name}</span>
+      <span
+        class={compact
+          ? 'text-lg font-semibold text-black dark:text-white'
+          : 'text-3xl font-bold text-black dark:text-white'}>{group.name}</span
+      >
       <span class="ms-1.5">({$t('albums_count', { values: { count: albums.length } })})</span>
     </button>
     <hr class="dark:border-immich-dark-gray" />
@@ -70,7 +78,12 @@
 
 <div class="mt-4">
   {#if !isCollapsed}
-    <div class="grid grid-auto-fill-56 gap-y-4" transition:slide={{ duration: 300 }}>
+    <div
+      class={compact
+        ? 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,140px),1fr))] gap-3'
+        : 'grid grid-auto-fill-56 gap-y-4'}
+      transition:slide={{ duration: 300 }}
+    >
       {#each albums as album, index (album.id)}
         {const { Edit, Share, Download, Leave, Delete } = $derived(getAlbumActions($t, album))}
         {const items = $derived([Edit, Share, Download, Leave, Delete])}
@@ -88,7 +101,8 @@
           {/if}
           <a
             href={Route.viewAlbum(album)}
-            class="h-fit"
+            class="block h-fit rounded-xl focus-visible:outline-2 focus-visible:outline-primary"
+            aria-label={album.albumName || $t('unnamed_album')}
             onclick={(event) => {
               if (selectionMode && isAlbumEditor(album)) {
                 event.preventDefault();
@@ -104,6 +118,8 @@
               {showItemCount}
               preload={index < 20}
               contextMenuItems={items}
+              {compact}
+              {coversOnly}
             />
           </a>
         </div>

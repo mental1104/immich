@@ -2,6 +2,7 @@
   import AlbumCardGroup from '#lib/components/album-page/AlbumCardGroup.svelte';
   import AlbumsTable from '#lib/components/album-page/AlbumsTable.svelte';
   import { authManager } from '#lib/managers/auth-manager.svelte.ts';
+  import type { AlbumCategoryState } from '#lib/queries/album-category.query.ts';
   import { handleDeleteAlbum, isAlbumEditor, isAlbumOwner } from '#lib/services/album.service.ts';
   import {
     AlbumFilter,
@@ -37,6 +38,10 @@
     onAlbumSelect?: (albumId: string) => void;
     selectableAlbumIds?: string[];
     empty?: Snippet;
+    directory?: AlbumCategoryState;
+    categoryId?: string | null;
+    compact?: boolean;
+    coversOnly?: boolean;
   }
 
   let {
@@ -54,6 +59,10 @@
     // eslint-disable-next-line no-useless-assignment
     selectableAlbumIds = $bindable([]),
     empty,
+    directory,
+    categoryId = null,
+    compact = false,
+    coversOnly = false,
   }: Props = $props();
 
   interface AlbumGroupOption {
@@ -163,15 +172,27 @@
     }
   });
   const normalizedSearchQuery = $derived(normalizeSearchString(searchQuery));
+  /** @param groupName 原分组名。@returns 个人归属；空字符串表示虚拟默认大组。 */
+  function categoryFor(groupName: string | null | undefined) {
+    return directory?.groups.find((group) => group.groupName === (groupName?.trim() || ''))?.categoryId ?? '';
+  }
+  const categoryAlbums = $derived(
+    categoryId === null ? albums : albums.filter((album) => categoryFor(album.customGroupName) === categoryId),
+  );
   let filteredAlbums = $derived(
     normalizedSearchQuery
-      ? albums.filter(
-          ({ albumName, description, customGroupName }) =>
+      ? categoryAlbums.filter(
+          ({ albumName, description = '', customGroupName }) =>
             normalizeSearchString(albumName).includes(normalizedSearchQuery) ||
-            normalizeSearchString(description ?? '').includes(normalizedSearchQuery) ||
-            normalizeSearchString(customGroupName?.trim() || $t('ungrouped')).includes(normalizedSearchQuery),
+            normalizeSearchString(description).includes(normalizedSearchQuery) ||
+            normalizeSearchString(customGroupName?.trim() || $t('ungrouped')).includes(normalizedSearchQuery) ||
+            (directory &&
+              normalizeSearchString(
+                directory?.categories.find((category) => category.id === categoryFor(customGroupName))?.name ??
+                  $t('album_category_default'),
+              ).includes(normalizedSearchQuery)),
         )
-      : albums,
+      : categoryAlbums,
   );
 
   let albumGroupOption = $derived(getSelectedAlbumGroupOption(userSettings));
@@ -219,6 +240,8 @@
         {selectionMode}
         {selectedAlbumIds}
         {onAlbumSelect}
+        {compact}
+        {coversOnly}
       />
     {:else}
       {#each groupedAlbums as albumGroup (albumGroup.id)}
@@ -231,6 +254,8 @@
           {selectionMode}
           {selectedAlbumIds}
           {onAlbumSelect}
+          {compact}
+          {coversOnly}
         />
       {/each}
     {/if}

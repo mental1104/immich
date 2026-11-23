@@ -52,6 +52,8 @@ const persistedObject = <T>(key: string, defaults: T) =>
 export const mapSettings = persistedObject<MapSettings>('map-settings', defaultMapSettings);
 
 export interface AlbumViewSettings {
+  /** 相簿主页可选纯封面；旧偏好缺省时由页面提供默认值。 */
+  coversOnly?: boolean;
   view: string;
   filter: string;
   groupBy: string;

@@ -5,11 +5,16 @@
   import EmptyPlaceholder from '#lib/components/shared-components/EmptyPlaceholder.svelte';
   import GroupTab from '#lib/elements/GroupTab.svelte';
   import SearchBar from '#lib/elements/SearchBar.svelte';
+  import AlbumCategoryModal from '#lib/modals/AlbumCategoryModal.svelte';
+  import { getAlbumCategoriesQuery } from '#lib/queries/album-category.query.ts';
   import { getAllAlbumsQuery } from '#lib/queries/album.query.ts';
-  import { createPreloadedQuery } from '#lib/queries/client.ts';
+  import { createPreloadedQuery, queryClient } from '#lib/queries/client.ts';
   import { Route } from '#lib/route.ts';
   import { AlbumFilter, albumViewSettings } from '#lib/stores/preferences.store.ts';
   import { createAlbumAndRedirect } from '#lib/utils/album-utils.ts';
+  import { Button, modalManager } from '@immich/ui';
+  import { createQuery } from '@tanstack/svelte-query';
+  import { noop } from 'lodash-es';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
   import AlbumsControls from './AlbumsControls.svelte';
@@ -28,16 +33,28 @@
   // 仅在普通相簿页排除待整理分组，保留共享查询缓存供专用入口和相簿详情使用。
   // album 是 API 返回的相簿；严格匹配去除首尾空白后的分组名，其他分组照常显示。
   const ownedAlbums = $derived(queries.ownedAlbums.data.filter((album) => album.customGroupName?.trim() !== '待整理'));
-  const sharedAlbums = $derived(queries.sharedAlbums.data.filter((album) => album.customGroupName?.trim() !== '待整理'));
+  const sharedAlbums = $derived(
+    queries.sharedAlbums.data.filter((album) => album.customGroupName?.trim() !== '待整理'),
+  );
+  const directory = createQuery(getAlbumCategoriesQuery, () => queryClient);
+  const allAlbums = $derived([
+    ...new Map([...ownedAlbums, ...sharedAlbums].map((album) => [album.id, album])).values(),
+  ]);
+  const groupNames = $derived([...new Set(allAlbums.map((album) => album.customGroupName?.trim() || ''))].sort());
+  let categoryId = $state<string | null>(null);
+  // 删除当前大组后回全部，避免继续使用已经不存在的父节点而显示空白。
+  $effect(() => {
+    if (categoryId && directory.data && directory.data.categories.every((category) => category.id !== categoryId))
+      categoryId = null;
+  });
 
-  let searchQuery = $state('');
   let searchInput = $state('');
+  const searchQuery = $derived(searchInput);
 
-  const onSearch = ({ force }: { force?: boolean }) => {
-    if (force) searchQuery = searchInput;
-  };
+  // 绑定值直接驱动筛选，避免oninput先于bind更新时读取上一字符。
+  const onSearch = noop;
   const onReset = () => {
-    searchQuery = '';
+    searchInput = '';
   };
   let albumGroups: string[] = $state([]);
   let selectableAlbumIds: string[] = $state([]);
@@ -109,6 +126,40 @@
     </div>
   </div>
 
+  <div class="my-4 flex flex-wrap items-center gap-2" aria-label={$t('album_categories')}>
+    <Button size="small" variant={categoryId === null ? 'filled' : 'ghost'} onclick={() => (categoryId = null)}
+      >{$t('all_albums')}</Button
+    >
+    <Button size="small" variant={categoryId === '' ? 'filled' : 'ghost'} onclick={() => (categoryId = '')}
+      >{$t('album_category_default')}</Button
+    >
+    {#each directory.data?.categories ?? [] as category (category.id)}
+      <Button
+        size="small"
+        variant={categoryId === category.id ? 'filled' : 'ghost'}
+        onclick={() => (categoryId = category.id)}>{category.name}</Button
+      >
+    {/each}
+    <div class="grow"></div>
+    {#if directory.isError}
+      <Button size="small" variant="ghost" onclick={() => directory.refetch()}>{$t('album_categories_retry')}</Button>
+    {:else}
+      <Button
+        size="small"
+        variant="ghost"
+        disabled={!directory.data}
+        onclick={() => modalManager.show(AlbumCategoryModal, { groupNames })}>{$t('album_categories_manage')}</Button
+      >
+    {/if}
+    <Button
+      size="small"
+      variant="ghost"
+      aria-pressed={!($albumViewSettings.coversOnly ?? true)}
+      onclick={() => ($albumViewSettings.coversOnly = !($albumViewSettings.coversOnly ?? true))}
+      >{$t(($albumViewSettings.coversOnly ?? true) ? 'album_show_details' : 'album_covers_only')}</Button
+    >
+  </div>
+
   <Albums
     {ownedAlbums}
     {sharedAlbums}
@@ -120,6 +171,10 @@
     bind:selectableAlbumIds
     {searchQuery}
     bind:albumGroupIds={albumGroups}
+    directory={directory.data}
+    {categoryId}
+    compact
+    coversOnly={$albumViewSettings.coversOnly ?? true}
   >
     {#snippet empty()}
       <EmptyPlaceholder text={$t('no_albums_message')} onClick={() => createAlbumAndRedirect()} class="mx-auto mt-10" />

@@ -1,4 +1,5 @@
 import { ActivityController } from 'src/controllers/activity.controller.js';
+import { AlbumCategoryController } from 'src/controllers/album-category.controller.js';
 import { AlbumController } from 'src/controllers/album.controller.js';
 import { ApiKeyController } from 'src/controllers/api-key.controller.js';
 import { AppController } from 'src/controllers/app.controller.js';
@@ -54,6 +55,7 @@ import { WorkflowController } from 'src/controllers/workflow.controller.js';
 
 export const controllers = [
   ApiKeyController,
+  AlbumCategoryController,
   ActivityController,
   AlbumController,
   AppController,

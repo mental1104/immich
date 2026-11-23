@@ -7,11 +7,6 @@ import {
   person_user_role_enum,
 } from 'src/schema/enums.js';
 import {
-  fork_iphone_client_checksum,
-  fork_iphone_promote_checksum,
-  fork_iphone_reference_state,
-} from 'src/schema/functions/fork-iphone-checksum.js';
-import {
   album_user_after_insert,
   album_user_delete,
   album_user_delete_audit,
@@ -33,6 +28,11 @@ import {
   user_delete_audit,
   user_metadata_audit,
 } from 'src/schema/functions.js';
+import {
+  fork_iphone_client_checksum,
+  fork_iphone_promote_checksum,
+  fork_iphone_reference_state,
+} from 'src/schema/functions/fork-iphone-checksum.js';
 import { ActivityTable } from 'src/schema/tables/activity.table.js';
 import { AlbumAssetAuditTable } from 'src/schema/tables/album-asset-audit.table.js';
 import { AlbumAssetTable } from 'src/schema/tables/album-asset.table.js';
@@ -60,6 +60,8 @@ import { AuthChallengeTable } from 'src/schema/tables/auth-challenge.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
+import { ForkAlbumCategoryTable } from 'src/schema/tables/fork-album-category.table.js';
+import { ForkAlbumGroupCategoryTable } from 'src/schema/tables/fork-album-group-category.table.js';
 import { ForkAssetTaskStatusTable } from 'src/schema/tables/fork-asset-task-status.table.js';
 import { ForkGeodataNameTable } from 'src/schema/tables/fork-geodata-name.table.js';
 import { ForkIphoneImageFingerprintTable } from 'src/schema/tables/fork-iphone-image-fingerprint.table.js';
@@ -118,6 +120,8 @@ import { WorkflowTable } from 'src/schema/tables/workflow.table.js';
 @Database({ name: 'immich' })
 export class ImmichDatabase {
   tables = [
+    ForkAlbumCategoryTable,
+    ForkAlbumGroupCategoryTable,
     ActivityTable,
     AlbumAssetTable,
     AlbumAssetAuditTable,
@@ -263,6 +267,8 @@ export interface DB {
   asset_metadata: AssetMetadataTable;
   asset_metadata_audit: AssetMetadataAuditTable;
   asset_job_status: AssetJobStatusTable;
+  fork_album_category: ForkAlbumCategoryTable;
+  fork_album_group_category: ForkAlbumGroupCategoryTable;
   fork_asset_task_status: ForkAssetTaskStatusTable;
   asset_ocr: AssetOcrTable;
   asset_ocr_audit: AssetOcrAuditTable;
