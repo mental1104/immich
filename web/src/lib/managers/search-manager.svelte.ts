@@ -4,6 +4,13 @@ import type { SearchExifCondition, SearchFilter } from '#lib/types.ts';
 import { asLocalTimeISO, parseUtcDate } from '#lib/utils/date-time.ts';
 import { mediaCategories } from '#lib/utils/media-categories.ts';
 import {
+  applySearchConditions,
+  captureSearchConditions,
+  combineSearchConditions,
+  getSearchConditionAtoms,
+  type SearchPresetConditions,
+} from '#lib/utils/search-presets.ts';
+import {
   AssetTypeEnum,
   AssetVisibility,
   Orientation,
@@ -12,17 +19,19 @@ import {
   type SmartSearchDto,
 } from '@immich/sdk';
 import type { DateTime } from 'luxon';
+import { t } from 'svelte-i18n';
 import { SvelteSet } from 'svelte/reactivity';
+import { get } from 'svelte/store';
 import { goto } from '$app/navigation';
 
 const QUERY_TYPE_STORAGE_KEY = 'searchQueryType';
 const orientations = { landscape: Orientation.Landscape, portrait: Orientation.Portrait };
 type SearchQuery = MetadataSearchDto | SmartSearchDto;
 
-/** 管理搜索面板状态与 URL 参数转换，包含可与媒体类型组合的全景开关。 */
+/** 管理独立原子条件、登记项复用与URL转换；组合项展开为可单独移除的条件后仍走既有搜索入口。 */
 class SearchManager {
   #filter = $state<SearchFilter>(this.#fromQuery({}));
-  #addedConditions = $state<Array<{ label: string; filter: SearchFilter }>>([]);
+  #addedConditions = $state<Array<{ id: string; label: string; filter: SearchFilter }>>([]);
 
   get filter() {
     return this.#filter;
@@ -58,7 +67,7 @@ class SearchManager {
   hasPendingCondition() {
     const filter = this.#filter;
     return Boolean(
-      filter.personIds.size ||
+      filter.personIds.size > 0 ||
       filter.tagIds === null ||
       filter.tagIds?.size ||
       filter.location.city !== undefined ||
@@ -83,9 +92,21 @@ class SearchManager {
     );
   }
 
-  addCurrentCondition(label: string) {
+  /** @param _ 保留旧调用签名；展示名改按各个原子字段生成。@returns 是否添加了条件，同字段/运算符替换旧值。 */
+  addCurrentCondition(_: string) {
     if (!this.hasPendingCondition()) return false;
-    this.#addedConditions = [...this.#addedConditions, { label, filter: this.#cloneFilter(this.#filter) }];
+    const atoms = getSearchConditionAtoms(captureSearchConditions(this.#filter), get(t)).filter(
+      (atom) => atom.id !== 'query' && atom.id !== 'queryAssetId',
+    );
+    const ids = new Set(atoms.map(({ id }) => id));
+    this.#addedConditions = [
+      ...this.#addedConditions.filter((condition) => !ids.has(condition.id)),
+      ...atoms.map((atom) => {
+        const filter = this.#fromQuery({});
+        applySearchConditions(filter, atom.conditions);
+        return { id: atom.id, label: atom.label, filter };
+      }),
+    ];
     const next = this.#fromQuery({});
     next.query = this.#filter.query;
     next.queryType = this.#filter.queryType;
@@ -96,6 +117,26 @@ class SearchManager {
 
   removeAddedCondition(index: number) {
     this.#addedConditions = this.#addedConditions.filter((_, conditionIndex) => conditionIndex !== index);
+  }
+
+  /** @returns 当前真正生效的原子条件，包含已添加条件和编辑中的条件。 */
+  get conditionAtoms() {
+    return getSearchConditionAtoms(captureSearchConditions(this.effectiveFilter), get(t));
+  }
+
+  /** @param conditions 登记项中的选定条件。@returns 无；先展平编辑状态，再只替换登记项覆盖的字段。 */
+  applyPreset(conditions: SearchPresetConditions): void {
+    const effective = this.effectiveFilter;
+    applySearchConditions(effective, conditions);
+    this.#addedConditions = [];
+    this.#filter = effective;
+  }
+
+  /** @param id 要移除的原子字段/运算符。@returns 无；其他条件按原值恢复，避免一并清除整个组合。 */
+  removeConditionAtom(id: string): void {
+    const remaining = combineSearchConditions(this.conditionAtoms.filter((atom) => atom.id !== id));
+    this.reset();
+    applySearchConditions(this.#filter, remaining);
   }
 
   setQueryType(queryType: SearchFilter['queryType']) {
@@ -120,19 +161,6 @@ class SearchManager {
     await goto(Route.search(this.#toQuery()));
   }
 
-  #cloneFilter(filter: SearchFilter): SearchFilter {
-    return {
-      ...filter,
-      personIds: new SvelteSet(filter.personIds),
-      tagIds: filter.tagIds === null ? null : new SvelteSet(filter.tagIds),
-      location: { ...filter.location },
-      camera: { ...filter.camera },
-      date: { ...filter.date },
-      display: { ...filter.display },
-      exifConditions: filter.exifConditions.map((condition) => ({ ...condition })),
-    };
-  }
-
   #mergeFilter(target: SearchFilter, source: SearchFilter) {
     target.personIds = new SvelteSet([...target.personIds, ...source.personIds]);
     if (source.tagIds === null) {
@@ -141,14 +169,14 @@ class SearchManager {
       target.tagIds = new SvelteSet([...target.tagIds, ...source.tagIds]);
     }
     target.location = {
-      country: source.location.country !== undefined ? source.location.country : target.location.country,
-      state: source.location.state !== undefined ? source.location.state : target.location.state,
-      city: source.location.city !== undefined ? source.location.city : target.location.city,
+      country: source.location.country === undefined ? target.location.country : source.location.country,
+      state: source.location.state === undefined ? target.location.state : source.location.state,
+      city: source.location.city === undefined ? target.location.city : source.location.city,
     };
     target.camera = {
-      make: source.camera.make !== undefined ? source.camera.make : target.camera.make,
-      model: source.camera.model !== undefined ? source.camera.model : target.camera.model,
-      lensModel: source.camera.lensModel !== undefined ? source.camera.lensModel : target.camera.lensModel,
+      make: source.camera.make === undefined ? target.camera.make : source.camera.make,
+      model: source.camera.model === undefined ? target.camera.model : source.camera.model,
+      lensModel: source.camera.lensModel === undefined ? target.camera.lensModel : source.camera.lensModel,
     };
     target.deviceModels = source.deviceModels?.length ? source.deviceModels : target.deviceModels;
     target.date = {
@@ -161,7 +189,7 @@ class SearchManager {
       albumStatus: source.display.albumStatus === 'all' ? target.display.albumStatus : source.display.albumStatus,
     };
     if (source.mediaType !== MediaType.All) target.mediaType = source.mediaType;
-    target.isPanorama = target.isPanorama || source.isPanorama;
+    target.isPanorama ||= source.isPanorama;
     target.mediaCategory = source.mediaCategory || target.mediaCategory;
     target.resolution = source.resolution || target.resolution;
     target.orientation = source.orientation || target.orientation;
@@ -178,6 +206,43 @@ class SearchManager {
 
   /** 从 URL 搜索参数恢复面板状态；全景条件缺省时关闭，不修改输入参数。 */
   #fromQuery(searchQuery: MetadataSearchDto | SmartSearchDto): SearchFilter {
+    // 含EXIF的请求使用结构化字段；刷新后也要还原其余原子条件，不能只恢复曝光值。
+    const structured = searchQuery.filter;
+    if (structured) {
+      searchQuery = {
+        ...searchQuery,
+        originalFileName: structured.originalFileName?.like ?? structured.originalFileName?.eq,
+        originalPath: structured.originalPath?.like ?? structured.originalPath?.eq,
+        description: structured.description?.like ?? structured.description?.eq,
+        ocr: structured.ocr?.matches,
+        country: structured.country?.eq,
+        state: structured.state?.eq,
+        city: structured.city?.eq,
+        make: structured.make?.eq,
+        model: structured.model?.eq,
+        lensModel: structured.lensModel?.eq,
+        deviceModels: structured.model?.in ?? undefined,
+        takenAfter: structured.takenAt?.gte,
+        takenBefore: structured.takenAt?.lte,
+        visibility: structured.visibility?.eq,
+        type: structured.type?.eq,
+        isFavorite: structured.isFavorite?.eq,
+        isInAlbum: structured.hasAlbums?.eq === true || undefined,
+        isNotInAlbum: structured.hasAlbums?.eq === false || undefined,
+        personIds: structured.personIds?.any,
+        tagIds: structured.hasTags?.eq === false ? null : structured.tagIds?.any,
+        isPanorama: structured.isPanorama?.eq,
+        isPhoneVideo: structured.isPhoneVideo?.eq,
+        isScreenshot: structured.isScreenshot?.eq,
+        isDeltaScreenshot: structured.isDeltaScreenshot?.eq,
+        isSteamScreenshot: structured.isSteamScreenshot?.eq,
+        isSwitchScreenshot: structured.isSwitchScreenshot?.eq,
+        isNintendo3dsScreenshot: structured.isNintendo3dsScreenshot?.eq,
+        resolution: structured.resolution?.eq,
+        orientation: structured.orientation?.eq,
+        rating: structured.rating?.eq,
+      } as SearchQuery;
+    }
     let query = 'query' in searchQuery && searchQuery.query ? searchQuery.query : '';
     let queryType = query ? QueryType.SMART : this.#defaultQueryType();
 
@@ -310,9 +375,13 @@ class SearchManager {
         isSteamScreenshot: filter.mediaCategory === 'steam-screenshot' || undefined,
         isDeltaScreenshot: filter.mediaCategory === 'delta-screenshot' || undefined,
         resolution: filter.resolution,
+        orientation: filter.orientation ? orientations[filter.orientation] : undefined,
         visibility: filter.display.isArchive ? AssetVisibility.Archive : undefined,
       })) {
         addEquals(field, value);
+      }
+      if (filter.deviceModels?.length) {
+        structuredFilter.model = { ...(structuredFilter.model as object | undefined), in: [...filter.deviceModels] };
       }
 
       if (filter.date.takenAfter || filter.date.takenBefore) {
@@ -387,7 +456,7 @@ class SearchManager {
       isSteamScreenshot: filter.mediaCategory === 'steam-screenshot' || undefined,
       isDeltaScreenshot: filter.mediaCategory === 'delta-screenshot' || undefined,
       orientation: filter.orientation ? orientations[filter.orientation] : undefined,
-      filter: Object.keys(exifFilter).length ? exifFilter : undefined,
+      filter: Object.keys(exifFilter).length > 0 ? exifFilter : undefined,
     };
   }
 

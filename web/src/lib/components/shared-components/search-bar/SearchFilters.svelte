@@ -1,10 +1,11 @@
 <script lang="ts">
   import { authManager } from '#lib/managers/auth-manager.svelte.ts';
   import { searchManager } from '#lib/managers/search-manager.svelte.ts';
+  import SearchPresetModal from '#lib/modals/SearchPresetModal.svelte';
   import { cameraLabel, selectedDeviceLabel } from '#lib/utils/capture-devices.ts';
-  import { mediaCategories, resolutionPresets } from '#lib/utils/media-categories.ts';
+  import { resolutionPresets } from '#lib/utils/media-categories.ts';
   import { getAllTags, type PersonResponseDto, type TagResponseDto } from '@immich/sdk';
-  import { Button, Text } from '@immich/ui';
+  import { Button, Text, modalManager } from '@immich/ui';
   import {
     mdiAccount,
     mdiAspectRatio,
@@ -16,7 +17,6 @@
     mdiImage,
     mdiMagnify,
     mdiMapMarker,
-    mdiShapeOutline,
     mdiTagMultiple,
     mdiTune,
   } from '@mdi/js';
@@ -31,7 +31,6 @@
   import SearchExifSection from './SearchExifSection.svelte';
   import SearchHistorySection from './SearchHistorySection.svelte';
   import SearchLocationSection from './SearchLocationSection.svelte';
-  import SearchMediaCategorySection from './SearchMediaCategorySection.svelte';
   import SearchMediaSection from './SearchMediaSection.svelte';
   import SearchPeopleSection from './SearchPeopleSection.svelte';
   import SearchRatingsSection from './SearchRatingsSection.svelte';
@@ -98,11 +97,7 @@
     ),
   );
   let tagsTitle = $state<string>();
-  let selectedCategory = $derived(
-    mediaCategories.find((category) => category.id === searchManager.filter.mediaCategory),
-  );
   let mediaTitle = $derived(getSearchMediaTitle(searchManager.filter.mediaType));
-  let categoryTitle = $derived(selectedCategory ? $t(selectedCategory.title) : undefined);
   let resolutionTitle = $derived(
     resolutionPresets.find((preset) => preset.value === searchManager.filter.resolution)?.label,
   );
@@ -191,12 +186,6 @@
       activeTitle: () => exifTitle,
     },
     {
-      name: 'mediaCategory',
-      icon: mdiShapeOutline,
-      title: $t('media_categories'),
-      activeTitle: () => categoryTitle,
-    },
-    {
       name: 'resolution',
       icon: mdiAspectRatio,
       title: $t('resolution'),
@@ -222,15 +211,22 @@
   };
 
   const addCondition = () => {
-    if (activeFilter === 'exif' && searchExifSection?.hasPendingCondition()) {
-      if (!searchExifSection.addCondition()) return;
-    }
+    if (activeFilter === 'exif' && searchExifSection?.hasPendingCondition() && !searchExifSection.addCondition())
+      return;
 
     const active = filters.find((item) => item.name === activeFilter);
     const label = active?.activeTitle() ?? (activeFilter === 'type' ? '筛选条件' : active?.title) ?? '筛选条件';
     searchManager.addCurrentCondition(label);
     onKeepOpen();
   };
+
+  /** @returns 无；先提交有效的EXIF编辑值，再打开登记弹框，避免遗漏还未点击添加的数值。 */
+  export function openPresetRegistry() {
+    if (activeFilter === 'exif' && searchExifSection?.hasPendingCondition() && !searchExifSection.addCondition())
+      return;
+    onKeepOpen();
+    void modalManager.show(SearchPresetModal, { onApply: onKeepOpen });
+  }
 
   onMount(() => {
     if (searchManager.filter.personIds.size > 0 && !peoplePromise) {
@@ -292,19 +288,19 @@
       />
       <div class="px-5">
         <Text class="py-5" fontWeight="medium" aria-hidden={true}>{$t('filter_by')}</Text>
-        {#if searchManager.addedConditions.length > 0}
+        {#if searchManager.conditionAtoms.length > 0}
           <div class="mb-4 flex flex-wrap items-center gap-2" aria-label="已添加的筛选条件">
             <span class="text-xs text-immich-fg/60 dark:text-immich-dark-fg/60">已添加条件</span>
-            {#each searchManager.addedConditions as label, index (`${label}-${index}`)}
+            {#each searchManager.conditionAtoms as atom (atom.id)}
               <span
                 class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary dark:text-immich-dark-primary"
               >
-                {label}
+                {atom.label}
                 <button
                   type="button"
                   class="ms-1 rounded-full hover:bg-primary/15"
-                  aria-label={`移除${label}`}
-                  onclick={() => searchManager.removeAddedCondition(index)}>×</button
+                  aria-label={`移除${atom.label}`}
+                  onclick={() => searchManager.removeConditionAtom(atom.id)}>×</button
                 >
               </span>
             {/each}
@@ -350,8 +346,6 @@
             <SearchCameraSection />
           {:else if activeFilter === 'exif'}
             <SearchExifSection bind:this={searchExifSection} />
-          {:else if activeFilter === 'mediaCategory'}
-            <SearchMediaCategorySection />
           {:else if activeFilter === 'resolution'}
             <SearchResolutionSection />
           {/if}
@@ -392,6 +386,9 @@
           color="secondary"
           class="bg-transparent"
           onclick={() => clear()}>{$t('clear_all')}</Button
+        >
+        <Button size="small" shape="round" variant="outline" onclick={openPresetRegistry}
+          >{$t('search_preset_register')}</Button
         >
         <Button size="small" shape="round" onclick={() => onSearch()}>{$t('search')}</Button>
       </div>

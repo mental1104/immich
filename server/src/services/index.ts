@@ -38,6 +38,7 @@ import { PhotoEditAdviceService } from 'src/services/photo-edit-advice.service.j
 import { PluginService } from 'src/services/plugin.service.js';
 import { QueueService } from 'src/services/queue.service.js';
 import { SceneStackService } from 'src/services/scene-stack.service.js';
+import { SearchPresetService } from 'src/services/search-preset.service.js';
 import { SearchService } from 'src/services/search.service.js';
 import { ServerService } from 'src/services/server.service.js';
 import { SessionService } from 'src/services/session.service.js';
@@ -103,6 +104,7 @@ export const services = [
   PluginService,
   QueueService,
   SearchService,
+  SearchPresetService,
   ServerService,
   SessionService,
   SharedLinkService,

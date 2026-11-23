@@ -2643,5 +2643,15 @@
   "album_category_delete_hint": "确认删除这个大组？其中的分组将回到“默认”。",
   "album_categories_retry": "重试加载大组",
   "album_show_details": "显示详情",
-  "album_covers_only": "仅封面"
+  "album_covers_only": "仅封面",
+  "search_presets": "登记与复用条件",
+  "search_preset_register": "登记条件",
+  "search_presets_hint": "勾选需要登记的原子条件，命名后按账号保存。复用只替换登记项包含的条件，其他已选条件保留。",
+  "search_preset_edit": "修改登记条件",
+  "search_preset_name": "登记名称",
+  "search_preset_current": "使用当前条件",
+  "search_preset_empty": "请先在搜索栏选择条件。",
+  "search_presets_custom": "我的登记条件",
+  "search_presets_builtin": "内置登记条件",
+  "search_preset_apply": "使用条件"
 }

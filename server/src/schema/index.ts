@@ -70,6 +70,7 @@ import { ForkIphoneUploadOriginTable } from 'src/schema/tables/fork-iphone-uploa
 import { ForkPhotoCopilotMessageTable } from 'src/schema/tables/fork-photo-copilot-message.table.js';
 import { ForkPhotoCopilotSessionTable } from 'src/schema/tables/fork-photo-copilot-session.table.js';
 import { ForkPhotoEditVersionTable } from 'src/schema/tables/fork-photo-edit-version.table.js';
+import { ForkSearchPresetTable } from 'src/schema/tables/fork-search-preset.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -122,6 +123,7 @@ export class ImmichDatabase {
   tables = [
     ForkAlbumCategoryTable,
     ForkAlbumGroupCategoryTable,
+    ForkSearchPresetTable,
     ActivityTable,
     AlbumAssetTable,
     AlbumAssetAuditTable,
@@ -269,6 +271,7 @@ export interface DB {
   asset_job_status: AssetJobStatusTable;
   fork_album_category: ForkAlbumCategoryTable;
   fork_album_group_category: ForkAlbumGroupCategoryTable;
+  fork_search_preset: ForkSearchPresetTable;
   fork_asset_task_status: ForkAssetTaskStatusTable;
   asset_ocr: AssetOcrTable;
   asset_ocr_audit: AssetOcrAuditTable;

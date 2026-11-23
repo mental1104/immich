@@ -48,7 +48,14 @@ describe('Album category search integration', () => {
     const { ctx, sut, service } = setup();
     const { user } = await ctx.newUser();
     const auth = AuthFactory.from({ id: user.id }).session().build();
-    const { asset } = await ctx.newAsset({ ownerId: user.id, type: AssetType.Image, originalFileName: 'camera.jpg' });
+    const { asset } = await ctx.newAsset({
+      ownerId: user.id,
+      type: AssetType.Image,
+      originalFileName: 'camera.jpg',
+      width: 1200,
+      height: 800,
+    });
+    await ctx.newExif({ assetId: asset.id, iso: 800, model: 'Camera One' });
     await ctx.newAlbum({ ownerId: user.id, customGroupName: 'HTTP region' }, [asset.id]);
     const app = await controllerSetup(
       [AlbumCategoryController, SearchController],
@@ -78,7 +85,19 @@ describe('Album category search integration', () => {
       const requests = [
         { path: '/search/smart', body: { query: 'HTTP travel', type: AssetType.Image, size: 10, page: 1 } },
         { path: '/search/metadata', body: { description: 'HTTP travel', originalFileName: 'camera', size: 10 } },
-        { path: '/search/smart', body: { query: 'HTTP travel', filter: { type: { eq: AssetType.Image } }, size: 10 } },
+        {
+          path: '/search/smart',
+          body: {
+            query: 'HTTP travel',
+            filter: {
+              type: { eq: AssetType.Image },
+              orientation: { eq: 'landscape' },
+              iso: { gte: 400 },
+              model: { in: ['Camera One'] },
+            },
+            size: 10,
+          },
+        },
         {
           path: '/search/metadata',
           body: { filter: { description: { like: 'HTTP travel' }, originalFileName: { like: 'camera' } }, size: 10 },
@@ -90,6 +109,13 @@ describe('Album category search integration', () => {
         const reply = (await response.json()) as { assets: { items: { id: string }[] } };
         expect(reply.assets.items.map(({ id }) => id)).toEqual([asset.id]);
       }
+      const portrait = await send('/search/metadata', 'POST', {
+        size: 10,
+        filter: { orientation: { eq: 'portrait' }, iso: { gte: 400 }, model: { in: ['Camera One'] } },
+      });
+      expect(portrait.status).toBe(200);
+      const portraitReply = (await portrait.json()) as { assets: { items: unknown[] } };
+      expect(portraitReply.assets.items).toEqual([]);
     } finally {
       await app.close();
     }

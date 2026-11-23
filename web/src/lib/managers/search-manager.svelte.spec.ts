@@ -16,6 +16,55 @@ describe('SearchManager', () => {
     expect(searchManager.filter.queryType).toBe('smart');
   });
 
+  /** 添加多个编辑条件时分别生成原子项，移除一个不会顺带清空相机或另一端EXIF范围。 */
+  it('keeps added conditions atomic and removes one criterion independently', () => {
+    searchManager.filter.camera.make = 'Canon';
+    searchManager.filter.mediaType = MediaType.Image;
+    searchManager.addExifCondition({ field: 'iso', operator: 'gte', value: 800 });
+    searchManager.addExifCondition({ field: 'iso', operator: 'lte', value: 3200 });
+    searchManager.addCurrentCondition('Combined label');
+    expect(searchManager.conditionAtoms.map(({ id }) => id)).toEqual([
+      'make',
+      'mediaType',
+      'exif:iso:gte',
+      'exif:iso:lte',
+    ]);
+    searchManager.removeConditionAtom('exif:iso:gte');
+    expect(searchManager.effectiveFilter.camera.make).toBe('Canon');
+    expect(searchManager.effectiveFilter.mediaType).toBe(MediaType.Image);
+    expect(searchManager.effectiveFilter.exifConditions).toEqual([{ field: 'iso', operator: 'lte', value: 3200 }]);
+  });
+
+  /** 登记只覆盖所含字段；设备、方向与EXIF一起提交和刷新时都能准确还原。 */
+  it('reuses selected criteria and restores the structured request after refresh', async () => {
+    searchManager.filter.query = 'flowers';
+    searchManager.filter.location.country = 'France';
+    searchManager.filter.orientation = 'landscape';
+    searchManager.applyPreset({
+      deviceModels: ['Camera One', 'Camera Two'],
+      mediaType: MediaType.Video,
+      exifConditions: [{ field: 'iso', operator: 'gte', value: 800 }],
+    });
+    await searchManager.submit();
+    const target = String(vi.mocked(goto).mock.calls[0][0]);
+    const query = JSON.parse(new URL(target, 'https://test.invalid').searchParams.get('query')!);
+    expect(query.filter).toMatchObject({
+      country: { eq: 'France' },
+      model: { in: ['Camera One', 'Camera Two'] },
+      orientation: { eq: 'landscape' },
+      iso: { gte: 800 },
+      type: { eq: AssetTypeEnum.Video },
+    });
+    searchManager.reset();
+    searchManager.setQuery(query);
+    expect(searchManager.filter.query).toBe('flowers');
+    expect(searchManager.filter.location.country).toBe('France');
+    expect(searchManager.filter.deviceModels).toEqual(['Camera One', 'Camera Two']);
+    expect(searchManager.filter.orientation).toBe('landscape');
+    expect(searchManager.filter.mediaType).toBe(MediaType.Video);
+    expect(searchManager.filter.exifConditions).toEqual([{ field: 'iso', operator: 'gte', value: 800 }]);
+  });
+
   it('remembers the selected query type', () => {
     searchManager.setQueryType('metadata');
     expect(searchManager.filter.queryType).toBe('metadata');

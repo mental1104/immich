@@ -7,15 +7,9 @@
 
   let filteredMedia = $derived(searchManager.filter.mediaType);
 
+  /** @param type 独立的照片/视频条件；保留其他条件，避免隐式删除登记项中的来源规则。 */
   function selectMedia(type: MediaType) {
     searchManager.filter.mediaType = type;
-    const category = searchManager.filter.mediaCategory;
-    if (
-      (type === MediaType.Image && category === 'phone-video') ||
-      (type === MediaType.Video && category && category !== 'phone-video')
-    ) {
-      searchManager.filter.mediaCategory = undefined;
-    }
   }
 </script>
 

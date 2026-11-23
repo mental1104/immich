@@ -2667,5 +2667,15 @@
   "album_category_delete_hint": "Delete this category? Its groups will return to Default.",
   "album_categories_retry": "Retry categories",
   "album_show_details": "Show details",
-  "album_covers_only": "Covers only"
+  "album_covers_only": "Covers only",
+  "search_presets": "Registered search conditions",
+  "search_preset_register": "Register conditions",
+  "search_presets_hint": "Select individual conditions to save under your account. Reusing a preset replaces only its included conditions; other conditions remain.",
+  "search_preset_edit": "Edit registered conditions",
+  "search_preset_name": "Name",
+  "search_preset_current": "Use current conditions",
+  "search_preset_empty": "Select search conditions first.",
+  "search_presets_custom": "My registered conditions",
+  "search_presets_builtin": "Built-in registered conditions",
+  "search_preset_apply": "Use conditions"
 }

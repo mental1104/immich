@@ -2446,6 +2446,9 @@ export type IdFilterNullable = {
 export type StringSimilarityFilter = {
     matches: string;
 };
+export type MediaOrientationFilter = {
+    eq: SearchOrientation;
+};
 export type NumberFilterNullable = {
     eq?: number | null;
     gt?: number;
@@ -2512,6 +2515,7 @@ export type SearchFilterBranch = {
     make?: StringFilterNullable;
     model?: StringFilterNullable;
     ocr?: StringSimilarityFilter;
+    orientation?: MediaOrientationFilter;
     originalFileName?: StringPatternFilter;
     originalPath?: StringPatternFilter;
     personIds?: IdsFilter;
@@ -2559,6 +2563,7 @@ export type SearchFilter = {
     model?: StringFilterNullable;
     ocr?: StringSimilarityFilter;
     or?: SearchFilterBranch[];
+    orientation?: MediaOrientationFilter;
     originalFileName?: StringPatternFilter;
     originalPath?: StringPatternFilter;
     personIds?: IdsFilter;
@@ -8963,6 +8968,10 @@ export enum MediaResolution {
     $1080P = "1080p",
     $2K = "2k",
     $4K = "4k"
+}
+export enum SearchOrientation {
+    Landscape = "landscape",
+    Portrait = "portrait"
 }
 export enum SearchOrderField {
     FileCreatedAt = "fileCreatedAt",

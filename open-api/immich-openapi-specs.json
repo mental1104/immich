@@ -24140,6 +24140,17 @@
         ],
         "type": "object"
       },
+      "MediaOrientationFilter": {
+        "properties": {
+          "eq": {
+            "$ref": "#/components/schemas/SearchOrientation"
+          }
+        },
+        "required": [
+          "eq"
+        ],
+        "type": "object"
+      },
       "MediaResolution": {
         "enum": [
           "720p",
@@ -28790,6 +28801,9 @@
             "minItems": 1,
             "type": "array"
           },
+          "orientation": {
+            "$ref": "#/components/schemas/MediaOrientationFilter"
+          },
           "originalFileName": {
             "$ref": "#/components/schemas/StringPatternFilter"
           },
@@ -28928,6 +28942,9 @@
           "ocr": {
             "$ref": "#/components/schemas/StringSimilarityFilter"
           },
+          "orientation": {
+            "$ref": "#/components/schemas/MediaOrientationFilter"
+          },
           "originalFileName": {
             "$ref": "#/components/schemas/StringPatternFilter"
           },
@@ -28986,6 +29003,13 @@
           "localDateTime",
           "fileSizeInBytes",
           "rating"
+        ],
+        "type": "string"
+      },
+      "SearchOrientation": {
+        "enum": [
+          "landscape",
+          "portrait"
         ],
         "type": "string"
       },

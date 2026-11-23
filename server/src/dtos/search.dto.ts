@@ -303,6 +303,11 @@ const searchFilterBranchShape = {
   isFavorite: BoolFilterSchema,
   isMotion: BoolFilterSchema,
   resolution: z.object({ eq: MediaResolutionSchema }).optional().meta({ id: 'MediaResolutionFilter' }),
+  // 与EXIF等结构化条件组合时继续支持既有的横/竖构图条件。
+  orientation: z
+    .object({ eq: z.enum(['landscape', 'portrait']).meta({ id: 'SearchOrientation' }) })
+    .optional()
+    .meta({ id: 'MediaOrientationFilter' }),
   isPanorama: BoolFilterSchema,
   isPhoneVideo: BoolFilterSchema,
   isScreenshot: BoolFilterSchema,

@@ -65,7 +65,7 @@
 <Modal title={$t('album_categories_manage')} size="medium" {onClose}>
   <ModalBody>
     <div class="flex flex-col gap-5 p-4">
-      <p class="text-sm text-subtle">{$t('album_categories_hint')}</p>
+      <p class="text-sm text-immich-fg/70 dark:text-immich-dark-fg/70">{$t('album_categories_hint')}</p>
       {#if directory.isError}
         <Button onclick={() => directory.refetch()}>{$t('retry')}</Button>
       {:else}

@@ -2,6 +2,10 @@ import { locale } from '#lib/stores/preferences.store.ts';
 import { getAlbumDateRange, getShortDateRange } from './date-time';
 
 describe('getShortDateRange', () => {
+  /** 首个用例也必须从英文开始，避免其他文件残留的持久化语言影响月份断言。 */
+  beforeEach(() => {
+    locale.set('en');
+  });
   afterEach(() => {
     locale.set('en');
   });

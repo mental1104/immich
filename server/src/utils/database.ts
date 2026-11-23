@@ -848,6 +848,9 @@ function branchPredicates(eb: AssetExpressionBuilder, branch: SearchFilterBranch
         ]
       : []),
     ...(branch.resolution ? [resolutionPredicate(branch.resolution.eq)] : []),
+    ...(branch.orientation
+      ? [eb(eb.ref('asset.width'), branch.orientation.eq === 'landscape' ? '>' : '<', eb.ref('asset.height'))]
+      : []),
     ...(branch.isScreenshot ? [branch.isScreenshot.eq ? screenshotPredicate() : eb.not(screenshotPredicate())] : []),
     ...existsPredicates(eb, branch.isEncoded, () => encodedVideoFiles(eb)),
     ...existsPredicates(eb, branch.hasAlbums, () => albumAssets(eb)),

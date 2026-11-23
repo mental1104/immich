@@ -6,7 +6,7 @@
   import { searchStore } from '#lib/stores/search.svelte.ts';
   import { handlePromiseError } from '#lib/utils.ts';
   import { IconButton } from '@immich/ui';
-  import { mdiClose, mdiMagnify } from '@mdi/js';
+  import { mdiClose, mdiContentSaveOutline, mdiMagnify } from '@mdi/js';
   import { onDestroy, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import SearchFilters from './SearchFilters.svelte';
@@ -107,7 +107,7 @@
       }
 
       closeDropdown();
-    });
+    }, 0);
   };
 
   const onHistoryTermClick = async (searchTerm: string) => {
@@ -213,7 +213,7 @@
         type="text"
         name="q"
         id="main-search-bar"
-        class="w-full border-b py-4 ps-14 text-immich-fg/75 transition-all max-md:py-2 dark:text-immich-dark-fg
+        class="w-full border-b py-4 ps-24 text-immich-fg/75 transition-all max-md:py-2 dark:text-immich-dark-fg
         {showClearIcon ? 'pe-22.5' : 'pe-14'}
         {grayTheme || showSuggestions ? 'dark:bg-immich-dark-gray' : 'dark:bg-immich-dark-bg'}
         {showSuggestions ? 'rounded-t-3xl shadow-[0_8px_20px_rgba(0,0,0,0.12)]' : 'rounded-3xl bg-gray-200'}
@@ -264,6 +264,16 @@
       </div>
     {/if}
     <div class="absolute inset-y-0 inset-s-0 flex items-center ps-2">
+      <IconButton
+        aria-label={$t('search_preset_register')}
+        title={$t('search_preset_register')}
+        icon={mdiContentSaveOutline}
+        size="medium"
+        onclick={() => searchFilters?.openPresetRegistry()}
+        shape="round"
+        color="secondary"
+        variant="ghost"
+      />
       <IconButton
         type="submit"
         aria-label={$t('search')}

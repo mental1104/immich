@@ -36,6 +36,7 @@ import { PipelineController } from 'src/controllers/pipeline.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
 import { QueueController } from 'src/controllers/queue.controller.js';
 import { SceneStackController } from 'src/controllers/scene-stack.controller.js';
+import { SearchPresetController } from 'src/controllers/search-preset.controller.js';
 import { SearchController } from 'src/controllers/search.controller.js';
 import { ServerController } from 'src/controllers/server.controller.js';
 import { SessionController } from 'src/controllers/session.controller.js';
@@ -93,6 +94,7 @@ export const controllers = [
   QueueController,
   PipelineController,
   SearchController,
+  SearchPresetController,
   ServerController,
   SessionController,
   SharedLinkController,

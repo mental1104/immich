@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { MediaType } from '#lib/constants.ts';
   import { searchManager } from '#lib/managers/search-manager.svelte.ts';
   import { handlePromiseError } from '#lib/utils.ts';
   import { deviceOptions } from '#lib/utils/capture-devices.ts';
@@ -27,15 +26,9 @@
     }
   }
 
+  /** @param models 设备别名的OR集合；只改设备，不连带切换照片/视频或清空其他筛选。 */
   function select(models?: string[]) {
     searchManager.filter.deviceModels = models;
-    if (models) {
-      searchManager.filter.camera = {};
-      searchManager.filter.mediaType = MediaType.Image;
-      if (searchManager.filter.mediaCategory === 'phone-video') {
-        searchManager.filter.mediaCategory = undefined;
-      }
-    }
   }
 
   onMount(() => handlePromiseError(load()));
@@ -47,7 +40,7 @@
     >{$t('all')}</SearchButton
   >
   {#each groups as group (group.id)}
-    {@const items = options.filter((option) => option.group === group.id)}
+    {const items = $derived(options.filter((option) => option.group === group.id))}
     {#if items.length}
       <fieldset class="mt-5">
         <Text class="pb-3">{group.title ?? $t('other_capture_devices')}</Text>
