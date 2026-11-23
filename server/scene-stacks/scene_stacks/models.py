@@ -14,6 +14,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, Json, StringConstraints, model_validator
 
+from .composition import CompositionResult
+
 
 PreparedPath = Annotated[str, StringConstraints(pattern=r"^inputs/[0-9a-f]{2}/[0-9a-f]{64}\.jpg$")]
 """共享输入仅为内容绑定JPEG路径，排除Windows反斜线、盘符及跨目录分量。"""
@@ -55,7 +57,15 @@ class WorkerRole(StrEnum):
     """明确区分4070Ti首次计算和NAS增量消费。"""
 
     GPU = "gpu"
+    GAME_GPU = "gpu-game"
     NAS = "nas"
+
+
+class MediaKind(StrEnum):
+    """可信源准入类别；生活照片继续要求拍摄EXIF，Steam截图另用独立规则。"""
+
+    PHOTO = "photo"
+    STEAM = "steam"
 
 
 class InventoryEntry(BaseModel):
@@ -69,14 +79,20 @@ class InventoryEntry(BaseModel):
     revision: str
     source_key: str = ""
     embedding: Json[tuple[float, ...]] | None
-    shutter: str
-    aperture: float = Field(gt=0)
+    shutter: str | None
+    aperture: float | None = Field(gt=0)
     preview: str | None
     available: bool = True
+    kind: MediaKind = MediaKind.PHOTO
+    game: str = ""
 
     @property
     def ready(self) -> bool:
         """返回输入是否可参与规划；缺特征、预览或无效快门均留在待输入状态。"""
+        if self.kind is MediaKind.STEAM:
+            return bool(self.embedding) and self.preview is not None and self.available
+        if self.shutter is None or self.aperture is None:
+            return False
         try:
             positive = Fraction(self.shutter) > 0
         except (ValueError, ZeroDivisionError):
@@ -137,11 +153,17 @@ class PairResult(BaseModel):
     forward_raw: str
     reverse_raw: str | None
     seconds: float = Field(ge=0)
+    composition: CompositionResult | None = None
 
     @property
     def permits_merge(self) -> bool:
         """返回双向保守门槛；顺序不一致与任一uncertain都保持展开。"""
-        return self.forward.permits_merge and self.reverse is not None and self.reverse.permits_merge
+        return (
+            self.forward.permits_merge
+            and self.reverse is not None
+            and self.reverse.permits_merge
+            and (self.composition is None or self.composition.permits_merge)
+        )
 
 
 class LeaseReference(BaseModel):
@@ -190,6 +212,7 @@ class Candidate:
     key: str
     owner_id: str
     members: tuple[InventoryEntry, ...]
+    policy: Policy | None = None
 
 
 @dataclass(frozen=True)

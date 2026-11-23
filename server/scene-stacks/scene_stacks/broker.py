@@ -93,6 +93,10 @@ class _Handler(BaseHTTPRequestHandler):
             self.server.catalog.validate_nas()
             self._reply(200, {"nas_validated": True})
             return
+        if self.path == "/enable-game-nas":
+            self.server.catalog.validate_game_nas()
+            self._reply(200, {"game_nas_validated": True})
+            return
         if self.path not in ("/submit", "/renew"):
             self._reply(404, {"error": "Unknown endpoint"})
             return

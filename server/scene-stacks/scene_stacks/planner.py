@@ -11,7 +11,8 @@ from typing import Iterable, Iterator, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-from .models import Candidate, InventoryEntry, Policy
+from .inference import game_policy
+from .models import Candidate, InventoryEntry, MediaKind, Policy
 
 
 def read_inventory(path: Path) -> Iterator[InventoryEntry]:
@@ -29,7 +30,10 @@ def _candidate(members: Sequence[InventoryEntry], policy: Policy) -> Candidate:
         for entry in members
     ]
     payload = json.dumps([policy.key, str(members[0].owner_id), revisions], separators=(",", ":"))
-    return Candidate(hashlib.sha256(payload.encode()).hexdigest(), str(members[0].owner_id), tuple(members))
+    variant = policy if members[0].kind is MediaKind.STEAM else None
+    return Candidate(
+        hashlib.sha256(payload.encode()).hexdigest(), str(members[0].owner_id), tuple(members), variant
+    )
 
 
 def plan(entries: Iterable[InventoryEntry], policy: Policy) -> tuple[Candidate, ...]:
@@ -43,13 +47,14 @@ def plan(entries: Iterable[InventoryEntry], policy: Policy) -> tuple[Candidate, 
     Raises:
         ValueError: 输入特征非有限、为零或同一目录的维数不同。
     """
-    owners: dict[str, list[InventoryEntry]] = defaultdict(list)
+    owners: dict[tuple[str, MediaKind, str], list[InventoryEntry]] = defaultdict(list)
     for entry in entries:
         if entry.ready:
-            owners[str(entry.owner_id)].append(entry)
+            owners[(str(entry.owner_id), entry.kind, entry.game)].append(entry)
     output: list[Candidate] = []
     dimensions: set[int] = set()
     for owner in sorted(owners):
+        effective = game_policy() if owner[1] is MediaKind.STEAM else policy
         ordered = sorted(owners[owner], key=lambda item: (item.taken, str(item.id)), reverse=True)
         current: list[InventoryEntry] = []
         vectors: list[NDArray[np.float32]] = []
@@ -61,16 +66,16 @@ def plan(entries: Iterable[InventoryEntry], policy: Policy) -> tuple[Candidate, 
                 raise ValueError("Invalid or inconsistent CLIP embeddings")
             vector = vector / norm
             compatible = bool(current) and (
-                abs((current[0].taken - entry.taken).total_seconds()) <= policy.max_span_seconds
-                and all(float(np.dot(other, vector)) >= policy.clip_threshold for other in vectors)
+                abs((current[0].taken - entry.taken).total_seconds()) <= effective.max_span_seconds
+                and all(float(np.dot(other, vector)) >= effective.clip_threshold for other in vectors)
             )
             if current and not compatible:
-                output.append(_candidate(current, policy))
+                output.append(_candidate(current, effective))
                 current, vectors = [], []
             current.append(entry)
             vectors.append(vector)
         if current:
-            output.append(_candidate(current, policy))
+            output.append(_candidate(current, effective))
     return tuple(output)
 
 

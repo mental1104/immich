@@ -18,7 +18,17 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import BaseModel, ConfigDict
 
 from .images import ImageCache
-from .models import Candidate, InventoryEntry, Lease, LeaseReference, PairResult, Policy, Submission
+from .composition import GAME_ALGORITHM
+from .models import (
+    Candidate,
+    InventoryEntry,
+    Lease,
+    LeaseReference,
+    MediaKind,
+    PairResult,
+    Policy,
+    Submission,
+)
 
 
 class _Partition(BaseModel):
@@ -69,6 +79,12 @@ class Catalog:
                 token TEXT,lease_until REAL,result TEXT,error TEXT,worker TEXT,finished_at REAL);
             CREATE INDEX IF NOT EXISTS pair_state ON pair(state,lease_until);
         """)
+        self.db.commit()
+        # 只在独立目录新增可空规则列，旧照片行保持NULL，原生Immich数据库不发生迁移。
+        for table in ("candidate", "pair"):
+            columns = {str(row[1]) for row in self.db.execute(f"PRAGMA table_info({table})")}
+            if "policy" not in columns:
+                self.db.execute(f"ALTER TABLE {table} ADD COLUMN policy TEXT")
         self.db.commit()
         existing = self._meta("policy")
         if existing is not None and existing != policy.key:
@@ -154,7 +170,10 @@ class Catalog:
                         str(entry.id),
                         str(entry.owner_id),
                         source_keys[str(entry.id)],
-                        entry.model_dump_json(round_trip=True),
+                        entry.model_dump_json(
+                            round_trip=True,
+                            exclude={"kind", "game"} if entry.kind is MediaKind.PHOTO else set(),
+                        ),
                         datetime.fromisoformat(entry.revision.split("/", 1)[0]).isoformat(),
                         str(entry.stack_id) if entry.stack_id else None,
                         int(entry.ready),
@@ -176,8 +195,8 @@ class Catalog:
                 if len(ids) == 1:
                     state = state.model_copy(update={"closed": (ids,), "current": ()})
                 self.db.execute(
-                    """INSERT INTO candidate(key,owner,members,state,done,priority)
-                    VALUES(?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET active=1 WHERE candidate.active=0""",
+                    """INSERT INTO candidate(key,owner,members,state,done,priority,policy)
+                    VALUES(?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET active=1 WHERE candidate.active=0""",
                     (
                         candidate.key,
                         candidate.owner_id,
@@ -185,6 +204,7 @@ class Catalog:
                         state.model_dump_json(),
                         int(len(ids) == 1),
                         candidate.members[0].taken.isoformat(),
+                        candidate.policy.model_dump_json() if candidate.policy is not None else None,
                     ),
                 )
             self._set_meta("inventory_updated_at", datetime.now(timezone.utc).isoformat())
@@ -203,6 +223,11 @@ class Catalog:
         """在真实NAS后端验收通过后持久允许增量领取；不会在全量阶段向NAS分配批量任务。"""
         with self._transaction():
             self._set_meta("nas_validated", "true")
+
+    def validate_game_nas(self) -> None:
+        """实际NAS游戏后端验收通过后才允许增量截图领取，与既有照片验收状态分开。"""
+        with self._transaction():
+            self._set_meta("game_nas_validated", "true")
 
     def phase(self) -> str:
         """返回持久阶段；工人每次领取不扫描全量证据表计算统计。"""
@@ -269,7 +294,10 @@ class Catalog:
             pending_state = _Partition.model_validate_json(warming["state"])
             pending_members: tuple[str, ...] = tuple(json.loads(warming["members"]))
             inputs = (
-                tuple(self._entry(asset_id) for asset_id in (*pending_state.current, pending_members[pending_state.cursor]))
+                tuple(
+                    self._entry(asset_id)
+                    for asset_id in (*pending_state.current, pending_members[pending_state.cursor])
+                )
                 if pending_state.cursor < len(pending_members)
                 else ()
             )
@@ -310,8 +338,9 @@ class Catalog:
                         ),
                         key=lambda image: image.asset_id,
                     )
+                    job_policy = Policy.model_validate_json(row["policy"]) if row["policy"] else self.policy
                     material = json.dumps(
-                        [self.policy.key, [(item.asset_id, item.sha256) for item in prepared]]
+                        [job_policy.key, [(item.asset_id, item.sha256) for item in prepared]]
                     )
                     pair_key = hashlib.sha256(material.encode()).hexdigest()
                     pair = self.db.execute(
@@ -336,11 +365,12 @@ class Catalog:
                     if pair is not None and pair["state"] == "failed":
                         raise RuntimeError("Pair inference retries exhausted: " + str(pair["error"]))
                     self.db.execute(
-                        "INSERT OR IGNORE INTO pair(key,images,image_shas) VALUES(?,?,?)",
+                        "INSERT OR IGNORE INTO pair(key,images,image_shas,policy) VALUES(?,?,?,?)",
                         (
                             pair_key,
                             json.dumps([item.relative_path for item in prepared]),
                             json.dumps([item.sha256 for item in prepared]),
+                            row["policy"],
                         ),
                     )
                     wait_key = pair_key
@@ -412,16 +442,30 @@ class Catalog:
             self._expire_leases(moment)
             phase = self._meta("phase")
             if not (
-                (role == "gpu" and phase == "full")
+                (role in ("gpu", "gpu-game") and phase == "full")
                 or (role == "nas" and phase == "incremental" and self._meta("nas_validated") == "true")
             ):
                 return None
             # 由按日期排序的候选驱动主键查对，不从整批queued对做相关扫描再排序。
             # CROSS JOIN固定外层，避免规划器重排后重复扫描全部活动候选。
-            row = self.db.execute("""SELECT p.* FROM candidate c INDEXED BY candidate_dispatch
+            # 旧GPU仅领取NULL规则的照片，不会收到它无法理解的截图任务。
+            scope = (
+                "p.policy IS NULL"
+                if role == "gpu"
+                else "p.policy IS NOT NULL"
+                if role == "gpu-game"
+                else "(p.policy IS NULL OR ?='true')"
+            )
+            parameters = (self._meta("game_nas_validated"),) if role == "nas" else ()
+            row = self.db.execute(
+                """SELECT p.* FROM candidate c INDEXED BY candidate_dispatch
                 CROSS JOIN pair p ON p.key=c.wait_key
                 WHERE c.active=1 AND c.done=0 AND c.wait_key IS NOT NULL AND p.state='queued'
-                ORDER BY c.priority DESC,c.key LIMIT 1""").fetchone()
+                AND """
+                + scope
+                + " ORDER BY c.priority DESC,c.key LIMIT 1",
+                parameters,
+            ).fetchone()
             if row is None:
                 return None
             token = secrets.token_hex(24)
@@ -435,7 +479,7 @@ class Catalog:
                 token=token,
                 images=tuple(json.loads(row["images"])),
                 image_shas=tuple(json.loads(row["image_shas"])),
-                policy=self.policy,
+                policy=Policy.model_validate_json(row["policy"]) if row["policy"] else self.policy,
             )
 
     def renew(self, lease: LeaseReference, now: float | None = None) -> None:
@@ -451,13 +495,37 @@ class Catalog:
 
     def submit(self, submission: Submission) -> None:
         """原子保存submission后才确认完成；允许同租约同内容重试，拒绝旧租约及不同内容覆盖。"""
-        result = submission.result.model_dump_json() if submission.result is not None else None
+        result = (
+            submission.result.model_dump_json(
+                exclude={"composition"} if submission.result.composition is None else set()
+            )
+            if submission.result is not None
+            else None
+        )
         with self._transaction():
             row = self.db.execute("SELECT * FROM pair WHERE key=?", (submission.key,)).fetchone()
             if row is None or row["token"] != submission.token:
                 raise StaleLeaseError("Task lease is no longer current")
+            if (
+                not row["policy"]
+                and submission.result is not None
+                and submission.result.composition is not None
+            ):
+                raise ValueError("Photo task cannot carry game composition evidence")
+            # 新截图任务不能把缺失镜头证据的场景判断伪装成合并成功。
+            if row["policy"] and submission.result is not None:
+                policy = Policy.model_validate_json(row["policy"])
+                if (
+                    policy.algorithm == GAME_ALGORITHM
+                    and submission.result.permits_merge
+                    and submission.result.composition is None
+                ):
+                    raise ValueError("Game merge requires composition evidence")
             if row["state"] == "done":
-                if row["result"] != result:
+                if (
+                    submission.result is None
+                    or PairResult.model_validate_json(row["result"]) != submission.result
+                ):
                     raise StaleLeaseError("Completed task content differs")
                 return
             if row["state"] != "leased":
@@ -487,6 +555,12 @@ class Catalog:
                 "phase": self._meta("phase"),
                 "policy": self.policy.key,
                 "nas_validated": self._meta("nas_validated") == "true",
+                "game_nas_validated": self._meta("game_nas_validated") == "true",
+                "game_candidates": int(
+                    self.db.execute(
+                        "SELECT count(*) FROM candidate WHERE active=1 AND policy IS NOT NULL"
+                    ).fetchone()[0]
+                ),
                 "inventory": int(self._meta("inventory_count") or 0),
                 "pending_inputs": int(self._meta("pending_inputs") or 0),
                 "candidates": int(groups[0]),
@@ -518,13 +592,14 @@ class Catalog:
                     )
                 }
                 for row in self.db.execute(
-                    "SELECT state FROM candidate WHERE active=1 AND owner=?", (owner,)
+                    "SELECT state,policy FROM candidate WHERE active=1 AND owner=?", (owner,)
                 ):
+                    group_policy = Policy.model_validate_json(row["policy"]) if row["policy"] else self.policy
                     for members in _Partition.model_validate_json(row[0]).closed:
                         if len(members) < 2:
                             continue
                         group_id = str(
-                            uuid5(NAMESPACE_URL, "immich-scene/" + self.policy.key + "/" + "/".join(members))
+                            uuid5(NAMESPACE_URL, "immich-scene/" + group_policy.key + "/" + "/".join(members))
                         )
                         groups.append(
                             {

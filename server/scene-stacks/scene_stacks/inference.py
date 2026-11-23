@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, Field
 
+from .composition import GAME_ALGORITHM, CompositionClient, Shot, load_composition_prompt
 from .models import Judgement, Lease, PairResult, Policy
 
 
@@ -46,6 +47,38 @@ def default_policy() -> Policy:
         prompt_sha256=hashlib.sha256(load_prompt().encode()).hexdigest(),
         output_schema_sha256=hashlib.sha256(schema.encode()).hexdigest(),
     )
+
+
+def game_policy() -> Policy:
+    """返回独立截图规则，保留生活照片原规则键；裁剪、seed和输出上限纳入新版本摘要。"""
+    prompt = json.dumps(
+        [load_prompt(), load_composition_prompt(), "center-crop-0.05-0.07-0.95-0.90-v1", 320, 20261123]
+    )
+    schemas = json.dumps([Judgement.model_json_schema(), Shot.model_json_schema()], sort_keys=True)
+    return default_policy().model_copy(
+        update={
+            "algorithm": GAME_ALGORITHM,
+            "clip_threshold": 0.85,
+            "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+            "output_schema_sha256": hashlib.sha256(schemas.encode()).hexdigest(),
+        }
+    )
+
+
+def read_lease_images(lease: Lease, root: Path, expected_policy: Policy) -> tuple[bytes, bytes]:
+    """读取root下lease的两个不可变输入并核对expected_policy及SHA，返回字节，不确认任务。"""
+    if lease.policy != expected_policy:
+        raise ValueError("Worker model policy differs from job")
+    images: list[bytes] = []
+    for name, expected in zip(lease.images, lease.image_shas, strict=True):
+        relative = PurePosixPath(name)
+        if relative.is_absolute() or ".." in relative.parts or relative.parts[0] != "inputs":
+            raise ValueError("Job image path is outside prepared inputs")
+        data = root.joinpath(*relative.parts).read_bytes()
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise ValueError("Prepared image checksum mismatch")
+        images.append(data)
+    return images[0], images[1]
 
 
 class ModelClient:
@@ -125,15 +158,26 @@ class ModelClient:
         Raises:
             ValueError: 规则版本不同、路径越界或图片摘要不同。
         """
-        if lease.policy != self.policy:
-            raise ValueError("Worker model policy differs from job")
-        images: list[bytes] = []
-        for name, expected in zip(lease.images, lease.image_shas, strict=True):
-            relative = PurePosixPath(name)
-            if relative.is_absolute() or ".." in relative.parts or relative.parts[0] != "inputs":
-                raise ValueError("Job image path is outside prepared inputs")
-            data = root.joinpath(*relative.parts).read_bytes()
-            if hashlib.sha256(data).hexdigest() != expected:
-                raise ValueError("Prepared image checksum mismatch")
-            images.append(data)
-        return self.review((images[0], images[1]))
+        return self.review(read_lease_images(lease, root, self.policy))
+
+
+class GameModelClient:
+    """场景与镜头两级复核；复用同一模型，任何一级拒绝都保持展开。"""
+
+    def __init__(self, endpoint: str) -> None:
+        """绑定本机endpoint，使用冻结的场景和镜头规则，不创建额外模型进程。"""
+        self.policy = game_policy()
+        self.scene = ModelClient(endpoint, default_policy())
+        self.composition = CompositionClient(endpoint)
+
+    def review(self, images: tuple[bytes, bytes]) -> PairResult:
+        """复核images；只有场景双向通过才运行镜头判断，返回两级原始证据。"""
+        result = self.scene.review(images)
+        if not result.permits_merge:
+            return result
+        camera = self.composition.review(images)
+        return result.model_copy(update={"composition": camera, "seconds": result.seconds + camera.seconds})
+
+    def review_lease(self, lease: Lease, root: Path) -> PairResult:
+        """验证lease为截图规则并从root读取受摘要保护输入，复核但不确认持久任务。"""
+        return self.review(read_lease_images(lease, root, self.policy))

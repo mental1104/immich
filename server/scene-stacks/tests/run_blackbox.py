@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import closing
+from email.message import Message
 import json
 from pathlib import Path
 import socket
@@ -38,6 +39,7 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--code", type=Path, required=True)
     parser.add_argument("--image", default="immich-scene-stacks:test")
+    parser.add_argument("--game", action="store_true")
     args = parser.parse_args()
     code = args.code.resolve()
     root = args.root.resolve()
@@ -66,8 +68,11 @@ def main() -> None:
         if response["code"] == 0:
             raise OSError(response.get("error", "Client connection failed"))
         if response["code"] >= 400:
-            raise HTTPError(endpoint + path, response["code"], "Rejected", {}, None)
-        return response["body"]
+            raise HTTPError(endpoint + path, response["code"], "Rejected", Message(), None)
+        body = response["body"]
+        if not isinstance(body, dict):
+            raise ValueError("Expected JSON object response")
+        return {str(key): value for key, value in body.items()}
 
     def fixture(mode: str) -> None:
         """通过独立夹具进程执行mode，只改本次测试目录中的合成源。"""
@@ -83,6 +88,7 @@ def main() -> None:
             args.image,
             "/code/tests/blackbox_fixture.py",
             mode,
+            *(("--game",) if args.game else ()),
         )
 
     def member_ids() -> set[str]:
@@ -201,20 +207,34 @@ def main() -> None:
         worker(nas, "nas")
         time.sleep(2)
         assert not (root / "nas-started").exists(), "NAS model started during GPU full phase"
-        worker(gpu, "gpu")
+        gpu_role = "gpu-game" if args.game else "gpu"
+        if args.game:
+            worker(tag + "-legacy-gpu", "gpu")
+            time.sleep(2)
+            assert not (root / "gpu-started").exists(), "Legacy photo GPU received a game task"
+        worker(gpu, gpu_role)
         wait_until(lambda: request("/status")["phase"] == "incremental", "GPU full phase did not complete")
         wait_until(
             lambda: member_ids() == {str(UUID(int=1)), str(UUID(int=2))}, "Initial group content differs"
         )
         initial = request("/status")
         assert initial["pairs"] == {"done": 2}, "Wrong initial task evidence"
-        calls_before = len((root / "gpu-calls.jsonl").read_text().splitlines())
-        assert calls_before == 3, "Expected two directions for merge and one for rejection"
+        calls_before = len((root / f"{gpu_role}-calls.jsonl").read_text().splitlines())
+        assert calls_before == (5 if args.game else 3), "Unexpected scene/composition call evidence"
         docker("stop", "--time", "10", broker)
         docker("start", broker)
         wait_until(lambda: request("/status")["phase"] == "incremental", "Phase lost after restart")
         assert request("/status")["pairs"] == {"done": 2}, "Results lost after restart"
         fixture("increment")
+        if args.game:
+            time.sleep(2)
+            assert str(UUID(int=4)) not in member_ids(), "Unvalidated game increment was published"
+            counts = request("/status")["pairs"]
+            assert isinstance(counts, dict) and counts.get("done") == 2, (
+                "NAS game inference bypassed validation"
+            )
+            assert not (root / "nas-started").exists(), "NAS game model started before validation"
+            request("/enable-game-nas", post=True)
         wait_until(
             lambda: member_ids() == {str(UUID(int=index)) for index in (1, 2, 4)},
             "NAS did not process backdated input",
@@ -226,7 +246,7 @@ def main() -> None:
             lambda: member_ids() == {str(UUID(int=1)), str(UUID(int=4))},
             "Removed asset remains in published group",
         )
-        assert len((root / "gpu-calls.jsonl").read_text().splitlines()) == calls_before, (
+        assert len((root / f"{gpu_role}-calls.jsonl").read_text().splitlines()) == calls_before, (
             "GPU ran incremental work"
         )
         receipt = {
@@ -239,6 +259,8 @@ def main() -> None:
             "nas_backdated_increment": True,
             "removed_asset_unpublished": True,
             "model_cache_reused": True,
+            "game_scope": args.game,
+            "game_nas_validation_gate": args.game,
             "final_status": request("/status"),
         }
         (root / "receipt.json").write_text(json.dumps(receipt, indent=2))

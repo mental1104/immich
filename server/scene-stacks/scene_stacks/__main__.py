@@ -29,6 +29,7 @@ def main() -> None:
     serving.add_argument("--refresh-seconds", type=int, default=300)
     serving.add_argument("--publish-seconds", type=float, default=30)
     serving.add_argument("--backup-root", type=Path)
+    serving.add_argument("--steam-root", action="append", default=[])
     working = commands.add_parser("worker")
     working.add_argument("--root", type=Path, required=True)
     working.add_argument("--broker", required=True)
@@ -63,6 +64,7 @@ def main() -> None:
             args.refresh_seconds,
             args.publish_seconds,
             args.backup_root,
+            tuple(args.steam_root),
         )
     elif args.command == "worker":
         from .worker import Worker, read_model_command

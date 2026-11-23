@@ -31,6 +31,7 @@ def serve(
     refresh_seconds: int = 300,
     publish_seconds: float = 30,
     backup_root: Path | None = None,
+    steam_roots: tuple[str, ...] = (),
 ) -> None:
     """在NAS本地root运行协调器，首轮使用inventory或只读source_dsn_file，之后周期刷新。
 
@@ -45,6 +46,7 @@ def serve(
         refresh_seconds: 源探针核对间隔秒数。
         publish_seconds: 已确认分组的发布间隔秒数；隔离验收可缩短。
         backup_root: 可选HDD归档根；在线SQLite快照先在SSD完成，再由独立线程归档。
+        steam_roots: 可选可信Steam源前缀；默认关闭截图准入，不改变照片原规则键。
     """
     root.mkdir(parents=True, exist_ok=True)
     with (root / "coordinator.lock").open("a") as ownership:
@@ -52,7 +54,7 @@ def serve(
         fcntl.flock(ownership, fcntl.LOCK_EX | fcntl.LOCK_NB)
         policy = default_policy()
         catalog = Catalog(root, policy, ImageCache(root, thumbnails, policy))
-        source = Source(source_dsn_file) if source_dsn_file else None
+        source = Source(source_dsn_file, steam_roots) if source_dsn_file else None
         if catalog.status()["inventory_updated_at"] is None:
             if inventory is not None:
                 entries = tuple(check_availability(entry) for entry in read_inventory(inventory))

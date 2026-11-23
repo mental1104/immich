@@ -23,4 +23,4 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
-scene_stacks = ["prompt.txt"]
+scene_stacks = ["prompt.txt", "composition-prompt.txt"]

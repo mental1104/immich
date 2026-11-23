@@ -17,7 +17,8 @@ from uuid import uuid4
 
 from pydantic import TypeAdapter
 
-from .inference import ModelClient, default_policy
+from .inference import GameModelClient, ModelClient, default_policy
+from .composition import GAME_ALGORITHM
 from .models import ClaimReply, Lease, LeaseReference, Phase, Submission, WorkerRole
 
 
@@ -86,12 +87,16 @@ class Worker:
         """保存broker/token、root派生输入根、role与本机endpoint；可选managed_command只用于NAS。"""
         self.broker, self.token, self.root, self.role = broker.rstrip("/"), token, root, role
         self.model = ModelClient(endpoint, default_policy())
+        self.game_model = GameModelClient(endpoint)
         self.managed = ManagedModel(managed_command, endpoint, root / "nas-model.log")
         self.worker_id = role.value + "-" + uuid4().hex
 
     def _request(self, path: str, body: LeaseReference | None = None) -> bytes:
         """向broker的path GET或提交body；返回响应正文，HTTP/网络失败交由调用者恢复。"""
         data = body.model_dump_json().encode() if body is not None else None
+        # 普通照片保持旧协议JSON形状，允许照片工人在兼容回退窗口继续确认结果。
+        if isinstance(body, Submission) and body.result is not None and body.result.composition is None:
+            data = body.model_dump_json(exclude={"result": {"composition"}}).encode()
         request = Request(
             self.broker + path,
             data=data,
@@ -131,7 +136,8 @@ class Worker:
         with self._keep_lease(lease):
             try:
                 self.managed.ensure()
-                result = self.model.review_lease(lease, self.root)
+                client = self.game_model if lease.policy.algorithm == GAME_ALGORITHM else self.model
+                result = client.review_lease(lease, self.root)
                 submission = Submission(key=lease.key, token=lease.token, result=result)
             except (OSError, ValueError, RuntimeError) as error:
                 submission = Submission(
@@ -174,13 +180,13 @@ class Worker:
                 print("Broker unavailable: " + ascii(str(error)), flush=True)
                 time.sleep(10)
                 continue
-            if reply.phase is Phase.NEEDS_ATTENTION and self.role is WorkerRole.GPU:
+            if reply.phase is Phase.NEEDS_ATTENTION and self.role is not WorkerRole.NAS:
                 raise RuntimeError("Initial full scan has failed candidates; check NAS status")
             if reply.lease is None:
-                if self.role is WorkerRole.GPU and reply.phase is Phase.INCREMENTAL:
+                if self.role is not WorkerRole.NAS and reply.phase is Phase.INCREMENTAL:
                     return
                 self.managed.idle()
-                time.sleep(2 if self.role is WorkerRole.GPU else 10)
+                time.sleep(10 if self.role is WorkerRole.NAS else 2)
                 continue
             failures = failures + 1 if self._process(reply.lease) else 0
             if failures >= 3:

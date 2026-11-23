@@ -9,7 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 from uuid import UUID
 
 from PIL import Image
@@ -24,13 +24,15 @@ class FixtureEntry(TypedDict):
     stack_id: None
     revision: str
     embedding: str
-    shutter: str
-    aperture: float
+    shutter: str | None
+    aperture: float | None
     preview: str
+    kind: NotRequired[str]
+    game: NotRequired[str]
 
 
-def inventory(root: Path, indexes: tuple[int, ...]) -> None:
-    """向root准备indexes对应合成照片和完整快照；4为回填旧拍摄时间，不用上传水位。"""
+def inventory(root: Path, indexes: tuple[int, ...], game: bool = False) -> None:
+    """向root准备indexes合成输入；game为截图模式，4为回填旧拍摄时间，不用上传水位。"""
     thumbs = root / "thumbnails"
     thumbs.mkdir(exist_ok=True)
     rows: list[FixtureEntry] = []
@@ -51,6 +53,11 @@ def inventory(root: Path, indexes: tuple[int, ...]) -> None:
                 "preview": f"/data/thumbs/{index}.jpg",
             }
         )
+        if game:
+            rows[-1]["kind"] = "steam"
+            rows[-1]["game"] = "fixture"
+            rows[-1]["shutter"] = None
+            rows[-1]["aperture"] = None
     temporary = root / "inventory.jsonl.tmp"
     temporary.write_text("".join(json.dumps(row) + "\n" for row in rows))
     os.replace(temporary, root / "inventory.jsonl")
@@ -107,6 +114,17 @@ class ModelHandler(BaseHTTPRequestHandler):
             "framing": "similar",
             "reason": "Synthetic same scene" if merge else "Synthetic different subject",
         }
+        if body.get("response_format", {}).get("json_schema", {}).get("name") == "game_camera_composition":
+            judgement = {
+                "image_a_subject": "Synthetic figure",
+                "image_a_scale": "medium",
+                "image_b_subject": "Synthetic figure",
+                "image_b_scale": "medium",
+                "same_foreground": "yes" if merge else "no",
+                "same_shot_scale": "yes",
+                "same_viewpoint": "yes",
+                "reason": "Synthetic composition evidence",
+            }
         with self.server.calls.open("a") as output:
             output.write(json.dumps({"merge": merge}) + "\n")
         self._reply(
@@ -125,15 +143,16 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=18189)
     parser.add_argument("--calls", type=Path)
     parser.add_argument("--started", type=Path)
+    parser.add_argument("--game", action="store_true")
     args = parser.parse_args()
     if args.mode == "model":
         assert args.calls is not None and args.started is not None, "Model output paths required"
         args.started.write_text("started")
         FakeModel(args.port, args.calls).serve_forever()
     elif args.mode == "initial":
-        inventory(args.root, (1, 2, 3))
+        inventory(args.root, (1, 2, 3), args.game)
         (args.root / "token").write_text("isolated-fixture-token")
-        for role in ("gpu", "nas"):
+        for role in ("gpu", "gpu-game", "nas"):
             command = [
                 "python",
                 "/code/tests/blackbox_fixture.py",
@@ -145,7 +164,7 @@ def main() -> None:
             ]
             (args.root / f"{role}-command.json").write_text(json.dumps(command))
     else:
-        inventory(args.root, (1, 2, 3, 4) if args.mode == "increment" else (1, 3, 4))
+        inventory(args.root, (1, 2, 3, 4) if args.mode == "increment" else (1, 3, 4), args.game)
 
 
 if __name__ == "__main__":

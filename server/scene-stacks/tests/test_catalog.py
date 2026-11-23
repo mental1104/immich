@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import json
+import hashlib
 from pathlib import Path
 import shutil
 from threading import Event
@@ -16,7 +17,8 @@ import pytest
 
 from scene_stacks.catalog import Catalog, StaleLeaseError
 from scene_stacks.images import ImageCache
-from scene_stacks.inference import default_policy
+from scene_stacks.inference import default_policy, game_policy
+from scene_stacks.composition import CompositionResult, Relation, Scale, Shot, load_composition_prompt
 from scene_stacks.models import (
     Consistency,
     Decision,
@@ -24,6 +26,7 @@ from scene_stacks.models import (
     InventoryEntry,
     Judgement,
     Lease,
+    MediaKind,
     PairResult,
     Policy,
     PreparedImage,
@@ -151,6 +154,121 @@ class TestScenePlanning:
         groups = plan(entries, lab.policy)
         assert len(groups) == 3 and all(len(group.members) == 1 for group in groups)
         assert not entries[-1].ready
+
+
+class TestGameSceneVariants:
+    """验证截图准入、规则隔离、旧断点兼容和NAS接续边界，不接触真实照片。"""
+
+    def test_camera_contract_matches_frozen_validation(self) -> None:
+        """固定已完成跨日期实测的提示/Schema/裁剪版本，不让正式接线静默更换镜头合同。"""
+        material = json.dumps(
+            [
+                load_composition_prompt(),
+                Shot.model_json_schema(),
+                default_policy().key,
+                "center-crop-0.05-0.07-0.95-0.90-v1",
+                320,
+                20261123,
+            ],
+            sort_keys=True,
+        )
+        assert (
+            hashlib.sha256(material.encode()).hexdigest()
+            == "5221638f6e7dfd4d8480c768e0d60ea12818f84742957dd391aa59ef729a38d9"
+        )
+
+    def test_legacy_photo_keys_are_unchanged(self, lab: Lab) -> None:
+        """固定旧生产版本的合成候选键，新增截图功能不能让照片全量重跑。"""
+        entries = (lab.asset(1), lab.asset(2))
+        assert default_policy().key == "c35c33bc27ab6935ca1847ac923579c79aea4a8abc081268ff2b98b01e301e50"
+        assert (
+            plan(entries, lab.policy)[0].key
+            == "05f34ad5fa5134194cdb81112256a2fc1ba1a1d741046e9fbb4270d905e81247"
+        )
+        assert game_policy().key != lab.policy.key
+
+    def test_missing_exif_is_allowed_only_for_trusted_game_kind(self, lab: Lab) -> None:
+        """无EXIF照片继续待输入；显式准入的截图不伪造快门和光圈。"""
+        photo = lab.asset(1).model_copy(update={"shutter": None, "aperture": None})
+        screenshot = photo.model_copy(update={"kind": MediaKind.STEAM})
+        assert not photo.ready and screenshot.ready
+        assert screenshot.shutter is None and screenshot.aperture is None
+
+    def test_domains_and_games_do_not_mix(self, lab: Lab) -> None:
+        """同向量的生活照片及不同游戏仍形成独立候选，不能以相似性跨域串组。"""
+        photo = (lab.asset(1), lab.asset(2))
+        game_a = lab.asset(3).model_copy(update={"kind": MediaKind.STEAM, "game": "111"})
+        game_b = lab.asset(4).model_copy(update={"kind": MediaKind.STEAM, "game": "222"})
+        groups = plan((*photo, game_a, game_b), lab.policy)
+        assert sorted(len(group.members) for group in groups) == [1, 1, 2]
+        assert (
+            next(group for group in groups if len(group.members) == 2).key == plan(photo, lab.policy)[0].key
+        )
+
+    def test_old_gpu_cannot_claim_game_and_merge_requires_camera(self, lab: Lab) -> None:
+        """旧GPU只获得照片；截图不能仅凭原场景结果确认合并，拒绝不会消耗当前租约。"""
+        entries = tuple(lab.asset(index).model_copy(update={"kind": MediaKind.STEAM}) for index in (1, 2))
+        lab.import_entries(entries)
+        lab.catalog.advance()
+        assert lab.catalog.claim("gpu", "old-gpu") is None
+        lease = lab.catalog.claim("gpu-game", "game-gpu")
+        assert lease is not None and lease.policy == game_policy()
+        with pytest.raises(ValueError, match="composition"):
+            lab.catalog.submit(Submission(key=lease.key, token=lease.token, result=result(True)))
+        shot = Shot(
+            image_a_subject="Figure",
+            image_a_scale=Scale.MEDIUM,
+            image_b_subject="Figure",
+            image_b_scale=Scale.MEDIUM,
+            same_foreground=Relation.YES,
+            same_shot_scale=Relation.YES,
+            same_viewpoint=Relation.YES,
+            reason="Same view",
+        )
+        camera = CompositionResult(forward=shot, reverse=shot, forward_raw="f", reverse_raw="r", seconds=1)
+        accepted = result(True).model_copy(update={"composition": camera})
+        lab.catalog.submit(Submission(key=lease.key, token=lease.token, result=accepted))
+        lab.catalog.advance()
+        lab.catalog.publish()
+        published = json.loads((lab.root / "published" / f"{entries[0].owner_id}.json").read_text())
+        assert len(published["groups"]) == 1
+        lab.reopen()
+        assert lab.catalog.status()["pairs"] == {"done": 1}
+
+    def test_game_nas_needs_its_own_backend_validation(self, lab: Lab) -> None:
+        """照片NAS已验证也不能领取新镜头规则；独立验证后才允许NAS截图增量。"""
+        lab.catalog.validate_nas()
+        lab.import_entries(())
+        lab.catalog.advance()
+        lab.import_entries(
+            tuple(lab.asset(index).model_copy(update={"kind": MediaKind.STEAM}) for index in (1, 2))
+        )
+        lab.catalog.advance()
+        assert lab.catalog.phase() == "incremental"
+        assert lab.catalog.claim("nas", "nas-before") is None
+        lab.catalog.validate_game_nas()
+        lease = lab.catalog.claim("nas", "nas-after")
+        assert lease is not None and lease.policy == game_policy()
+
+    def test_legacy_ack_is_idempotent_with_new_optional_fields(self, lab: Lab) -> None:
+        """旧结果JSON缺少composition字段时，同租约重发仍幂等，不重算或覆盖持久证据。"""
+        lab.import_entries((lab.asset(1), lab.asset(2)))
+        lab.catalog.advance()
+        lease = lab.catalog.claim("gpu", "old-gpu")
+        assert lease is not None
+        submitted = Submission(key=lease.key, token=lease.token, result=result(True))
+        lab.catalog.submit(submitted)
+        assert "composition" not in json.loads(
+            lab.catalog.db.execute("SELECT result FROM pair WHERE key=?", (lease.key,)).fetchone()[0]
+        )
+        old_json = result(True).model_dump_json(exclude={"composition"})
+        lab.catalog.db.execute("UPDATE pair SET result=? WHERE key=?", (old_json, lease.key))
+        lab.catalog.db.commit()
+        lab.catalog.submit(submitted)
+        assert (
+            lab.catalog.db.execute("SELECT result FROM pair WHERE key=?", (lease.key,)).fetchone()[0]
+            == old_json
+        )
 
 
 class TestSharedInputBoundary:
