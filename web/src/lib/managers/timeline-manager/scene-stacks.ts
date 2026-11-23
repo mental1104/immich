@@ -3,6 +3,7 @@ import { updateGeometry } from '#lib/managers/timeline-manager/internal/layout-s
 import type { TimelineManager } from './timeline-manager.svelte.ts';
 import type { TimelineMonth } from './timeline-month.svelte.ts';
 import type { TimelineAsset } from './types.ts';
+import type { ViewerAsset } from './viewer-asset.svelte.ts';
 import type { TimeBucketAssetResponseDto } from '@immich/sdk';
 
 /** @param bucket 原生按列编码的桶。@param ids 保留的行ID。@returns 同步筛选全部列，保留null列与原生stack数据。 */
@@ -87,6 +88,53 @@ export class SceneStackSupport {
     }
   }
 
+  /** @param month 待布局月份。@returns 无返回值；仅把已展开成员连续放在封面后，不改真实拍摄日期。 */
+  arrange(month: TimelineMonth): void {
+    const scenes = this.loaded.get(month);
+    if (!scenes?.expanded.size) {
+      return;
+    }
+    const viewers = new Map(
+      month.timelineDays.flatMap((day) => day.viewerAssets.map((viewer) => [viewer.id, viewer] as const)),
+    );
+    const positions = new Map(scenes.source.id.map((id, index) => [id, index]));
+    const children = new Set<string>();
+    const afterCover = new Map<string, ViewerAsset[]>();
+    for (const group of scenes.groups) {
+      // 不完整的临时视图保持原样，不能因为封面缺失而把成员从界面丢掉。
+      if (!scenes.expanded.has(group.id) || !group.members.every((id) => viewers.has(id))) {
+        continue;
+      }
+      const members = group.members
+        .filter((id) => id !== group.coverId)
+        .sort((left, right) => positions.get(left)! - positions.get(right)!);
+      afterCover.set(
+        group.coverId,
+        members.map((id) => viewers.get(id)!),
+      );
+      members.forEach((id) => children.add(id));
+    }
+    for (const day of month.timelineDays) {
+      const ordered: ViewerAsset[] = [];
+      for (const viewer of day.viewerAssets) {
+        if (!children.has(viewer.id)) {
+          ordered.push(viewer, ...(afterCover.get(viewer.id) ?? []));
+        }
+      }
+      // 重复布局不反复替换响应式数组；跨天成员仅改变展示容器，真实日期仍保留。
+      if (
+        ordered.length !== day.viewerAssets.length ||
+        ordered.some((viewer, index) => viewer !== day.viewerAssets[index])
+      ) {
+        day.viewerAssets = ordered;
+      }
+    }
+    const days = month.timelineDays.filter((day) => day.viewerAssets.length > 0);
+    if (days.length !== month.timelineDays.length) {
+      month.timelineDays = days;
+    }
+  }
+
   /** @param cover 被点击的分组封面。@returns 是否处理了外层切换；普通照片返回false。 */
   toggle(cover: TimelineAsset): boolean {
     const month = this.manager.months.find((month) => month.getAssets().some((asset) => asset.id === cover.id));
@@ -101,9 +149,10 @@ export class SceneStackSupport {
       this.manager.hideSceneAssets(children);
     } else {
       scenes.expanded.add(group.id);
-      month.addAssets(selectSceneRows(scenes.source, new Set(children)), true);
+      month.addAssets(selectSceneRows(scenes.source, new Set(children)), false);
     }
     this.decorate(month);
+    this.arrange(month);
     this.manager.refreshLayout();
     return true;
   }
@@ -122,14 +171,12 @@ export class SceneStackSupport {
           continue;
         }
         dirty = true;
-        if (!scenes.expanded.has(group.id)) {
-          scenes.expanded.add(group.id);
-          month.addAssets(
-            selectSceneRows(scenes.source, new Set(group.members.filter((id) => id !== group.coverId))),
-            true,
-          );
-        }
+        // 先撤销外层约束，再把成员按真实日期重新插回；跨天展开也能恢复原来的日分组。
         scenes.groups = scenes.groups.filter((candidate) => candidate.id !== group.id);
+        scenes.expanded.delete(group.id);
+        const children = group.members.filter((id) => id !== group.coverId);
+        this.manager.hideSceneAssets(children);
+        month.addAssets(selectSceneRows(scenes.source, new Set(children)), false);
       }
       if (dirty) {
         this.decorate(month);

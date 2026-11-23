@@ -41,7 +41,8 @@
   );
 
   let scrollbarClass = $derived(scrollbar ? 'immich-scrollbar' : 'scrollbar-hidden');
-  let hasTitleClass = $derived(title ? 'top-16 h-[calc(100%-(--spacing(16)))]' : 'top-0 h-full');
+  // 只有操作按钮、没有标题的页面同样需要为工具栏预留空间。
+  let hasTitleClass = $derived(title || buttons ? 'top-16 h-[calc(100%-(--spacing(16)))]' : 'top-0 h-full');
 </script>
 
 <header>

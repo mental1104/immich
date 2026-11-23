@@ -2,7 +2,9 @@ import { TimelineManager } from '../timeline-manager.svelte';
 import type { TimelineMonth } from '../timeline-month.svelte';
 import type { UpdateGeometryOptions } from '../types';
 
+/** @param timelineManager 当前时间线。@param month 待布局月份。@param options 高度失效及延迟选项。@returns 无返回值，先恢复外层组邻接关系，再计算位置。 */
 export function updateGeometry(timelineManager: TimelineManager, month: TimelineMonth, options: UpdateGeometryOptions) {
+  timelineManager.sceneStacks.arrange(month);
   const { invalidateHeight, noDefer = false } = options;
   if (invalidateHeight) {
     month.isHeightActual = false;
