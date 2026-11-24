@@ -336,6 +336,7 @@
     <main class="relative h-dvh overflow-hidden px-2 pt-(--navbar-height) max-md:pt-(--navbar-height-md) md:px-6">
       <Timeline
         enableRouting={viewMode === AlbumPageViewMode.SELECT_ASSETS ? false : true}
+        enableAssetContextMenu={viewMode === AlbumPageViewMode.VIEW}
         {album}
         {albumUsers}
         bind:timelineManager

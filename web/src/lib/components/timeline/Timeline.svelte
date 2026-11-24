@@ -2,6 +2,7 @@
   import Thumbnail from '#lib/components/assets/thumbnail/Thumbnail.svelte';
   import Month from '#lib/components/timeline/Month.svelte';
   import Scrubber from '#lib/components/timeline/Scrubber.svelte';
+  import TimelineAssetContextMenu from '#lib/components/timeline/TimelineAssetContextMenu.svelte';
   import TimelineAssetViewer from '#lib/components/timeline/TimelineAssetViewer.svelte';
   import TimelineKeyboardActions from '#lib/components/timeline/actions/TimelineKeyboardActions.svelte';
   import { focusAsset } from '#lib/components/timeline/actions/focus-actions.ts';
@@ -11,6 +12,7 @@
   import Skeleton from '#lib/elements/Skeleton.svelte';
   import type { AssetMultiSelectManager } from '#lib/managers/asset-multi-select-manager.svelte.ts';
   import { assetViewerManager } from '#lib/managers/asset-viewer-manager.svelte.ts';
+  import { authManager } from '#lib/managers/auth-manager.svelte.ts';
   import { isIntersecting } from '#lib/managers/timeline-manager/internal/intersection-support.svelte.ts';
   import type { TimelineDay } from '#lib/managers/timeline-manager/timeline-day.svelte.ts';
   import { TimelineManager } from '#lib/managers/timeline-manager/timeline-manager.svelte.ts';
@@ -34,6 +36,8 @@
 
   interface Props {
     isSelectionMode?: boolean;
+    /** 仅在明确启用的普通浏览页替换单张右键菜单，专用选择器和分享链接不启用。 */
+    enableAssetContextMenu?: boolean;
     singleSelect?: boolean;
     /** `true` if this asset grid is responds to navigation events; if `true`, then look at the
     `AssetViewingStore.gridScrollTarget` and load and scroll to the asset specified, and
@@ -69,6 +73,7 @@
 
   let {
     isSelectionMode = false,
+    enableAssetContextMenu = false,
     singleSelect = false,
     enableRouting,
     timelineManager = $bindable(),
@@ -88,6 +93,8 @@
     customThumbnailLayout,
     onThumbnailClick,
   }: Props = $props();
+
+  let assetContextMenu = $state<ReturnType<typeof TimelineAssetContextMenu>>();
 
   timelineManager = new TimelineManager();
   onDestroy(() => timelineManager.destroy());
@@ -560,6 +567,10 @@
   };
 </script>
 
+{#if enableAssetContextMenu && !isSelectionMode && authManager.authenticated && !authManager.isSharedLink}
+  <TimelineAssetContextMenu bind:this={assetContextMenu} {album} />
+{/if}
+
 <HotModuleReload
   onAfterUpdate={() => {
     const asset = page.url.searchParams.get('at');
@@ -673,6 +684,9 @@
                 {asset}
                 {albumUsers}
                 {groupIndex}
+                onContextMenu={enableAssetContextMenu && !isSelectionMode
+                  ? (event, asset) => void assetContextMenu?.show(event, asset)
+                  : undefined}
                 onSceneToggle={() => timelineManager.sceneStacks.toggle(asset)}
                 onClick={(asset) => {
                   if (

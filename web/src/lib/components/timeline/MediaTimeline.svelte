@@ -130,6 +130,7 @@
 >
   <Timeline
     enableRouting={true}
+    enableAssetContextMenu={assetType === AssetTypeEnum.Image}
     bind:timelineManager
     {options}
     assetInteraction={assetMultiSelectManager}

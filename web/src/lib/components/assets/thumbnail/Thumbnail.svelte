@@ -24,9 +24,9 @@
     mdiRotate360,
   } from '@mdi/js';
   import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
   import type { ClassValue } from 'svelte/elements';
   import { fade } from 'svelte/transition';
-  import { t } from 'svelte-i18n';
   import ImageThumbnail from './ImageThumbnail.svelte';
   import VideoThumbnail from './VideoThumbnail.svelte';
 
@@ -50,6 +50,8 @@
     onPreview?: (asset: TimelineAsset) => void;
     onSelect?: (asset: TimelineAsset) => void;
     onMouseEvent?: (event: { isMouseOver: boolean; selectedGroupIndex: number }) => void;
+    /** 右键命中的单张快照；回调负责决定是否替换浏览器菜单，不更改勾选状态。 */
+    onContextMenu?: (event: MouseEvent, asset: TimelineAsset) => void;
     /** 点击外层徽标，仅展开或收起相似场景组。 */
     onSceneToggle?: () => void;
   }
@@ -72,6 +74,7 @@
     onPreview = undefined,
     onSelect = undefined,
     onMouseEvent = undefined,
+    onContextMenu,
     onSceneToggle = undefined,
     imageClass = '',
     brokenAssetClass = '',
@@ -152,6 +155,8 @@
   function longPress(element: HTMLElement, { onLongPress }: { onLongPress: () => void }) {
     let didPress = false;
     const start = (evt: PointerEvent) => {
+      // 右键和中键只执行自身操作，不能启动350ms后的长按选择。
+      if (evt.button !== 0) return;
       startX = evt.clientX;
       startY = evt.clientY;
       didPress = false;
@@ -220,6 +225,9 @@
   style:height="{height}px"
   onmouseenter={onMouseEnter}
   onmouseleave={onMouseLeave}
+  oncontextmenu={(event) => {
+    if (!disabled) onContextMenu?.(event, $state.snapshot(asset));
+  }}
   use:longPress={{ onLongPress: () => onSelect?.($state.snapshot(asset)) }}
   onkeydown={(evt) => {
     if (evt.key === 'Enter') {
