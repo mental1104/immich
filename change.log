@@ -1,3 +1,13 @@
+## 2026-11-24：接入个人 Remmich 客户端子模块
+
+- 来源：codex/feature-remmich-client，从本地dev e69e65fba创建；官方稳定基线v3.4.2，未同步服务端上游。
+- 接入：mental1104/Remmich为Ender-Wang/Remmich的Fork，main保留上游，默认开发/构建分支dev；clients/remmich跟踪dev并固定79d3e17。先推子仓库、后更新父gitlink。
+- 客户端：前台原片备份/视频/Live Photo配对与校验和查重；收藏、归档、描述、回收站/恢复；相簿创建/重命名/删除及成员管理；官方无损旋转/镜像/像素裁剪；Fork相簿大组/分组筛选。后续由NAS主导需求/API联调，Swift改动交Mac处理，交接见docs/remmich-client-handoff.md。
+- 兼容：没有修改server/web/mobile/API/DTO/数据库迁移，也没有改变生产容器；官方客户端契约不变。新增不兼容需求必须走独立鉴权fork API；不执行永久媒体删除或覆盖原图。没有使用真实生产媒体作写入测试。
+- 验证：子仓库签名app/test构建和iPhone 15 Pro安装/启动成功（0.7.1 build 5）；八组离线契约检查和格式检查通过。实机定向35项通过、1个参数化地名路由测试失败；79d3e17已修复误取消自建地名请求的逻辑，完整回归待CI确认，不得记为全部通过。父仓库核对.gitmodules、gitlink及限定diff；没有重建服务端。
+- 发布边界：原媒体AI工作区52项未提交状态未动。接入前本地dev比origin/dev已有423个提交，本次不将这些历史自动公开推送；本地合入dev，远端发布范围交NAS继续核实确认。
+- 回退：在独立分支revert本次父仓库接入提交，或恢复此前gitlink；不需要数据库回滚。没有服务端生产发布。
+
 ## 2026-11-23：移除相簿结果区重复分组与折叠控件
 
 - 来源：codex/fix-album-flat-results，从dev 618f86630创建；官方基线v3.4.2，没有同步上游。
