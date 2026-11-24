@@ -5,7 +5,7 @@
 ## 仓库与分支
 
 - 服务端仓库：git@github.com:mental1104/immich.git。NAS 主目录 `/volume2/code/apps/immich-nas-dev`，底层路径可能显示为 `/volume2/workflow/code/apps/immich-nas-dev`。先读 `/volume2/code/AGENTS.md`、仓库 AGENTS.md、`.agents/skills/immich-fork-development/SKILL.md` 和 change.log。
-- 服务端 main 继续只同步官方稳定版本；dev 维护个人功能和构建，正常合入 main，保留历史。不要把 Immich 官方开发 main 强行当稳定基线。
+- 服务端 main 继续只同步官方稳定版本；dev 维护个人功能和构建，个人功能不反向合入 main，保留历史。不要把 Immich 官方开发 main 强行当稳定基线。
 - 本次接入独立工作区 `/volume2/code/worktrees/immich-nas-dev/remmich-client`。以这里当前 dev、change.log、git status 和 git log 的实际结果为准。
 - 原服务端目录在 `codex/feature-media-ai-analysis`，有约 52 项已有未提交变更，不能 checkout/reset/stash/覆盖，更不能当成本次可发布代码。其他 registered worktree 同样保留。
 - 客户端 Fork 已建立：https://github.com/mental1104/Remmich 。upstream 是 Ender-Wang/Remmich，main=672f02e（本次核实的上游），默认开发/构建分支为小写 dev。第一批功能 7c98098，地名回归修复 79d3e17；执行时重新核实最新提交。
@@ -30,6 +30,8 @@
 - 详细矩阵与安全边界：子模块内 `docs/fork-compatibility.md`、`docs/fork-security.md`、change.log、AGENTS.md。
 
 ## 验证现状与必须继续跟进的事项
+
+- NAS 于 2026-11-24 接手复核：79d3e17 的 Build 因 runner 无 iPhone 17 Pro 模拟器失败；Tests 在 Build 成功门禁停止，未运行回归。证据、当前基线与 Mac 任务见 [接手核查](remmich-maintenance-audit.md)。
 
 - Mac 的设备目标编译、签名 app/test 构建成功；安装和启动已实际验证。
 - `bash Scripts/check-fork-contracts.sh` 的八组离线契约检查通过，不访问真实图库；格式检查通过。

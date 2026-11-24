@@ -1,3 +1,11 @@
+## 2026-11-24：Remmich 协同维护接手与 CI 阻断核查
+
+- 来源：codex/docs-remmich-maintenance-audit，从本地 dev d7c6519a8 创建；继承官方 v3.4.2，未同步上游。
+- 文档：新增 docs/remmich-maintenance-audit.md，记录实际 Git/生产容器只读状态、CI 证据和 Mac 修复任务；修正交接文档中个人功能合入 main 的冲突描述。
+- 验证：Git 状态、远端分支 ls-remote、Docker inspect、GitHub job steps 与 Build 日志已读取。79d3e17 格式与离线契约检查在 CI 成功；目标 iPhone 17 Pro 不可用导致 Build 失败，Tests 门禁失败，完整回归未验证。
+- 影响：无可执行代码、HTTP/API、数据库或客户端 gitlink 改动；未修改 workflow、未推送、未部署生产。后续备份/搜索与官方手机共存仍待隔离验收。
+- 回退：撤销本次文档改动即可，无数据回退。
+
 ## 2026-11-24：接入个人 Remmich 客户端子模块
 
 - 来源：codex/feature-remmich-client，从本地dev e69e65fba创建；官方稳定基线v3.4.2，未同步服务端上游。
